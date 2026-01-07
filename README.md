@@ -33,6 +33,7 @@ $env:ConnectionStrings__Sobee = "Server=localhost,1433;Database=sobee;User Id=sa
 ```
 
 If the env var is not set, the API falls back to the value in `sobee_API/sobee_API/appsettings.json`.
+Update the placeholder `<password>` in that file for local use if needed (do not commit real passwords).
 
 ## Verify connectivity
 
