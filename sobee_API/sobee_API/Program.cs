@@ -5,6 +5,7 @@ using Microsoft.OpenApi.Models;
 using Sobee.Domain.Data;
 using Sobee.Domain.Identity;
 using sobee_API.Services;
+using System.Collections.Generic;
 
 namespace sobee_API
 {
@@ -164,11 +165,45 @@ namespace sobee_API
             // Map standard controllers
             app.MapControllers();
 
-            if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Admin:SeedEnabled"))
+            var logger = app.Services.GetRequiredService<ILogger<Program>>();
+            var seedEnabled = app.Configuration.GetValue<bool>("Admin:SeedEnabled");
+            if (app.Environment.IsDevelopment() && seedEnabled)
             {
-                using var scope = app.Services.CreateScope();
-                var seeder = scope.ServiceProvider.GetRequiredService<AdminSeedService>();
-                await seeder.SeedAsync();
+                var missingKeys = new List<string>();
+                if (string.IsNullOrWhiteSpace(app.Configuration["Admin:Email"]))
+                {
+                    missingKeys.Add("Admin:Email");
+                }
+
+                if (string.IsNullOrWhiteSpace(app.Configuration["Admin:Password"]))
+                {
+                    missingKeys.Add("Admin:Password");
+                }
+
+                if (missingKeys.Count > 0)
+                {
+                    foreach (var key in missingKeys)
+                    {
+                        logger.LogWarning("Admin seeding skipped: {MissingKey} missing.", key);
+                    }
+                }
+                else
+                {
+                    try
+                    {
+                        using var scope = app.Services.CreateScope();
+                        var seeder = scope.ServiceProvider.GetRequiredService<AdminSeedService>();
+                        await seeder.SeedAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(ex, "Admin seeding failed.");
+                    }
+                }
+            }
+            else
+            {
+                logger.LogInformation("Admin seeding skipped: environment is not Development or Admin:SeedEnabled is false.");
             }
 
             app.Run();

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Sobee.Domain.Identity;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace sobee_API.Services
@@ -27,76 +28,99 @@ namespace sobee_API.Services
 
         public async Task SeedAsync()
         {
-            await EnsureRoleAsync(AdminRoleName);
-            await EnsureRoleAsync(CustomerRoleName);
-
             var email = _configuration["Admin:Email"];
             var password = _configuration["Admin:Password"];
             var firstName = _configuration["Admin:FirstName"];
             var lastName = _configuration["Admin:LastName"];
 
-            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+            var missingKeys = new List<string>();
+            if (string.IsNullOrWhiteSpace(email))
             {
-                _logger.LogWarning("Admin seeding skipped because Admin:Email or Admin:Password is not configured.");
+                missingKeys.Add("Admin:Email");
+            }
+
+            if (string.IsNullOrWhiteSpace(password))
+            {
+                missingKeys.Add("Admin:Password");
+            }
+
+            if (missingKeys.Count > 0)
+            {
+                foreach (var key in missingKeys)
+                {
+                    _logger.LogWarning("Admin seeding skipped: {MissingKey} missing.", key);
+                }
                 return;
             }
 
-            var user = await _userManager.FindByEmailAsync(email);
-            if (user == null)
+            try
             {
-                user = new ApplicationUser
-                {
-                    UserName = email,
-                    Email = email,
-                    strFirstName = firstName,
-                    strLastName = lastName,
-                    EmailConfirmed = true
-                };
+                await EnsureRoleAsync(AdminRoleName);
+                await EnsureRoleAsync(CustomerRoleName);
 
-                var createResult = await _userManager.CreateAsync(user, password);
-                if (!createResult.Succeeded)
+                var user = await _userManager.FindByEmailAsync(email);
+                if (user == null)
                 {
-                    var errors = string.Join(", ", createResult.Errors.Select(error => error.Description));
-                    _logger.LogError("Failed to create admin user: {Errors}", errors);
-                    return;
-                }
-
-                _logger.LogInformation("Created admin user {Email}.", email);
-            }
-            else
-            {
-                var shouldUpdate = false;
-                if (!string.IsNullOrWhiteSpace(firstName) && user.strFirstName != firstName)
-                {
-                    user.strFirstName = firstName;
-                    shouldUpdate = true;
-                }
-
-                if (!string.IsNullOrWhiteSpace(lastName) && user.strLastName != lastName)
-                {
-                    user.strLastName = lastName;
-                    shouldUpdate = true;
-                }
-
-                if (shouldUpdate)
-                {
-                    var updateResult = await _userManager.UpdateAsync(user);
-                    if (!updateResult.Succeeded)
+                    user = new ApplicationUser
                     {
-                        var errors = string.Join(", ", updateResult.Errors.Select(error => error.Description));
-                        _logger.LogError("Failed to update admin user profile: {Errors}", errors);
+                        UserName = email,
+                        Email = email,
+                        strFirstName = firstName,
+                        strLastName = lastName,
+                        EmailConfirmed = true
+                    };
+
+                    var createResult = await _userManager.CreateAsync(user, password);
+                    if (!createResult.Succeeded)
+                    {
+                        var errors = string.Join(", ", createResult.Errors.Select(error => error.Description));
+                        _logger.LogError("Failed to create admin user: {Errors}", errors);
+                        return;
+                    }
+
+                    _logger.LogInformation("Created admin user {Email}.", email);
+                }
+                else
+                {
+                    var shouldUpdate = false;
+                    if (!string.IsNullOrWhiteSpace(firstName) && user.strFirstName != firstName)
+                    {
+                        user.strFirstName = firstName;
+                        shouldUpdate = true;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(lastName) && user.strLastName != lastName)
+                    {
+                        user.strLastName = lastName;
+                        shouldUpdate = true;
+                    }
+
+                    if (shouldUpdate)
+                    {
+                        var updateResult = await _userManager.UpdateAsync(user);
+                        if (!updateResult.Succeeded)
+                        {
+                            var errors = string.Join(", ", updateResult.Errors.Select(error => error.Description));
+                            _logger.LogError("Failed to update admin user profile: {Errors}", errors);
+                        }
                     }
                 }
-            }
 
-            if (!await _userManager.IsInRoleAsync(user, AdminRoleName))
-            {
-                var roleResult = await _userManager.AddToRoleAsync(user, AdminRoleName);
-                if (!roleResult.Succeeded)
+                if (!await _userManager.IsInRoleAsync(user, AdminRoleName))
                 {
-                    var errors = string.Join(", ", roleResult.Errors.Select(error => error.Description));
-                    _logger.LogError("Failed to assign admin role: {Errors}", errors);
+                    var roleResult = await _userManager.AddToRoleAsync(user, AdminRoleName);
+                    if (!roleResult.Succeeded)
+                    {
+                        var errors = string.Join(", ", roleResult.Errors.Select(error => error.Description));
+                        _logger.LogError("Failed to assign admin role: {Errors}", errors);
+                    }
                 }
+
+                _logger.LogInformation("Admin seeding completed.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Admin seeding failed.");
             }
         }
 
