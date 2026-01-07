@@ -12,6 +12,6 @@ namespace Sobee.Domain.Identity {
         public DateTime LastLoginDate { get; set; } = DateTime.Now;
    
 
-        public virtual ICollection<TshoppingCart> ShoppingCarts { get; set; }
+      //  public virtual ICollection<TshoppingCart> ShoppingCarts { get; set; }
     }
 }
