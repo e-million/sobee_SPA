@@ -98,13 +98,13 @@ Register a new user:
 ```bash
 curl -X POST http://localhost:<api-port>/register \\
   -H "Content-Type: application/json" \\
-  -d '{\"email\":\"user@example.com\",\"password\":\"ChangeMe123!\"}'
+  -d '{\"email\":\"user@example.com\",\"password\":\"ChangeMe123!\",\"firstName\":\"Test\",\"lastName\":\"User\"}'
 ```
 
-Login to receive a bearer token:
+Login to receive a bearer token (Identity endpoints are under `/identity`):
 
 ```bash
-curl -X POST http://localhost:<api-port>/login \\
+curl -X POST http://localhost:<api-port>/identity/login \\
   -H "Content-Type: application/json" \\
   -d '{\"email\":\"admin@example.com\",\"password\":\"ChangeMe123!\"}'
 ```
@@ -112,7 +112,7 @@ curl -X POST http://localhost:<api-port>/login \\
 PowerShell login example:
 
 ```powershell
-$response = Invoke-RestMethod -Method Post -Uri http://localhost:<api-port>/login `
+$response = Invoke-RestMethod -Method Post -Uri http://localhost:<api-port>/identity/login `
   -ContentType "application/json" `
   -Body '{"email":"admin@example.com","password":"ChangeMe123!"}'
 $token = $response.accessToken

@@ -152,8 +152,9 @@ namespace sobee_API
             // 5. ENDPOINTS
             // ==========================================
 
-            // Expose the Identity endpoints (/register, /login, /refresh)
-            app.MapIdentityApi<ApplicationUser>();
+            // Expose the Identity endpoints under /identity (/identity/login, /identity/refresh, ...)
+            app.MapGroup("/identity")
+                .MapIdentityApi<ApplicationUser>();
 
             // A test endpoint to verify your token is working
             app.MapGet("/api/secure-test", (System.Security.Claims.ClaimsPrincipal user) =>
