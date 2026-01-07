@@ -4,12 +4,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using Sobee.Domain.Data;
 using Sobee.Domain.Identity;
+using sobee_API.Services;
 
 namespace sobee_API
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
 
@@ -88,6 +89,7 @@ namespace sobee_API
             // Enable Authorization (allows use of [Authorize] attribute)
             builder.Services.AddAuthorization();
 
+            builder.Services.AddScoped<AdminSeedService>();
 
             // ==========================================
             // 3. API & SWAGGER CONFIGURATION
@@ -161,6 +163,13 @@ namespace sobee_API
 
             // Map standard controllers
             app.MapControllers();
+
+            if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Admin:SeedEnabled"))
+            {
+                using var scope = app.Services.CreateScope();
+                var seeder = scope.ServiceProvider.GetRequiredService<AdminSeedService>();
+                await seeder.SeedAsync();
+            }
 
             app.Run();
         }

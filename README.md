@@ -48,3 +48,66 @@ A successful response looks like:
 ```json
 { "status": "ok", "db": true }
 ```
+
+## Development admin seeding and role-based auth
+
+The API seeds an initial Admin user and the `Admin`/`Customer` roles on startup in Development
+(or when `Admin:SeedEnabled=true` is set). Provide the admin credentials via configuration or
+environment variables:
+
+```bash
+export Admin__Email="admin@example.com"
+export Admin__Password="ChangeMe123!"
+export Admin__FirstName="Dev"
+export Admin__LastName="Admin"
+```
+
+PowerShell:
+
+```powershell
+$env:Admin__Email = "admin@example.com"
+$env:Admin__Password = "ChangeMe123!"
+$env:Admin__FirstName = "Dev"
+$env:Admin__LastName = "Admin"
+```
+
+### Register and login with Identity endpoints
+
+Register a new user:
+
+```bash
+curl -X POST http://localhost:<api-port>/register \\
+  -H "Content-Type: application/json" \\
+  -d '{\"email\":\"user@example.com\",\"password\":\"ChangeMe123!\"}'
+```
+
+Login to receive a bearer token:
+
+```bash
+curl -X POST http://localhost:<api-port>/login \\
+  -H "Content-Type: application/json" \\
+  -d '{\"email\":\"admin@example.com\",\"password\":\"ChangeMe123!\"}'
+```
+
+PowerShell login example:
+
+```powershell
+$response = Invoke-RestMethod -Method Post -Uri http://localhost:<api-port>/login `
+  -ContentType "application/json" `
+  -Body '{"email":"admin@example.com","password":"ChangeMe123!"}'
+$token = $response.accessToken
+```
+
+### Call the admin-only endpoint
+
+```bash
+curl http://localhost:<api-port>/api/admin/ping \\
+  -H "Authorization: Bearer <access_token>"
+```
+
+PowerShell:
+
+```powershell
+Invoke-RestMethod -Method Get -Uri http://localhost:<api-port>/api/admin/ping `
+  -Headers @{ Authorization = "Bearer $token" }
+```
