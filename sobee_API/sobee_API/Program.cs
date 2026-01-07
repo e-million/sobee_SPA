@@ -203,7 +203,7 @@ namespace sobee_API
             }
             else
             {
-                logger.LogInformation("Admin seeding skipped: environment is not Development or Admin:SeedEnabled is false.");
+                logger.LogInformation("Admin seeding disabled.");
             }
 
             app.Run();

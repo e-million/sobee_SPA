@@ -32,6 +32,8 @@ namespace sobee_API.Services
             var password = _configuration["Admin:Password"];
             var firstName = _configuration["Admin:FirstName"];
             var lastName = _configuration["Admin:LastName"];
+            var billingAddress = _configuration["Admin:BillingAddress"];
+            var shippingAddress = _configuration["Admin:ShippingAddress"];
 
             var missingKeys = new List<string>();
             if (string.IsNullOrWhiteSpace(email))
@@ -65,8 +67,10 @@ namespace sobee_API.Services
                     {
                         UserName = email,
                         Email = email,
-                        strFirstName = firstName,
-                        strLastName = lastName,
+                        strFirstName = string.IsNullOrWhiteSpace(firstName) ? "Admin" : firstName,
+                        strLastName = string.IsNullOrWhiteSpace(lastName) ? "User" : lastName,
+                        strBillingAddress = string.IsNullOrWhiteSpace(billingAddress) ? "N/A" : billingAddress,
+                        strShippingAddress = string.IsNullOrWhiteSpace(shippingAddress) ? "N/A" : shippingAddress,
                         EmailConfirmed = true
                     };
 
@@ -92,6 +96,18 @@ namespace sobee_API.Services
                     if (!string.IsNullOrWhiteSpace(lastName) && user.strLastName != lastName)
                     {
                         user.strLastName = lastName;
+                        shouldUpdate = true;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(billingAddress) && user.strBillingAddress != billingAddress)
+                    {
+                        user.strBillingAddress = billingAddress;
+                        shouldUpdate = true;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(shippingAddress) && user.strShippingAddress != shippingAddress)
+                    {
+                        user.strShippingAddress = shippingAddress;
                         shouldUpdate = true;
                     }
 

@@ -52,14 +52,19 @@ A successful response looks like:
 ## Development admin seeding and role-based auth
 
 The API seeds an initial Admin user and the `Admin`/`Customer` roles on startup in Development
-(or when `Admin:SeedEnabled=true` is set). Provide the admin credentials via configuration or
-environment variables:
+only when `Admin:SeedEnabled=true` is set. The ApplicationUser fields for name and addresses are
+NOT NULL in the database, so the seed values below are required to avoid insert failures.
+
+Provide the admin credentials via configuration or environment variables:
 
 ```bash
 export Admin__Email="admin@example.com"
 export Admin__Password="ChangeMe123!"
 export Admin__FirstName="Dev"
 export Admin__LastName="Admin"
+export Admin__BillingAddress="N/A"
+export Admin__ShippingAddress="N/A"
+export Admin__SeedEnabled="true"
 ```
 
 PowerShell:
@@ -69,6 +74,21 @@ $env:Admin__Email = "admin@example.com"
 $env:Admin__Password = "ChangeMe123!"
 $env:Admin__FirstName = "Dev"
 $env:Admin__LastName = "Admin"
+$env:Admin__BillingAddress = "N/A"
+$env:Admin__ShippingAddress = "N/A"
+$env:Admin__SeedEnabled = "true"
+```
+
+PowerShell user-secrets (run from `sobee_API/sobee_API`):
+
+```powershell
+dotnet user-secrets set "Admin:SeedEnabled" "true"
+dotnet user-secrets set "Admin:Email" "admin@example.com"
+dotnet user-secrets set "Admin:Password" "ChangeMe123!"
+dotnet user-secrets set "Admin:FirstName" "Dev"
+dotnet user-secrets set "Admin:LastName" "Admin"
+dotnet user-secrets set "Admin:BillingAddress" "N/A"
+dotnet user-secrets set "Admin:ShippingAddress" "N/A"
 ```
 
 ### Register and login with Identity endpoints
