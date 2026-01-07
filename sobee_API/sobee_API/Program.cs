@@ -33,8 +33,11 @@ namespace sobee_API
             // ==========================================
             // Connects to SQL Server using the "Sobee" string from appsettings.json
             // 1. DATABASE CONNECTION
-            var connectionString = builder.Configuration.GetConnectionString("Sobee")
-                ?? throw new InvalidOperationException("Connection string 'Sobee' not found.");
+            var envConnectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Sobee");
+            var connectionString = !string.IsNullOrWhiteSpace(envConnectionString)
+                ? envConnectionString
+                : builder.Configuration.GetConnectionString("Sobee")
+                    ?? throw new InvalidOperationException("Connection string 'Sobee' not found.");
 
             // Register the Identity DbContext (ApplicationDbContext) with the DI container.
             // - Tells ASP.NET Core: "Whenever something needs ApplicationDbContext, create one using this config."
