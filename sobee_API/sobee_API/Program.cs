@@ -9,7 +9,7 @@ namespace sobee_API
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
 
@@ -80,6 +80,9 @@ namespace sobee_API
             .AddDefaultTokenProviders()               // Generates tokens for password reset, email confirmation
             .AddApiEndpoints();                       //  CRITICAL: Enables the new Identity API endpoints
 
+            builder.Services.AddHostedService<sobee_API.Services.RoleSeedService>();
+
+
             // Configure Authentication to use Bearer Tokens (JWT)
             // This allows the API to read the "Authorization: Bearer <token>" header
             builder.Services.AddAuthentication()
@@ -125,6 +128,14 @@ namespace sobee_API
             });
 
             var app = builder.Build();
+
+            // Seed roles/admin user (dev-only / gated by config)
+            await sobee_API.Services.IdentitySeedService.SeedAsync(
+                app.Services,
+                app.Configuration,
+                app.Logger
+            );
+
 
             // ==========================================
             // 4. HTTP REQUEST PIPELINE (Middleware)
