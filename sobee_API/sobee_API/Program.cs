@@ -80,6 +80,9 @@ namespace sobee_API
             .AddDefaultTokenProviders()               // Generates tokens for password reset, email confirmation
             .AddApiEndpoints();                       //  CRITICAL: Enables the new Identity API endpoints
 
+            builder.Services.AddHostedService<sobee_API.Services.RoleSeedService>();
+
+
             // Configure Authentication to use Bearer Tokens (JWT)
             // This allows the API to read the "Authorization: Bearer <token>" header
             builder.Services.AddAuthentication()
