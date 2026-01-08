@@ -1,6 +1,49 @@
-@sobee_API_HostAddress = http://localhost:5029
+@baseUrl = http://localhost:5029
+@sessionId = d1c1b727-789b-4ba0-87d3-73201298b499 
 
-GET {{sobee_API_HostAddress}}/weatherforecast/
+
+### --------------------------------------------------
+### 1) GET CART (guest)
+### --------------------------------------------------
+GET {{baseUrl}}/api/cart
 Accept: application/json
 
-###
+
+### --------------------------------------------------
+### 2) ADD ITEM TO CART (guest)
+### --------------------------------------------------
+POST {{baseUrl}}/api/cart/items
+Content-Type: application/json
+X-Session-Id: {{sessionId}}
+
+{
+  "productId": 1,
+  "quantity": 2
+}
+
+
+### --------------------------------------------------
+### 3) UPDATE CART ITEM QUANTITY
+### (replace cartItemId with a real ID from GET cart)
+### --------------------------------------------------
+PUT {{baseUrl}}/api/cart/items/1
+Content-Type: application/json
+X-Session-Id: {{sessionId}}
+
+{
+  "quantity": 5
+}
+
+
+### --------------------------------------------------
+### 4) REMOVE SINGLE CART ITEM
+### --------------------------------------------------
+DELETE {{baseUrl}}/api/cart/items/1
+X-Session-Id: {{sessionId}}
+
+
+### --------------------------------------------------
+### 5) CLEAR ENTIRE CART
+### --------------------------------------------------
+DELETE {{baseUrl}}/api/cart
+X-Session-Id: {{sessionId}}
