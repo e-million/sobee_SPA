@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Sobee.Domain.Data;
 
@@ -15,11 +16,34 @@ public class ProductsController : ControllerBase
         _db = db;
     }
 
+    // =========================================================
+    // 1) GET ALL PRODUCTS
+    //    Optional query params:
+    //      - search: substring match on name
+    //      - minPrice, maxPrice
+    // =========================================================
     [HttpGet]
-    public async Task<IActionResult> GetAll()
+    public async Task<IActionResult> GetAll(
+        [FromQuery] string? search = null,
+        [FromQuery] decimal? minPrice = null,
+        [FromQuery] decimal? maxPrice = null)
     {
-        var products = await _db.Tproducts
-            .AsNoTracking()
+        var query = _db.Tproducts.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            query = query.Where(p => p.StrName.Contains(s));
+        }
+
+        if (minPrice.HasValue)
+            query = query.Where(p => p.DecPrice >= minPrice.Value);
+
+        if (maxPrice.HasValue)
+            query = query.Where(p => p.DecPrice <= maxPrice.Value);
+
+        var products = await query
+            .OrderBy(p => p.IntProductId)
             .Select(p => new
             {
                 Id = p.IntProductId,
@@ -33,6 +57,9 @@ public class ProductsController : ControllerBase
         return Ok(products);
     }
 
+    // =========================================================
+    // 2) GET PRODUCT BY ID
+    // =========================================================
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById(int id)
     {
@@ -50,8 +77,160 @@ public class ProductsController : ControllerBase
             .FirstOrDefaultAsync();
 
         if (product == null)
-            return NotFound();
+            return NotFound(new { error = "Product not found." });
 
         return Ok(product);
+    }
+
+    // =========================================================
+    // 3) CREATE PRODUCT (ADMIN ONLY)
+    // =========================================================
+    [HttpPost]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> Create([FromBody] CreateProductRequest request)
+    {
+        // Basic validation (avoid silent bad data)
+        if (request == null)
+            return BadRequest(new { error = "Request body is required." });
+
+        if (string.IsNullOrWhiteSpace(request.Name))
+            return BadRequest(new { error = "Name is required." });
+
+        if (string.IsNullOrWhiteSpace(request.Description))
+            return BadRequest(new { error = "Description is required." });
+
+        if (request.Price < 0)
+            return BadRequest(new { error = "Price must be 0 or greater." });
+
+        if (string.IsNullOrWhiteSpace(request.Stock))
+            return BadRequest(new { error = "Stock is required (string in current schema)." });
+
+        // Create entity
+        var entity = new Sobee.Domain.Entities.Products.Tproduct
+        {
+            StrName = request.Name.Trim(),
+            strDescription = request.Description.Trim(),
+            DecPrice = request.Price,
+            StrStockAmount = request.Stock.Trim()
+        };
+
+        _db.Tproducts.Add(entity);
+        await _db.SaveChangesAsync();
+
+        // Return 201 + route to new resource
+        return CreatedAtAction(nameof(GetById), new { id = entity.IntProductId }, new
+        {
+            Id = entity.IntProductId,
+            Name = entity.StrName,
+            Description = entity.strDescription,
+            Price = entity.DecPrice,
+            Stock = entity.StrStockAmount
+        });
+    }
+
+    // =========================================================
+    // 4) UPDATE PRODUCT (ADMIN ONLY)
+    // =========================================================
+    [HttpPut("{id:int}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> Update(int id, [FromBody] UpdateProductRequest request)
+    {
+        if (request == null)
+            return BadRequest(new { error = "Request body is required." });
+
+        // Find product (tracked)
+        var entity = await _db.Tproducts.FirstOrDefaultAsync(p => p.IntProductId == id);
+        if (entity == null)
+            return NotFound(new { error = "Product not found." });
+
+        // Apply only provided fields (PATCH-like behavior but via PUT)
+        if (request.Name != null)
+        {
+            if (string.IsNullOrWhiteSpace(request.Name))
+                return BadRequest(new { error = "Name cannot be empty." });
+
+            entity.StrName = request.Name.Trim();
+        }
+
+        if (request.Description != null)
+        {
+            if (string.IsNullOrWhiteSpace(request.Description))
+                return BadRequest(new { error = "Description cannot be empty." });
+
+            entity.strDescription = request.Description.Trim();
+        }
+
+        if (request.Price.HasValue)
+        {
+            if (request.Price.Value < 0)
+                return BadRequest(new { error = "Price must be 0 or greater." });
+
+            entity.DecPrice = request.Price.Value;
+        }
+
+        if (request.Stock != null)
+        {
+            if (string.IsNullOrWhiteSpace(request.Stock))
+                return BadRequest(new { error = "Stock cannot be empty." });
+
+            entity.StrStockAmount = request.Stock.Trim();
+        }
+
+        await _db.SaveChangesAsync();
+
+        return Ok(new
+        {
+            Id = entity.IntProductId,
+            Name = entity.StrName,
+            Description = entity.strDescription,
+            Price = entity.DecPrice,
+            Stock = entity.StrStockAmount
+        });
+    }
+
+    // =========================================================
+    // 5) DELETE PRODUCT (ADMIN ONLY)
+    // =========================================================
+    [HttpDelete("{id:int}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var entity = await _db.Tproducts.FirstOrDefaultAsync(p => p.IntProductId == id);
+        if (entity == null)
+            return NotFound(new { error = "Product not found." });
+
+        _db.Tproducts.Remove(entity);
+        await _db.SaveChangesAsync();
+
+        // 200 with a small payload helps debugging/tests
+        return Ok(new { deleted = true, id });
+    }
+
+    // =========================================================
+    // Request DTOs
+    // Keep them inside controller file to avoid extra files right now.
+    // =========================================================
+    public class CreateProductRequest
+    {
+        // Required
+        public string Name { get; set; } = string.Empty;
+
+        // Required
+        public string Description { get; set; } = string.Empty;
+
+        // Required
+        public decimal Price { get; set; }
+
+        // Required (current DB schema stores stock as string)
+        public string Stock { get; set; } = string.Empty;
+    }
+
+    public class UpdateProductRequest
+    {
+        // Optional fields. Only those provided are updated.
+        public string? Name { get; set; }
+        public string? Description { get; set; }
+        public decimal? Price { get; set; }
+        public string? Stock { get; set; }
     }
 }
