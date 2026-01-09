@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 using Sobee.Domain.Data;
 using Sobee.Domain.Entities.Cart;
 using sobee_API.Services;
-using System.Security.Claims;
 
 namespace sobee_API.Controllers
 {
@@ -14,11 +13,16 @@ namespace sobee_API.Controllers
     {
         private readonly SobeecoredbContext _db;
         private readonly GuestSessionService _guestSessionService;
+        private readonly RequestIdentityResolver _identityResolver;
 
-        public CartController(SobeecoredbContext db, GuestSessionService guestSessionService)
+        public CartController(
+            SobeecoredbContext db,
+            GuestSessionService guestSessionService,
+            RequestIdentityResolver identityResolver)
         {
             _db = db;
             _guestSessionService = guestSessionService;
+            _identityResolver = identityResolver;
         }
 
         // ---------------------------------------------
@@ -51,8 +55,8 @@ namespace sobee_API.Controllers
                 return errorResult;
             }
 
-            var cart = await GetOrCreateCartAsync(identity!.UserId, identity.SessionId, identity.CanMergeGuestSession);
-            return Ok(ProjectCart(cart, identity.UserId, identity.SessionId));
+            var cart = await GetOrCreateCartAsync(identity!.UserId, identity.GuestSessionId, identity.GuestSessionValidated);
+            return Ok(ProjectCart(cart, identity.UserId, identity.GuestSessionId));
         }
 
         // ---------------------------------------------
@@ -85,7 +89,7 @@ namespace sobee_API.Controllers
             if (!productExists)
                 return NotFound(new { error = $"Product {request.ProductId} not found." });
 
-            var cart = await GetOrCreateCartAsync(identity!.UserId, identity.SessionId, identity.CanMergeGuestSession);
+            var cart = await GetOrCreateCartAsync(identity!.UserId, identity.GuestSessionId, identity.GuestSessionValidated);
 
             // Find existing cart item for the product
             var existingItem = await _db.TcartItems.FirstOrDefaultAsync(i =>
@@ -114,7 +118,7 @@ namespace sobee_API.Controllers
 
             // Reload with products for response
             cart = await LoadCartWithItemsAsync(cart.IntShoppingCartId);
-            return Ok(ProjectCart(cart, identity.UserId, identity.SessionId));
+            return Ok(ProjectCart(cart, identity.UserId, identity.GuestSessionId));
         }
 
         // ---------------------------------------------
@@ -139,7 +143,7 @@ namespace sobee_API.Controllers
                 return errorResult;
             }
 
-            var cart = await FindCartAsync(identity!.UserId, identity.SessionId);
+            var cart = await FindCartAsync(identity!.UserId, identity.GuestSessionId);
             if (cart == null)
                 return NotFound(new { error = "Cart not found." });
 
@@ -163,7 +167,7 @@ namespace sobee_API.Controllers
             await _db.SaveChangesAsync();
 
             cart = await LoadCartWithItemsAsync(cart.IntShoppingCartId);
-            return Ok(ProjectCart(cart, identity.UserId, identity.SessionId));
+            return Ok(ProjectCart(cart, identity.UserId, identity.GuestSessionId));
         }
 
         // ---------------------------------------------
@@ -181,7 +185,7 @@ namespace sobee_API.Controllers
                 return errorResult;
             }
 
-            var cart = await FindCartAsync(identity!.UserId, identity.SessionId);
+            var cart = await FindCartAsync(identity!.UserId, identity.GuestSessionId);
             if (cart == null)
                 return NotFound(new { error = "Cart not found." });
 
@@ -198,7 +202,7 @@ namespace sobee_API.Controllers
             await _db.SaveChangesAsync();
 
             cart = await LoadCartWithItemsAsync(cart.IntShoppingCartId);
-            return Ok(ProjectCart(cart, identity.UserId, identity.SessionId));
+            return Ok(ProjectCart(cart, identity.UserId, identity.GuestSessionId));
         }
 
         // ---------------------------------------------
@@ -216,7 +220,7 @@ namespace sobee_API.Controllers
                 return errorResult;
             }
 
-            var cart = await FindCartAsync(identity!.UserId, identity.SessionId);
+            var cart = await FindCartAsync(identity!.UserId, identity.GuestSessionId);
             if (cart == null)
                 return NotFound(new { error = "Cart not found." });
 
@@ -230,28 +234,33 @@ namespace sobee_API.Controllers
             await _db.SaveChangesAsync();
 
             cart = await LoadCartWithItemsAsync(cart.IntShoppingCartId);
-            return Ok(ProjectCart(cart, identity.UserId, identity.SessionId));
+            return Ok(ProjectCart(cart, identity.UserId, identity.GuestSessionId));
         }
 
         // ============================================================
         // Helpers
         // ============================================================
 
-        private async Task<(CartIdentity? identity, IActionResult? errorResult)> ResolveIdentityAsync(bool allowCreateGuestSession)
+        private async Task<(RequestIdentity? identity, IActionResult? errorResult)> ResolveIdentityAsync(bool allowCreateGuestSession)
         {
-            var sessionResolution = await _guestSessionService.ResolveAsync(Request, Response, allowCreateGuestSession);
+            var identity = await _identityResolver.ResolveAsync(
+                User,
+                Request,
+                Response,
+                allowCreateGuestSession,
+                allowAuthenticatedGuestSession: false);
 
-            // Authenticated user
-            if (User?.Identity?.IsAuthenticated == true)
+            if (identity.HasError)
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                if (string.IsNullOrWhiteSpace(userId))
-                    return (null, Unauthorized(new { error = "Authenticated request is missing NameIdentifier claim." }));
+                if (identity.ErrorCode == "MissingNameIdentifier")
+                {
+                    return (null, Unauthorized(new { error = identity.ErrorMessage }));
+                }
 
-                return (new CartIdentity(false, userId, sessionResolution.WasValidated ? sessionResolution.SessionId : null, sessionResolution.WasValidated), null);
+                return (null, BadRequest(new { error = identity.ErrorMessage }));
             }
 
-            return (new CartIdentity(true, null, sessionResolution.SessionId, false), null);
+            return (identity, null);
         }
 
         private async Task<TshoppingCart?> FindCartAsync(string? userId, string? sessionId)
@@ -410,6 +419,5 @@ namespace sobee_API.Controllers
             };
         }
 
-        private record CartIdentity(bool IsGuest, string? UserId, string? SessionId, bool CanMergeGuestSession);
     }
 }
