@@ -5,6 +5,9 @@ using Sobee.Domain.Data;
 using Sobee.Domain.Entities.Products;
 using System.Linq;
 using Xunit;
+using System.Threading.Tasks;
+using System;
+using System.Net.Http;
 
 namespace sobee_API.Tests;
 

@@ -1,11 +1,11 @@
 @baseUrl = https://localhost:7058
 
 # Update these after your first guest request.
-@sessionId = REPLACE_ME
-@sessionSecret = REPLACE_ME
+@sessionId = 69ad2ace-bb6c-42eb-a362-1b668d6fb429
+@sessionSecret = tfb1ZlSNJjbkQc90y6eQCw/UialH1mZxD/LywC46Icc=
 
 # Paste your JWT after login if needed for merge test.
-@token = REPLACE_ME
+@token = CfDJ8FE_QEmxr_5Gl8E9uQQwwd0Auk6J6mmMbwLU-ZyvaJQ7yA5yD-W_V597Jdfn-HCbtppLTWb8PnuPdd3ZuIkJcYGhBbDKfY0PXRrElEq2r1t1YOGWDpy5APnq5XtXYnc7pf9JxxKmb8334AFHsKMwCAxL-6KKM3DBEjgS_2jzbTaUAIR1RKktZwln_wR8ieO3MCJxf-eK4I_HJH3qRAGzFqguRrBqSEzl9x9zVn9p3EfHWbU3O_G6HmQLhmcR6sqj-VfoS0Nlbqr4yfGNDyT-Qc46q13ivvwTEbT7ZeUoauES6dKsrJ7vdjyUCyBaCsKWyJKr5dQHQoGgWJ-zpewM9wV4JX3VUJEp5QfBTftRozj19qBBZaGHNP22y7CYyBlx7-HsdsSEamXqG6iDo1FLGC5j_5O-ysfgsiYHzsenGHHgWznOgFqqhkpGxwab04tbYIjJdMBiYHy-TB53-aZfNfrcs9X_dM04Ibg1CdHbkrop4KjvcCMGXIFr9C_NRXGgeyGjw4H7kPyrHFW_drygAvRA5jp-UiGaQ1_pAhOulwMJ92qH4EGb1GD577XvgOF73ag3BbBb3g-eNle2UH_uUg7oIbtlQSSemoXVfLknqqfgzbucyQXJwTSFjADsNiGH-lfYjtvN6zmh7uniZRtNKhF-cVyAzbU-coS6Z1BqurSXFcts6t0x8AmZ1tRe8LwoSA
 
 @productId1 = 1
 
@@ -92,7 +92,7 @@ X-Session-Secret: {{sessionSecret}}
 ### 7) GET ORDER (Guest) - requires validated session pair
 ### =========================================================
 # Replace 1 with a real guest order id if you have one.
-GET {{baseUrl}}/api/orders/1
+GET {{baseUrl}}/api/orders/2002
 X-Session-Id: {{sessionId}}
 X-Session-Secret: {{sessionSecret}}
 
