@@ -85,10 +85,14 @@ namespace sobee_API
 
             // Configure Authentication to use Bearer Tokens (JWT)
             // This allows the API to read the "Authorization: Bearer <token>" header
-            builder.Services.AddAuthentication()
+            builder.Services.AddAuthentication(options =>
+            {
+                // Make Identity bearer tokens the default for [Authorize]
+                options.DefaultAuthenticateScheme = IdentityConstants.BearerScheme;
+                options.DefaultChallengeScheme = IdentityConstants.BearerScheme;
+            })
                 .AddBearerToken(IdentityConstants.BearerScheme);
 
-            // Enable Authorization (allows use of [Authorize] attribute)
             builder.Services.AddAuthorization();
 
 
