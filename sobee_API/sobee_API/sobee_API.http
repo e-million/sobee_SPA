@@ -2,6 +2,7 @@
 
 # Set this to a real session id after Step 1.
 @sessionId = 17bff474-31d8-4f94-a1fa-0978eb8984b6
+@sessionSecret = REPLACE_ME
 
 # Paste your JWT after Step 9.
 # Keep a placeholder value so the file parses even before login.
@@ -31,7 +32,7 @@ GET {{baseUrl}}/api/home/ping
 GET {{baseUrl}}/api/cart
 
 ### EXPECTED: 200 OK
-### Copy returned sessionId into @sessionId above if it changed.
+### Copy returned sessionId/sessionSecret into @sessionId/@sessionSecret above if it changed.
 
 
 ### =========================================================
@@ -39,6 +40,7 @@ GET {{baseUrl}}/api/cart
 ### =========================================================
 POST {{baseUrl}}/api/cart/items
 X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
 Content-Type: application/json
 
 {
@@ -55,6 +57,7 @@ Content-Type: application/json
 ### =========================================================
 POST {{baseUrl}}/api/cart/items
 X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
 Content-Type: application/json
 
 {
@@ -70,6 +73,7 @@ Content-Type: application/json
 ### =========================================================
 GET {{baseUrl}}/api/cart
 X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
 
 ### EXPECTED: 200 OK
 ### items include productId1 qty 2, productId2 qty 1
@@ -80,6 +84,7 @@ X-Session-Id: {{sessionId}}
 ### =========================================================
 POST {{baseUrl}}/api/orders/checkout
 X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
 Content-Type: application/json
 
 {
@@ -96,6 +101,7 @@ Content-Type: application/json
 ### =========================================================
 GET {{baseUrl}}/api/orders/session
 X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
 
 ### EXPECTED (if implemented): 200 OK with the guest order
 ### If not implemented: 404 Not Found (fine)
@@ -122,6 +128,7 @@ Content-Type: application/json
 GET {{baseUrl}}/api/cart
 Authorization: Bearer {{token}}
 X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
 
 ### EXPECTED: 200 OK
 ### DB: session cart should be attached to UserId after this call
@@ -151,6 +158,7 @@ Authorization: Bearer {{token}}
 ### =========================================================
 DELETE {{baseUrl}}/api/cart
 X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
 
 # EXPECTED: 200 OK (or 204)
 # DB: cart items removed; cart row typically remains
