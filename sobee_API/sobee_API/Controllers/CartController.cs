@@ -248,7 +248,8 @@ namespace sobee_API.Controllers
                 Request,
                 Response,
                 allowCreateGuestSession,
-                allowAuthenticatedGuestSession: false);
+                allowAuthenticatedGuestSession: true);
+
 
             if (identity.HasError)
             {

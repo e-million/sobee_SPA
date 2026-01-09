@@ -1,116 +1,156 @@
-@baseUrl = https://localhost:7058
-
-# Update these after your first guest request.
-@sessionId = 69ad2ace-bb6c-42eb-a362-1b668d6fb429
-@sessionSecret = tfb1ZlSNJjbkQc90y6eQCw/UialH1mZxD/LywC46Icc=
-
-# Paste your JWT after login if needed for merge test.
-@token = CfDJ8FE_QEmxr_5Gl8E9uQQwwd0Auk6J6mmMbwLU-ZyvaJQ7yA5yD-W_V597Jdfn-HCbtppLTWb8PnuPdd3ZuIkJcYGhBbDKfY0PXRrElEq2r1t1YOGWDpy5APnq5XtXYnc7pf9JxxKmb8334AFHsKMwCAxL-6KKM3DBEjgS_2jzbTaUAIR1RKktZwln_wR8ieO3MCJxf-eK4I_HJH3qRAGzFqguRrBqSEzl9x9zVn9p3EfHWbU3O_G6HmQLhmcR6sqj-VfoS0Nlbqr4yfGNDyT-Qc46q13ivvwTEbT7ZeUoauES6dKsrJ7vdjyUCyBaCsKWyJKr5dQHQoGgWJ-zpewM9wV4JX3VUJEp5QfBTftRozj19qBBZaGHNP22y7CYyBlx7-HsdsSEamXqG6iDo1FLGC5j_5O-ysfgsiYHzsenGHHgWznOgFqqhkpGxwab04tbYIjJdMBiYHy-TB53-aZfNfrcs9X_dM04Ibg1CdHbkrop4KjvcCMGXIFr9C_NRXGgeyGjw4H7kPyrHFW_drygAvRA5jp-UiGaQ1_pAhOulwMJ92qH4EGb1GD577XvgOF73ag3BbBb3g-eNle2UH_uUg7oIbtlQSSemoXVfLknqqfgzbucyQXJwTSFjADsNiGH-lfYjtvN6zmh7uniZRtNKhF-cVyAzbU-coS6Z1BqurSXFcts6t0x8AmZ1tRe8LwoSA
-
-@productId1 = 1
+﻿@baseUrl = https://localhost:7058
 
 ### =========================================================
-### 1) GET CART (Guest) - issues session pair
+### 0) SET THESE AFTER STEP 1 RESPONSE HEADERS
+### =========================================================
+@sessionId = de4b9019-ab6e-4942-8c04-8ead1fdd3a96
+@sessionSecret = qxP/nEOxzKruy6Ry6kIECSHecsAtFD+Tew2Ogb8LPG4=
+@token = CfDJ8FE_QEmxr_5Gl8E9uQQwwd0zqRKrNsdBvGbSSlesJOFhiv9zLx1rsuAF9MfMZCfA0MMBSl2xJlgkXwC8a4P3VZTOdREYmILR_TUsoMj0TKnij0FsoiNZo9n8OR0VtIlPbe2iMwoixcHbE6jyb-ZkxH7vXukaO9_6OjN1TuQhoPy-b8vv3u_VsmvwdCSt19_HVoWPQDlkOEcRq2uGKDpe_Lo6wu7uuo6nkwF4u_1NuMYtBGSD269C5QQnrHzvhokNX7cqSH56liDUdLtaIRKLoqplYcxUd1nqJOsrudXVYtXAhAjPs5wrOUkrcUeZkYQkqrK0l5Nbf1rrIy_ocz5CDYDYkLwKbL6p2_QeKU5PNwH8jB6TMU_t2_Z_WGVc5x28n3jngm6X949cq1-DgHoqvDpwEHr3ZFivzcH_ueeNCuL-sdpjsmv9ljAepgpWCsHN-ndW3VePR_e5D4nTpBbN4825_N8q-_zfFxydKx6vmVqVxdjpZfnRQAJVzq8h-uVuODEBG1l42ojF8wgJEBwboybkZKPWxufalJLc_csMpONkYtAGcZOcytujridWlBsYIfbVx_Q3SF9S7St1EZM70dEfW_5k7zC_SZPk9oao5STBTNNfwlc3wwDGfkBcaf2GtWyxeApS8JSkZQvtgsZfGgMRjO0gq5aFSsBK7hCP4dmLIhBtCm904xaqj0snp2MLDFkTYGvZ2--Lg59M0rdKjEY
+
+### =========================================================
+### 1) GET CART AS GUEST (creates guest session + cart)
 ### =========================================================
 GET {{baseUrl}}/api/cart
 
-### EXPECTED: 200 OK
-### Response headers include:
-### - X-Session-Id
-### - X-Session-Secret
-### Copy both into @sessionId / @sessionSecret.
-
-
-### =========================================================
-### 2) GET CART (Guest) - reuse validated session pair
-### =========================================================
-GET {{baseUrl}}/api/cart
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-### EXPECTED: 200 OK
-### Should return the same cart (same cartId) and NOT issue new headers.
-
+### EXPECTED:
+### - 200 OK
+### - Response headers include:
+###   - X-Session-Id: <guid>
+###   - X-Session-Secret: <secret>
+### - Response body owner="guest"
+### ACTION:
+### - Copy X-Session-Id into @sessionId
+### - Copy X-Session-Secret into @sessionSecret
 
 ### =========================================================
-### 3) GET CART (Guest) - invalid session id (no secret)
-### =========================================================
-GET {{baseUrl}}/api/cart
-X-Session-Id: 00000000-0000-0000-0000-000000000000
-
-### EXPECTED: 200 OK
-### Response headers include NEW X-Session-Id + X-Session-Secret.
-### Should NOT expose any existing cart for that id.
-
-
-### =========================================================
-### 4) ADD ITEM (Guest) - requires session pair
+### 2) ADD ITEM AS GUEST (uses session headers)
 ### =========================================================
 POST {{baseUrl}}/api/cart/items
+Content-Type: application/json
 X-Session-Id: {{sessionId}}
 X-Session-Secret: {{sessionSecret}}
+
+{
+  "productId": 1,
+  "quantity": 2
+}
+
+### EXPECTED:
+### - 200 OK
+### - owner="guest"
+### - items contains productId=1 quantity=2
+
+### =========================================================
+### 3) CONFIRM GUEST CART HAS ITEMS
+### =========================================================
+GET {{baseUrl}}/api/cart
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
+
+### EXPECTED:
+### - 200 OK
+### - owner="guest"
+### - items still present
+
+### =========================================================
+### 4) REGISTER (if needed)
+### =========================================================
+POST {{baseUrl}}/register
 Content-Type: application/json
 
 {
-  "productId": {{productId1}},
-  "quantity": 1
+  "email": "testuser1@local.com",
+  "password": "Test123!",
+  "firstName": "Test",
+  "lastName": "User"
 }
 
-### EXPECTED: 200 OK
-### Cart includes productId1 with quantity 1.
-
+### EXPECTED:
+### - 200 or 201 (depends on your controller)
+### - If already exists, you may get 400/409; proceed to login.
 
 ### =========================================================
-### 5) LOGIN (Get JWT) - for merge test
+### 5) LOGIN (Get JWT)
 ### =========================================================
 POST {{baseUrl}}/login
 Content-Type: application/json
 
 {
-  "email": "million@local.com",
-  "password": "Admin123!"
+  "email": "testuser1@local.com",
+  "password": "Test123!"
 }
 
-### EXPECTED: 200 OK
-### Copy accessToken into @token above.
-
+### EXPECTED:
+### - 200 OK
+### - Response contains accessToken (or token)
+### ACTION:
+### - Copy token into @token
 
 ### =========================================================
-### 6) GET CART (Authenticated + validated guest session) - merge
+### 6) GET CART AS AUTHENTICATED + INCLUDE GUEST SESSION HEADERS
+###    (THIS IS THE MERGE TEST)
 ### =========================================================
 GET {{baseUrl}}/api/cart
 Authorization: Bearer {{token}}
 X-Session-Id: {{sessionId}}
 X-Session-Secret: {{sessionSecret}}
 
-### EXPECTED: 200 OK
-### Guest cart items now belong to user.
-### Guest session should be rotated (old pair invalid on next use).
-
-
-### =========================================================
-### 7) GET ORDER (Guest) - requires validated session pair
-### =========================================================
-# Replace 1 with a real guest order id if you have one.
-GET {{baseUrl}}/api/orders/2002
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-### EXPECTED: 200 OK if the order belongs to the guest session.
-### If the session is invalid/rotated: 403 with { "error": "Guest session is invalid." }
-
+### EXPECTED (after the CartController fix):
+### - 200 OK
+### - owner="user"
+### - userId is NOT null
+### - items includes the guest items (productId=1 quantity=2)
+### - guest session should be invalidated server-side (RotateGuestSessionAsync)
 
 ### =========================================================
-### 8) CHECKOUT (Guest) - generic error on failure
+### 7) GET CART AS AUTHENTICATED (NO SESSION HEADERS)
+### =========================================================
+GET {{baseUrl}}/api/cart
+Authorization: Bearer {{token}}
+
+### EXPECTED:
+### - 200 OK
+### - owner="user"
+### - cart still has the merged items
+
+### =========================================================
+### 8) CHECKOUT AS AUTHENTICATED
 ### =========================================================
 POST {{baseUrl}}/api/orders/checkout
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
-  "shippingAddress": "123 Test Street, Test City, OH 45200"
+  "shippingAddress": "123 Test St, Cincinnati, OH 45202",
+  "shippingMethodId": null,
+  "paymentMethodId": null
 }
 
-### EXPECTED: 200 OK on success.
-### On failure: 500 with { "error": "Checkout failed." } (no exception details).
+### EXPECTED:
+### - 200 OK
+### - returns created order with items
+### - cart items cleared (cart row remains)
+
+### =========================================================
+### 9) GET MY ORDERS (AUTHENTICATED)
+### =========================================================
+GET {{baseUrl}}/api/orders/my
+Authorization: Bearer {{token}}
+
+### EXPECTED:
+### - 200 OK
+### - array of orders including the one from checkout
+
+### =========================================================
+### 10) OPTIONAL: TRY USING OLD GUEST SESSION AFTER MERGE
+###     (should NOT give access to old guest cart; will create a NEW guest session)
+### =========================================================
+GET {{baseUrl}}/api/cart
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
+
+### EXPECTED:
+### - 200 OK (because allowCreateGuestSession=true for cart endpoints)
+### - BUT: should issue NEW X-Session-Id / X-Session-Secret headers
+### - and return a NEW empty guest cart
+### (This confirms rotation/invalidation is working)
