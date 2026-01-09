@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Sobee.Domain.Data;
 using Sobee.Domain.Entities.Cart;
@@ -36,21 +37,21 @@ namespace sobee_API.Controllers
         // GET: /api/cart
         // - If authenticated: uses UserId
         // - If guest: uses X-Session-Id (generates one if missing)
-        // - Creates cart if missing
+        // - If authenticated AND X-Session-Id exists: merges guest cart -> user cart
         // ---------------------------------------------
         [HttpGet]
+        [AllowAnonymous]
         public async Task<IActionResult> GetCart()
         {
             var identity = ResolveIdentity(allowCreateSessionIdForGuest: true);
 
             // If guest and we generated a session id, return it so the client can store it
-            if (!string.IsNullOrWhiteSpace(identity.SessionId))
+            if (identity.IsGuest && !string.IsNullOrWhiteSpace(identity.SessionId))
             {
-                Response.Headers[SessionHeaderName] = identity.SessionId;
+                Response.Headers[SessionHeaderName] = identity.SessionId!;
             }
 
             var cart = await GetOrCreateCartAsync(identity.UserId, identity.SessionId);
-
             return Ok(ProjectCart(cart, identity.UserId, identity.SessionId));
         }
 
@@ -61,6 +62,7 @@ namespace sobee_API.Controllers
         // - Guest requires X-Session-Id header
         // ---------------------------------------------
         [HttpPost("items")]
+        [AllowAnonymous]
         public async Task<IActionResult> AddItem([FromBody] AddCartItemRequest request)
         {
             if (request == null)
@@ -73,6 +75,8 @@ namespace sobee_API.Controllers
                 return BadRequest(new { error = "Quantity must be greater than 0." });
 
             var identity = ResolveIdentity(allowCreateSessionIdForGuest: false);
+
+            // Guests must supply X-Session-Id for write operations
             if (identity.IsGuest && string.IsNullOrWhiteSpace(identity.SessionId))
                 return BadRequest(new { error = $"Guest requests must include '{SessionHeaderName}' header." });
 
@@ -84,8 +88,9 @@ namespace sobee_API.Controllers
             var cart = await GetOrCreateCartAsync(identity.UserId, identity.SessionId);
 
             // Find existing cart item for the product
-            var existingItem = await _db.TcartItems
-                .FirstOrDefaultAsync(i => i.IntShoppingCartId == cart.IntShoppingCartId && i.IntProductId == request.ProductId);
+            var existingItem = await _db.TcartItems.FirstOrDefaultAsync(i =>
+                i.IntShoppingCartId == cart.IntShoppingCartId &&
+                i.IntProductId == request.ProductId);
 
             if (existingItem == null)
             {
@@ -105,33 +110,33 @@ namespace sobee_API.Controllers
             }
 
             cart.DtmDateLastUpdated = DateTime.UtcNow;
-
             await _db.SaveChangesAsync();
 
-            // Reload with includes so response has product info
+            // Reload with products for response
             cart = await LoadCartWithItemsAsync(cart.IntShoppingCartId);
-
             return Ok(ProjectCart(cart, identity.UserId, identity.SessionId));
         }
 
         // ---------------------------------------------
         // PUT: /api/cart/items/{cartItemId}
         // Body: { quantity }
-        // - Updates quantity
-        // - If quantity <= 0, removes item
+        // - Sets quantity (0 => delete item)
         // - Guest requires X-Session-Id header
         // ---------------------------------------------
         [HttpPut("items/{cartItemId:int}")]
+        [AllowAnonymous]
         public async Task<IActionResult> UpdateItem(int cartItemId, [FromBody] UpdateCartItemRequest request)
         {
             if (request == null)
                 return BadRequest(new { error = "Request body is required." });
 
+            if (request.Quantity < 0)
+                return BadRequest(new { error = "Quantity cannot be negative." });
+
             var identity = ResolveIdentity(allowCreateSessionIdForGuest: false);
             if (identity.IsGuest && string.IsNullOrWhiteSpace(identity.SessionId))
                 return BadRequest(new { error = $"Guest requests must include '{SessionHeaderName}' header." });
 
-            // Load cart (must exist and belong to this user/session)
             var cart = await FindCartAsync(identity.UserId, identity.SessionId);
             if (cart == null)
                 return NotFound(new { error = "Cart not found." });
@@ -143,7 +148,7 @@ namespace sobee_API.Controllers
             if (item == null)
                 return NotFound(new { error = $"Cart item {cartItemId} not found." });
 
-            if (request.Quantity <= 0)
+            if (request.Quantity == 0)
             {
                 _db.TcartItems.Remove(item);
             }
@@ -161,10 +166,11 @@ namespace sobee_API.Controllers
 
         // ---------------------------------------------
         // DELETE: /api/cart/items/{cartItemId}
-        // - Removes item
+        // - Removes one item
         // - Guest requires X-Session-Id header
         // ---------------------------------------------
         [HttpDelete("items/{cartItemId:int}")]
+        [AllowAnonymous]
         public async Task<IActionResult> RemoveItem(int cartItemId)
         {
             var identity = ResolveIdentity(allowCreateSessionIdForGuest: false);
@@ -193,10 +199,11 @@ namespace sobee_API.Controllers
 
         // ---------------------------------------------
         // DELETE: /api/cart
-        // - Clears all items from cart
+        // - Clears all items from cart (does NOT delete the cart row)
         // - Guest requires X-Session-Id header
         // ---------------------------------------------
         [HttpDelete]
+        [AllowAnonymous]
         public async Task<IActionResult> ClearCart()
         {
             var identity = ResolveIdentity(allowCreateSessionIdForGuest: false);
@@ -226,22 +233,9 @@ namespace sobee_API.Controllers
 
         private (bool IsGuest, string? UserId, string? SessionId) ResolveIdentity(bool allowCreateSessionIdForGuest)
         {
-            // Authenticated user
-            if (User?.Identity?.IsAuthenticated == true)
-            {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                if (string.IsNullOrWhiteSpace(userId))
-                {
-                    // User is "authenticated" but missing expected claim -> treat as unauthorized
-                    throw new InvalidOperationException("Authenticated request is missing NameIdentifier claim.");
-                }
-
-                return (IsGuest: false, UserId: userId, SessionId: null);
-            }
-
-            // Guest user
+            // Always try to read session id (even for authenticated users)
+            // so we can merge guest cart -> user cart right after login.
             string? sessionId = null;
-
             if (Request.Headers.TryGetValue(SessionHeaderName, out var values))
             {
                 var raw = values.ToString();
@@ -249,6 +243,17 @@ namespace sobee_API.Controllers
                     sessionId = raw.Trim();
             }
 
+            // Authenticated user
+            if (User?.Identity?.IsAuthenticated == true)
+            {
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrWhiteSpace(userId))
+                    throw new InvalidOperationException("Authenticated request is missing NameIdentifier claim.");
+
+                return (IsGuest: false, UserId: userId, SessionId: sessionId);
+            }
+
+            // Guest user
             if (string.IsNullOrWhiteSpace(sessionId) && allowCreateSessionIdForGuest)
             {
                 sessionId = Guid.NewGuid().ToString();
@@ -260,38 +265,92 @@ namespace sobee_API.Controllers
         private async Task<TshoppingCart?> FindCartAsync(string? userId, string? sessionId)
         {
             if (!string.IsNullOrWhiteSpace(userId))
-            {
                 return await _db.TshoppingCarts.FirstOrDefaultAsync(c => c.UserId == userId);
-            }
 
             if (!string.IsNullOrWhiteSpace(sessionId))
-            {
                 return await _db.TshoppingCarts.FirstOrDefaultAsync(c => c.SessionId == sessionId);
-            }
 
             return null;
         }
 
+        /// <summary>
+        /// Returns the current cart, creating if needed.
+        /// If authenticated AND a guest session cart exists, merges it into the user's cart.
+        /// </summary>
         private async Task<TshoppingCart> GetOrCreateCartAsync(string? userId, string? sessionId)
         {
-            TshoppingCart? cart = null;
+            TshoppingCart? userCart = null;
+            TshoppingCart? sessionCart = null;
 
             if (!string.IsNullOrWhiteSpace(userId))
             {
-                cart = await _db.TshoppingCarts.FirstOrDefaultAsync(c => c.UserId == userId);
-            }
-            else if (!string.IsNullOrWhiteSpace(sessionId))
-            {
-                cart = await _db.TshoppingCarts.FirstOrDefaultAsync(c => c.SessionId == sessionId);
+                userCart = await _db.TshoppingCarts
+                    .Include(c => c.TcartItems)
+                    .FirstOrDefaultAsync(c => c.UserId == userId);
             }
 
-            if (cart != null)
+            if (!string.IsNullOrWhiteSpace(sessionId))
             {
-                // load full cart with items
-                return await LoadCartWithItemsAsync(cart.IntShoppingCartId);
+                sessionCart = await _db.TshoppingCarts
+                    .Include(c => c.TcartItems)
+                    .FirstOrDefaultAsync(c => c.SessionId == sessionId && c.UserId == null);
             }
 
-            cart = new TshoppingCart
+            // If user is logged in and has a session cart, merge session cart -> user cart
+            if (!string.IsNullOrWhiteSpace(userId) && sessionCart != null)
+            {
+                if (userCart == null)
+                {
+                    // Claim the session cart as the user's cart
+                    sessionCart.UserId = userId;
+                    sessionCart.SessionId = null;
+                    sessionCart.DtmDateLastUpdated = DateTime.UtcNow;
+
+                    await _db.SaveChangesAsync();
+                    return await LoadCartWithItemsAsync(sessionCart.IntShoppingCartId);
+                }
+
+                // Merge items: add quantities into userCart
+                foreach (var sessionItem in sessionCart.TcartItems.ToList())
+                {
+                    if (sessionItem.IntProductId == null) continue;
+
+                    var existing = userCart.TcartItems
+                        .FirstOrDefault(i => i.IntProductId == sessionItem.IntProductId);
+
+                    if (existing == null)
+                    {
+                        userCart.TcartItems.Add(new TcartItem
+                        {
+                            IntShoppingCartId = userCart.IntShoppingCartId,
+                            IntProductId = sessionItem.IntProductId,
+                            IntQuantity = sessionItem.IntQuantity ?? 0,
+                            DtmDateAdded = DateTime.UtcNow
+                        });
+                    }
+                    else
+                    {
+                        existing.IntQuantity = (existing.IntQuantity ?? 0) + (sessionItem.IntQuantity ?? 0);
+                    }
+                }
+
+                userCart.DtmDateLastUpdated = DateTime.UtcNow;
+
+                // Remove old guest cart after merge
+                _db.TshoppingCarts.Remove(sessionCart);
+
+                await _db.SaveChangesAsync();
+                return await LoadCartWithItemsAsync(userCart.IntShoppingCartId);
+            }
+
+            // No merge needed. Return existing cart or create one.
+            if (userCart != null)
+                return await LoadCartWithItemsAsync(userCart.IntShoppingCartId);
+
+            if (sessionCart != null)
+                return await LoadCartWithItemsAsync(sessionCart.IntShoppingCartId);
+
+            var newCart = new TshoppingCart
             {
                 UserId = userId,
                 SessionId = sessionId,
@@ -299,20 +358,18 @@ namespace sobee_API.Controllers
                 DtmDateLastUpdated = DateTime.UtcNow
             };
 
-            _db.TshoppingCarts.Add(cart);
+            _db.TshoppingCarts.Add(newCart);
             await _db.SaveChangesAsync();
 
-            return await LoadCartWithItemsAsync(cart.IntShoppingCartId);
+            return await LoadCartWithItemsAsync(newCart.IntShoppingCartId);
         }
 
         private async Task<TshoppingCart> LoadCartWithItemsAsync(int cartId)
         {
-            var cart = await _db.TshoppingCarts
+            return await _db.TshoppingCarts
                 .Include(c => c.TcartItems)
-                .ThenInclude(i => i.IntProduct)
+                    .ThenInclude(i => i.IntProduct)
                 .FirstAsync(c => c.IntShoppingCartId == cartId);
-
-            return cart;
         }
 
         private object ProjectCart(TshoppingCart cart, string? userId, string? sessionId)
@@ -339,11 +396,11 @@ namespace sobee_API.Controllers
             {
                 cartId = cart.IntShoppingCartId,
                 owner = userId != null ? "user" : "guest",
-                userId = userId,
-                sessionId = sessionId,
+                userId,
+                sessionId,
                 created = cart.DtmDateCreated,
                 updated = cart.DtmDateLastUpdated,
-                items = items,
+                items,
                 total = cartTotal
             };
         }
