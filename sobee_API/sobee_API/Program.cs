@@ -61,6 +61,7 @@ namespace sobee_API
             });
 
             builder.Services.AddScoped<GuestSessionService>();
+            builder.Services.AddScoped<RequestIdentityResolver>();
 
 
             // ==========================================

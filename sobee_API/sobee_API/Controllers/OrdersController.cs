@@ -15,12 +15,18 @@ namespace sobee_API.Controllers
     {
         private readonly SobeecoredbContext _db;
         private readonly GuestSessionService _guestSessionService;
+        private readonly RequestIdentityResolver _identityResolver;
         private readonly ILogger<OrdersController> _logger;
 
-        public OrdersController(SobeecoredbContext db, GuestSessionService guestSessionService, ILogger<OrdersController> logger)
+        public OrdersController(
+            SobeecoredbContext db,
+            GuestSessionService guestSessionService,
+            RequestIdentityResolver identityResolver,
+            ILogger<OrdersController> logger)
         {
             _db = db;
             _guestSessionService = guestSessionService;
+            _identityResolver = identityResolver;
             _logger = logger;
         }
 
@@ -81,11 +87,8 @@ namespace sobee_API.Controllers
             }
 
             var userId = owner!.UserId;
-            var sessionId = owner.SessionId;
+            var sessionId = owner.GuestSessionId;
             var ownerType = owner.OwnerType;
-
-            if (ownerType == "guest" && string.IsNullOrWhiteSpace(sessionId))
-                return BadRequest(new { error = $"Guest checkout requires '{GuestSessionService.SessionIdHeaderName}' and '{GuestSessionService.SessionSecretHeaderName}' headers." });
 
             await using var tx = await _db.Database.BeginTransactionAsync();
             TshoppingCart? cart = null;
@@ -210,7 +213,7 @@ namespace sobee_API.Controllers
                 if (!owner.GuestSessionValidated)
                     return StatusCode(403, new { error = "Guest session is invalid." });
 
-                if (!string.Equals(order.SessionId, owner.SessionId, StringComparison.Ordinal))
+                if (!string.Equals(order.SessionId, owner.GuestSessionId, StringComparison.Ordinal))
                     return Forbid();
             }
 
@@ -252,22 +255,26 @@ namespace sobee_API.Controllers
         // Helpers
         // ============================================================
 
-        private async Task<(OrderOwner? owner, IActionResult? errorResult)> ResolveOwnerAsync()
+        private async Task<(RequestIdentity? owner, IActionResult? errorResult)> ResolveOwnerAsync()
         {
-            if (User?.Identity?.IsAuthenticated == true)
+            var owner = await _identityResolver.ResolveAsync(
+                User,
+                Request,
+                Response,
+                allowCreateGuestSession: false,
+                allowAuthenticatedGuestSession: true);
+
+            if (owner.HasError)
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                if (string.IsNullOrWhiteSpace(userId))
+                if (owner.ErrorCode == "MissingNameIdentifier")
                 {
-                    return (null, Unauthorized(new { error = "Authenticated request is missing NameIdentifier claim." }));
+                    return (null, Unauthorized(new { error = owner.ErrorMessage }));
                 }
 
-                var guestSession = await _guestSessionService.ResolveAsync(Request, Response, allowCreate: false);
-                return (new OrderOwner(userId, guestSession.WasValidated ? guestSession.SessionId : null, "user", guestSession.WasValidated), null);
+                return (null, BadRequest(new { error = owner.ErrorMessage }));
             }
 
-            var guestSessionForAnonymous = await _guestSessionService.ResolveAsync(Request, Response, allowCreate: true);
-            return (new OrderOwner(null, guestSessionForAnonymous.SessionId, "guest", guestSessionForAnonymous.WasValidated), null);
+            return (owner, null);
         }
 
         private async Task<TshoppingCart?> LoadCartAsync(string? userId, string? sessionId)
@@ -431,6 +438,5 @@ namespace sobee_API.Controllers
             await _guestSessionService.InvalidateAsync(sessionId);
         }
 
-        private record OrderOwner(string? UserId, string? SessionId, string OwnerType, bool GuestSessionValidated);
     }
 }
