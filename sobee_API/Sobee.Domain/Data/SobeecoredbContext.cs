@@ -27,6 +27,8 @@ public partial class SobeecoredbContext : DbContext {
 
 	public virtual DbSet<TcartItem> TcartItems { get; set; }
 
+	public virtual DbSet<GuestSession> GuestSessions { get; set; }
+
 	public virtual DbSet<TdrinkCategory> TdrinkCategories { get; set; }
 
 	public virtual DbSet<Tfavorite> Tfavorites { get; set; }
@@ -109,6 +111,31 @@ public partial class SobeecoredbContext : DbContext {
 				.HasConstraintName("TCartItems_TShoppingCarts_FK");
 		});
 
+		modelBuilder.Entity<GuestSession>(entity => {
+			entity.HasKey(e => e.SessionId).HasName("GuestSessions_PK");
+
+			entity.ToTable("GuestSessions");
+
+			entity.Property(e => e.SessionId)
+				.HasMaxLength(36)
+				.HasColumnName("session_id");
+
+			entity.Property(e => e.Secret)
+				.HasMaxLength(200)
+				.HasColumnName("secret");
+
+			entity.Property(e => e.CreatedAtUtc)
+				.HasColumnType("datetime2")
+				.HasColumnName("created_at_utc");
+
+			entity.Property(e => e.LastSeenAtUtc)
+				.HasColumnType("datetime2")
+				.HasColumnName("last_seen_at_utc");
+
+			entity.Property(e => e.ExpiresAtUtc)
+				.HasColumnType("datetime2")
+				.HasColumnName("expires_at_utc");
+		});
 		
 
 		modelBuilder.Entity<TdrinkCategory>(entity => {

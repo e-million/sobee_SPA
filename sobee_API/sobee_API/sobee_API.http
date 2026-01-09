@@ -1,108 +1,67 @@
 @baseUrl = https://localhost:7058
 
-# Set this to a real session id after Step 1.
-@sessionId = 17bff474-31d8-4f94-a1fa-0978eb8984b6
+# Update these after your first guest request.
+@sessionId = 69ad2ace-bb6c-42eb-a362-1b668d6fb429
+@sessionSecret = tfb1ZlSNJjbkQc90y6eQCw/UialH1mZxD/LywC46Icc=
 
-# Paste your JWT after Step 9.
-# Keep a placeholder value so the file parses even before login.
-@token = CfDJ8FE_QEmxr_5Gl8E9uQQwwd2xqOPW2lfrKL51XrIpAI16UtZfTz2AOGZse9ki7GtBruVPxTbh1-yBxEgcful-sP0aSdSw5wetycxM9BpaTncq8q-B_mLg_jM8Ng8COUqPniu-o_F82K3kfC5hHahTmxocYToamNh44g8dQlxi1Ld4kudmzA8oILjx2OoR68ahMQJZ9KMprK_9xmZSwIa83n6w4N52OFjt2N6-_IMxf5c61GTVTsOg202jvLRHg58RzgBb0ajOnF947fJ5S3te392EF6akJpS0pyf1ReZDqGEPaxiNlNc-Oz1MkXgdYnpT2xAobG6M36nxkSq0HYckUiqCj7nYTvqCdJ-mUVlvkvsq5yG8mI8WryqX04Dr5nU_B35z6g_1hP_2A3Mf81L9thX3BXKwejQN9J2L8nV25BCayDh2HV-Eoi5No38ypCIGEEnyxINmX13zUpqF8ONe5WJSsAXyX6y6F5JmvSxYAaBH_mfIbI9mriUu1T7wPg0TyiTg6zoc9FvGqorT6nYFfOl52V_6AO8f-GhBQhH_xC-yI8MKlNio7t1Mi8g1meb7BeovLonGi6VFWpvn_sAXkhbdaHzwsYOWD98vgrACHWIEAZ3fnaQh_9pFzs7O8xpFhjcKlrWmmJP6so38l8dg7NSKr6W-C98tjnJ8imDm-seB0iJowXDFmYHcbBFHnezsDw
-
-# Paste order id returned from checkout (Step 7) if your API returns it.
-@orderId = 0
-
-@email = million@local.com
-@password = Admin123!
+# Paste your JWT after login if needed for merge test.
+@token = CfDJ8FE_QEmxr_5Gl8E9uQQwwd0Auk6J6mmMbwLU-ZyvaJQ7yA5yD-W_V597Jdfn-HCbtppLTWb8PnuPdd3ZuIkJcYGhBbDKfY0PXRrElEq2r1t1YOGWDpy5APnq5XtXYnc7pf9JxxKmb8334AFHsKMwCAxL-6KKM3DBEjgS_2jzbTaUAIR1RKktZwln_wR8ieO3MCJxf-eK4I_HJH3qRAGzFqguRrBqSEzl9x9zVn9p3EfHWbU3O_G6HmQLhmcR6sqj-VfoS0Nlbqr4yfGNDyT-Qc46q13ivvwTEbT7ZeUoauES6dKsrJ7vdjyUCyBaCsKWyJKr5dQHQoGgWJ-zpewM9wV4JX3VUJEp5QfBTftRozj19qBBZaGHNP22y7CYyBlx7-HsdsSEamXqG6iDo1FLGC5j_5O-ysfgsiYHzsenGHHgWznOgFqqhkpGxwab04tbYIjJdMBiYHy-TB53-aZfNfrcs9X_dM04Ibg1CdHbkrop4KjvcCMGXIFr9C_NRXGgeyGjw4H7kPyrHFW_drygAvRA5jp-UiGaQ1_pAhOulwMJ92qH4EGb1GD577XvgOF73ag3BbBb3g-eNle2UH_uUg7oIbtlQSSemoXVfLknqqfgzbucyQXJwTSFjADsNiGH-lfYjtvN6zmh7uniZRtNKhF-cVyAzbU-coS6Z1BqurSXFcts6t0x8AmZ1tRe8LwoSA
 
 @productId1 = 1
-@productId2 = 1
-
 
 ### =========================================================
-### 0) HEALTH CHECK
-### =========================================================
-GET {{baseUrl}}/api/home/ping
-
-### EXPECTED: 200 OK, JSON includes db=true
-
-
-### =========================================================
-### 1) GET CART (Guest) - creates cart if missing
+### 1) GET CART (Guest) - issues session pair
 ### =========================================================
 GET {{baseUrl}}/api/cart
 
 ### EXPECTED: 200 OK
-### Copy returned sessionId into @sessionId above if it changed.
+### Response headers include:
+### - X-Session-Id
+### - X-Session-Secret
+### Copy both into @sessionId / @sessionSecret.
 
 
 ### =========================================================
-### 2) ADD ITEM TO CART (Guest)
+### 2) GET CART (Guest) - reuse validated session pair
+### =========================================================
+GET {{baseUrl}}/api/cart
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
+
+### EXPECTED: 200 OK
+### Should return the same cart (same cartId) and NOT issue new headers.
+
+
+### =========================================================
+### 3) GET CART (Guest) - invalid session id (no secret)
+### =========================================================
+GET {{baseUrl}}/api/cart
+X-Session-Id: 00000000-0000-0000-0000-000000000000
+
+### EXPECTED: 200 OK
+### Response headers include NEW X-Session-Id + X-Session-Secret.
+### Should NOT expose any existing cart for that id.
+
+
+### =========================================================
+### 4) ADD ITEM (Guest) - requires session pair
 ### =========================================================
 POST {{baseUrl}}/api/cart/items
 X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
 Content-Type: application/json
 
 {
   "productId": {{productId1}},
-  "quantity": 2
-}
-
-### EXPECTED: 200 OK (or 201)
-### Cart contains productId1 quantity 2
-
-
-### =========================================================
-### 3) ADD ANOTHER ITEM (Guest)
-### =========================================================
-POST {{baseUrl}}/api/cart/items
-X-Session-Id: {{sessionId}}
-Content-Type: application/json
-
-{
-  "productId": {{productId2}},
   "quantity": 1
 }
 
-# EXPECTED: 200 OK (or 201)
-
-
-### =========================================================
-### 4) VIEW CART (Guest)
-### =========================================================
-GET {{baseUrl}}/api/cart
-X-Session-Id: {{sessionId}}
-
 ### EXPECTED: 200 OK
-### items include productId1 qty 2, productId2 qty 1
+### Cart includes productId1 with quantity 1.
 
 
 ### =========================================================
-### 7) CHECKOUT (Guest -> creates Order)
-### =========================================================
-POST {{baseUrl}}/api/orders/checkout
-X-Session-Id: {{sessionId}}
-Content-Type: application/json
-
-{
-  "shippingAddress": "123 Test Street, Test City, OH 45200"
-}
-
-### EXPECTED: 200 OK (or 201)
-### If response returns orderId, copy it into @orderId above.
-### DB: order created with SessionId=sessionId, UserId NULL (before migration)
-
-
-### =========================================================
-### 8) GET SESSION ORDERS (Guest) - only if you implemented it
-### =========================================================
-GET {{baseUrl}}/api/orders/session
-X-Session-Id: {{sessionId}}
-
-### EXPECTED (if implemented): 200 OK with the guest order
-### If not implemented: 404 Not Found (fine)
-
-
-### =========================================================
-### 9) LOGIN (Get JWT)
+### 5) LOGIN (Get JWT) - for merge test
 ### =========================================================
 POST {{baseUrl}}/login
 Content-Type: application/json
@@ -113,53 +72,45 @@ Content-Type: application/json
 }
 
 ### EXPECTED: 200 OK
-### Copy accessToken into @token above (replace REPLACE_ME)
+### Copy accessToken into @token above.
 
 
 ### =========================================================
-### 10) GET CART (Authenticated + Session Header) **MIGRATION TRIGGER**
+### 6) GET CART (Authenticated + validated guest session) - merge
 ### =========================================================
 GET {{baseUrl}}/api/cart
 Authorization: Bearer {{token}}
 X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
 
 ### EXPECTED: 200 OK
-### DB: session cart should be attached to UserId after this call
+### Guest cart items now belong to user.
+### Guest session should be rotated (old pair invalid on next use).
 
 
 ### =========================================================
-### 11) GET MY ORDERS (Authenticated) **VERIFY MIGRATION**
+### 7) GET ORDER (Guest) - requires validated session pair
 ### =========================================================
-GET {{baseUrl}}/api/orders/my
-Authorization: Bearer {{token}}
-
-### EXPECTED: 200 OK
-### Should include the order created in Step 7 after migration
-
-
-### =========================================================
-### 12) GET ORDER BY ID (Authenticated) - only if you have this endpoint
-### =========================================================
-GET {{baseUrl}}/api/orders/6
-Authorization: Bearer {{token}}
-
-### EXPECTED: 200 OK (if orderId set to a real value)
-
-
-### =========================================================
-### 14) CLEAR ENTIRE CART (Guest) - clears items, usually does NOT delete cart row
-### =========================================================
-DELETE {{baseUrl}}/api/cart
+# Replace 1 with a real guest order id if you have one.
+GET {{baseUrl}}/api/orders/2002
 X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
 
-# EXPECTED: 200 OK (or 204)
-# DB: cart items removed; cart row typically remains
+### EXPECTED: 200 OK if the order belongs to the guest session.
+### If the session is invalid/rotated: 403 with { "error": "Guest session is invalid." }
 
 
 ### =========================================================
-### 15) CLEAR ENTIRE CART (Authenticated)
+### 8) CHECKOUT (Guest) - generic error on failure
 ### =========================================================
-DELETE {{baseUrl}}/api/cart
-Authorization: Bearer {{token}}
+POST {{baseUrl}}/api/orders/checkout
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
+Content-Type: application/json
 
-# EXPECTED: 200 OK (or 204)
+{
+  "shippingAddress": "123 Test Street, Test City, OH 45200"
+}
+
+### EXPECTED: 200 OK on success.
+### On failure: 500 with { "error": "Checkout failed." } (no exception details).
