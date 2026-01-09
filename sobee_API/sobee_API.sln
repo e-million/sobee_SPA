@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "sobee_API", "sobee_API\sobe
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sobee.Domain", "Sobee.Domain\Sobee.Domain.csproj", "{BF30376F-3401-4171-BCAC-E644CE8FB33A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "sobee_API.Tests", "sobee_API.Tests\sobee_API.Tests.csproj", "{568E0D71-8FB5-4B91-B04D-2CA21014C24A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{BF30376F-3401-4171-BCAC-E644CE8FB33A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BF30376F-3401-4171-BCAC-E644CE8FB33A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BF30376F-3401-4171-BCAC-E644CE8FB33A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{568E0D71-8FB5-4B91-B04D-2CA21014C24A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{568E0D71-8FB5-4B91-B04D-2CA21014C24A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{568E0D71-8FB5-4B91-B04D-2CA21014C24A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{568E0D71-8FB5-4B91-B04D-2CA21014C24A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

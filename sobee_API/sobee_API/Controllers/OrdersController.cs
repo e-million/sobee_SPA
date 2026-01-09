@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Sobee.Domain.Data;
 using Sobee.Domain.Entities.Cart;
 using Sobee.Domain.Entities.Orders;
+using sobee_API.Services;
 using System.Security.Claims;
 
 namespace sobee_API.Controllers
@@ -12,12 +13,21 @@ namespace sobee_API.Controllers
     [Route("api/[controller]")]
     public class OrdersController : ControllerBase
     {
-        private const string SessionHeaderName = "X-Session-Id";
         private readonly SobeecoredbContext _db;
+        private readonly GuestSessionService _guestSessionService;
+        private readonly RequestIdentityResolver _identityResolver;
+        private readonly ILogger<OrdersController> _logger;
 
-        public OrdersController(SobeecoredbContext db)
+        public OrdersController(
+            SobeecoredbContext db,
+            GuestSessionService guestSessionService,
+            RequestIdentityResolver identityResolver,
+            ILogger<OrdersController> logger)
         {
             _db = db;
+            _guestSessionService = guestSessionService;
+            _identityResolver = identityResolver;
+            _logger = logger;
         }
 
         // ============================================================
@@ -60,8 +70,8 @@ namespace sobee_API.Controllers
         // ============================================================
         // POST: /api/orders/checkout
         // - Authenticated: user checkout
-        // - Guest: requires X-Session-Id
-        // - If authenticated + X-Session-Id: merges guest cart -> user cart first
+        // - Guest: requires X-Session-Id + X-Session-Secret
+        // - If authenticated + validated guest session: merges guest cart -> user cart first
         // ============================================================
         [HttpPost("checkout")]
         [AllowAnonymous]
@@ -70,40 +80,46 @@ namespace sobee_API.Controllers
             if (request == null || string.IsNullOrWhiteSpace(request.ShippingAddress))
                 return BadRequest(new { error = "ShippingAddress is required." });
 
-            var (userId, sessionId, ownerType) = ResolveOwner();
-
-            // Guest must provide X-Session-Id for checkout
-            if (ownerType == "guest" && string.IsNullOrWhiteSpace(sessionId))
-                return BadRequest(new { error = $"Guest checkout requires '{SessionHeaderName}' header." });
-
-            // If logged in and a session header exists, merge guest cart into user cart
-            if (!string.IsNullOrWhiteSpace(userId) && !string.IsNullOrWhiteSpace(sessionId))
+            var (owner, errorResult) = await ResolveOwnerAsync();
+            if (errorResult != null)
             {
-                await MergeGuestCartIntoUserCartAsync(userId, sessionId);
-                await MigrateGuestOrdersToUserAsync(userId, sessionId);
+                return errorResult;
             }
 
-            // Load cart (after merge, user cart should exist if anything was in session cart)
-            var cart = await LoadCartAsync(userId, sessionId);
-            if (cart == null)
-                return NotFound(new { error = "Cart not found." });
-
-            if (cart.TcartItems == null || cart.TcartItems.Count == 0)
-                return BadRequest(new { error = "Cart is empty." });
-
-            foreach (var ci in cart.TcartItems)
-            {
-                if (ci.IntProductId == null || ci.IntProduct == null)
-                    return BadRequest(new { error = "Cart contains invalid item(s). A product is missing." });
-
-                if ((ci.IntQuantity ?? 0) <= 0)
-                    return BadRequest(new { error = "Cart contains invalid quantity." });
-            }
+            var userId = owner!.UserId;
+            var sessionId = owner.GuestSessionId;
+            var ownerType = owner.OwnerType;
 
             await using var tx = await _db.Database.BeginTransactionAsync();
+            TshoppingCart? cart = null;
 
             try
             {
+                // If logged in and a validated guest session exists, merge/migrate within this transaction.
+                if (!string.IsNullOrWhiteSpace(userId) && owner.GuestSessionValidated && !string.IsNullOrWhiteSpace(sessionId))
+                {
+                    await MergeGuestCartIntoUserCartAsync(userId, sessionId);
+                    await MigrateGuestOrdersToUserAsync(userId, sessionId);
+                    await RotateGuestSessionAsync(sessionId);
+                }
+
+                // Load cart (after merge, user cart should exist if anything was in session cart)
+                cart = await LoadCartAsync(userId, sessionId);
+                if (cart == null)
+                    return NotFound(new { error = "Cart not found." });
+
+                if (cart.TcartItems == null || cart.TcartItems.Count == 0)
+                    return BadRequest(new { error = "Cart is empty." });
+
+                foreach (var ci in cart.TcartItems)
+                {
+                    if (ci.IntProductId == null || ci.IntProduct == null)
+                        return BadRequest(new { error = "Cart contains invalid item(s). A product is missing." });
+
+                    if ((ci.IntQuantity ?? 0) <= 0)
+                        return BadRequest(new { error = "Cart contains invalid quantity." });
+                }
+
                 int? pendingShippingStatusId = await TryGetPendingShippingStatusIdAsync();
 
                 // Create order header
@@ -163,14 +179,15 @@ namespace sobee_API.Controllers
             catch (Exception ex)
             {
                 await tx.RollbackAsync();
-                return StatusCode(500, new { error = "Checkout failed.", details = ex.Message });
+                _logger.LogError(ex, "Checkout failed for user {UserId} cart {CartId} session {SessionId}.", userId, cart?.IntShoppingCartId, sessionId);
+                return StatusCode(500, new { error = "Checkout failed." });
             }
         }
 
         // ============================================================
         // GET: /api/orders/{orderId}
         // - User: must own (UserId matches)
-        // - Guest: must own (SessionId matches X-Session-Id)
+        // - Guest: must own (SessionId matches validated guest session)
         // ============================================================
         [HttpGet("{orderId:int}")]
         [AllowAnonymous]
@@ -180,32 +197,33 @@ namespace sobee_API.Controllers
             if (order == null)
                 return NotFound(new { error = "Order not found." });
 
-            var (userId, sessionId, ownerType) = ResolveOwner();
-
-            if (ownerType == "user")
+            var (owner, errorResult) = await ResolveOwnerAsync();
+            if (errorResult != null)
             {
-                if (string.IsNullOrWhiteSpace(userId))
-                    return Unauthorized(new { error = "Missing user id claim." });
+                return errorResult;
+            }
 
-                if (!string.Equals(order.UserId, userId, StringComparison.Ordinal))
+            if (owner!.OwnerType == "user")
+            {
+                if (!string.Equals(order.UserId, owner.UserId, StringComparison.Ordinal))
                     return Forbid();
             }
             else
             {
-                if (string.IsNullOrWhiteSpace(sessionId))
-                    return BadRequest(new { error = $"Guest requests require '{SessionHeaderName}' header." });
+                if (!owner.GuestSessionValidated)
+                    return StatusCode(403, new { error = "Guest session is invalid." });
 
-                if (!string.Equals(order.SessionId, sessionId, StringComparison.Ordinal))
+                if (!string.Equals(order.SessionId, owner.GuestSessionId, StringComparison.Ordinal))
                     return Forbid();
             }
 
-            return Ok(ToOrderResponse(order, ownerType));
+            return Ok(ToOrderResponse(order, owner.OwnerType));
         }
 
         // ============================================================
         // GET: /api/orders/my
         // - Authenticated only
-        // - If X-Session-Id exists: migrate guest orders to user first
+        // - If validated guest session exists: migrate guest orders to user first
         // ============================================================
         [HttpGet("my")]
         [Authorize]
@@ -215,11 +233,11 @@ namespace sobee_API.Controllers
             if (string.IsNullOrWhiteSpace(userId))
                 return Unauthorized(new { error = "Authenticated request is missing NameIdentifier claim." });
 
-            // If client still has an old guest session id, migrate those orders into the user
-            string? sessionId = GetSessionIdFromHeader();
-            if (!string.IsNullOrWhiteSpace(sessionId))
+            var guestSession = await _guestSessionService.ResolveAsync(Request, Response, allowCreate: false);
+            if (guestSession.WasValidated && !string.IsNullOrWhiteSpace(guestSession.SessionId))
             {
-                await MigrateGuestOrdersToUserAsync(userId, sessionId);
+                await MigrateGuestOrdersToUserAsync(userId, guestSession.SessionId);
+                await RotateGuestSessionAsync(guestSession.SessionId);
             }
 
             var orders = await _db.Torders
@@ -237,29 +255,26 @@ namespace sobee_API.Controllers
         // Helpers
         // ============================================================
 
-        private (string? userId, string? sessionId, string ownerType) ResolveOwner()
+        private async Task<(RequestIdentity? owner, IActionResult? errorResult)> ResolveOwnerAsync()
         {
-            var sessionId = GetSessionIdFromHeader();
+            var owner = await _identityResolver.ResolveAsync(
+                User,
+                Request,
+                Response,
+                allowCreateGuestSession: false,
+                allowAuthenticatedGuestSession: true);
 
-            if (User?.Identity?.IsAuthenticated == true)
+            if (owner.HasError)
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                return (userId, sessionId, "user");
+                if (owner.ErrorCode == "MissingNameIdentifier")
+                {
+                    return (null, Unauthorized(new { error = owner.ErrorMessage }));
+                }
+
+                return (null, BadRequest(new { error = owner.ErrorMessage }));
             }
 
-            return (null, sessionId, "guest");
-        }
-
-        private string? GetSessionIdFromHeader()
-        {
-            if (Request.Headers.TryGetValue(SessionHeaderName, out var sidValues))
-            {
-                var sid = sidValues.ToString();
-                if (!string.IsNullOrWhiteSpace(sid))
-                    return sid.Trim();
-            }
-
-            return null;
+            return (owner, null);
         }
 
         private async Task<TshoppingCart?> LoadCartAsync(string? userId, string? sessionId)
@@ -411,5 +426,17 @@ namespace sobee_API.Controllers
 
             await _db.SaveChangesAsync();
         }
+
+        private async Task RotateGuestSessionAsync(string? sessionId)
+        {
+            if (string.IsNullOrWhiteSpace(sessionId))
+            {
+                return;
+            }
+
+            // Rotate to prevent guest session fixation reuse after merge/migrate.
+            await _guestSessionService.InvalidateAsync(sessionId);
+        }
+
     }
 }

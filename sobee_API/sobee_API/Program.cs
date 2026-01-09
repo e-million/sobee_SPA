@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using Sobee.Domain.Data;
 using Sobee.Domain.Identity;
+using sobee_API.Services;
 
 namespace sobee_API
 {
@@ -58,6 +59,9 @@ namespace sobee_API
             {
                 options.UseSqlServer(connectionString);
             });
+
+            builder.Services.AddScoped<GuestSessionService>();
+            builder.Services.AddScoped<RequestIdentityResolver>();
 
 
             // ==========================================
