@@ -3,9 +3,9 @@
 ### =========================================================
 ### 0) SET THESE AFTER STEP 1 RESPONSE HEADERS
 ### =========================================================
-@sessionId = de4b9019-ab6e-4942-8c04-8ead1fdd3a96
-@sessionSecret = qxP/nEOxzKruy6Ry6kIECSHecsAtFD+Tew2Ogb8LPG4=
-@token = CfDJ8FE_QEmxr_5Gl8E9uQQwwd0zqRKrNsdBvGbSSlesJOFhiv9zLx1rsuAF9MfMZCfA0MMBSl2xJlgkXwC8a4P3VZTOdREYmILR_TUsoMj0TKnij0FsoiNZo9n8OR0VtIlPbe2iMwoixcHbE6jyb-ZkxH7vXukaO9_6OjN1TuQhoPy-b8vv3u_VsmvwdCSt19_HVoWPQDlkOEcRq2uGKDpe_Lo6wu7uuo6nkwF4u_1NuMYtBGSD269C5QQnrHzvhokNX7cqSH56liDUdLtaIRKLoqplYcxUd1nqJOsrudXVYtXAhAjPs5wrOUkrcUeZkYQkqrK0l5Nbf1rrIy_ocz5CDYDYkLwKbL6p2_QeKU5PNwH8jB6TMU_t2_Z_WGVc5x28n3jngm6X949cq1-DgHoqvDpwEHr3ZFivzcH_ueeNCuL-sdpjsmv9ljAepgpWCsHN-ndW3VePR_e5D4nTpBbN4825_N8q-_zfFxydKx6vmVqVxdjpZfnRQAJVzq8h-uVuODEBG1l42ojF8wgJEBwboybkZKPWxufalJLc_csMpONkYtAGcZOcytujridWlBsYIfbVx_Q3SF9S7St1EZM70dEfW_5k7zC_SZPk9oao5STBTNNfwlc3wwDGfkBcaf2GtWyxeApS8JSkZQvtgsZfGgMRjO0gq5aFSsBK7hCP4dmLIhBtCm904xaqj0snp2MLDFkTYGvZ2--Lg59M0rdKjEY
+@sessionId = 4fa872e6-2eaa-4de4-9e5d-fc7514731c28
+@sessionSecret = WcWxAIMamWknhiA46NpN540Wm6m3kWHZvdynqBjqHL4=
+@token = CfDJ8FE_QEmxr_5Gl8E9uQQwwd1_BPLQW_ICYQfsKP9GSeetA7lmogOD3ToWy0Y4Q0zBpBwBLbs2YN2eDnCCeqeb9wqm9oJFyQ8YP3gruWOP34gBit3cBvqB1YCK3Eid1XNCiSYCDRV92eKh8Sqy2Iy5uMEy2wn74tZPtV9DHgtD-W1W3E1G511SnGjljPcaCP9J0zjLjS9QK9_b0-7bXRB821KY-UUzZ9__HlGCtYErcE8X2jTnOILCmCEXbAa4tKFWERySbAtUx0YezZjEiq_pTgtde_Ma1w5sIzUH7-Zra9XMlw-TIcbOC-5NRl5J-je8AsOwMSI3v-MeRlbTRhoJeZWtFWaFRlhNnU8IfXbXyKklRIy7_nc0emsFLprxNhDkWflwKXzFnAi5VPqbCeLVP7qph9YUO_CsDHptWk9X9kg4ckXWIb3ZiFx7fMdTyCZ0rEwSWRMxZmQaJ0NCBcRqWQNs8OJvVmGag7NnS9LsBqYMdyTtj_WF66LpRZnDWzUN_1qFn30fha-cvFUPIFCKOtAkEf_tuOwmOkKp49rkt3PbQMZvvaGmK86GIRWtcIUQJ3erPQuSdaTcUpOMe_2FYhkRLjcHOwed9s2cGb-IJqtB8njawvaN-9oIwdCos-_L25mEByKOVZa-8_H1NXiKl7mxeBx0EwHwhw4UXqPiOVu5zuJ0JM0f1_Wl9dnFHM9Boegv8rvaxFX3ILrzyDqNn4k
 
 ### =========================================================
 ### 1) GET CART AS GUEST (creates guest session + cart)
@@ -31,8 +31,8 @@ X-Session-Id: {{sessionId}}
 X-Session-Secret: {{sessionSecret}}
 
 {
-  "productId": 1,
-  "quantity": 2
+  "productId": 1002,
+  "quantity": 10
 }
 
 ### EXPECTED:

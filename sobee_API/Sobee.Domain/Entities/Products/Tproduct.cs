@@ -17,7 +17,7 @@ public partial class Tproduct {
 
     public decimal DecPrice { get; set; }
 
-    public string StrStockAmount { get; set; } = null!;
+    public int IntStockAmount { get; set; }
 
     public virtual ICollection<TcartItem> TcartItems { get; set; } = new List<TcartItem>();
 

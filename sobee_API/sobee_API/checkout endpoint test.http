@@ -1,0 +1,121 @@
+# For more info on HTTP files go to https://aka.ms/vs/httpfile
+@baseUrl = https://localhost:7058
+
+### --------------------------------------------------
+### 0) (Optional) Create a fresh guest session + cart
+### - If your cart endpoint creates session automatically, you can skip the explicit session creation
+### - Otherwise, manually set a sessionId you already have
+### --------------------------------------------------
+@sessionId = 931be49c-4c89-499b-b7c1-553ace0916bf
+
+### --------------------------------------------------
+### 1) Add item to cart as guest
+### EXPECTED:
+### - 200 OK
+### - cart contains item(s)
+### --------------------------------------------------
+POST {{baseUrl}}/api/cart/items
+X-Session-Id: {{sessionId}}
+Content-Type: application/json
+
+{
+  "productId": 1002,
+  "quantity": 2
+}
+
+### --------------------------------------------------
+### 2) Get cart (guest) to confirm items
+### EXPECTED:
+### - 200 OK
+### - owner: "guest"
+### - items array includes productId 1 with quantity 2
+### --------------------------------------------------
+GET {{baseUrl}}/api/cart
+X-Session-Id: {{sessionId}}
+
+### --------------------------------------------------
+### 3) Login to get JWT
+### EXPECTED:
+### - 200 OK
+### - response includes accessToken
+### - copy token into @token
+### --------------------------------------------------
+@token = CfDJ8FE_QEmxr_5Gl8E9uQQwwd0peFsRxVKfHT5gB2oOL24alvrPsjGaQ4BZ3Cm0aWpQD35esxW6_sXrzjg3-QzlShqfQ25ZT6vekoBEXoTPE3jMYkuvlK5OyYbRZoGdZ7YolK4-3ABZBuMrk5PXtpZS1KVITTg7CQqITrnXvnfoGfCgZpYUu7LmN_vLhvK1sl3F5HNxJa-xrDj6i8O8KySkgm66f8rtQJCvJ2-7HdcctPtjgcjG2cBeLK0AHlxGcJFjOujPxjaHv3boRSCzYDrhS8KEDb7uzmX2R70-P8VndL_DKgeWN4XJSUmtWtJe-9VTdUag9fdX3j10E3eEqD0RAcvCfpynrE1W5YE-aS5WgImTsEg53A_JUTPjib7-arVhbkwlE0BE5gkC81GxI7qdeGg1FemCVQ42uCnCCwkKUzuVBRjQhq-rgweJf4w3g7F1a-eJ3o-FR0vpRCz1Qa2wX_JFPLbR2Ls0i7VLZ7TRfVq607mtmlDHQxqmQ5ak9gf72TFQQM0V97TPwIoQIK2O8CtyO6lG1eN-3U8Cgh-e78qNCJ_-KRTTHrHbDxxqUD-e3N4cl65sqJizkK3QMv5-UbsRHYZ1VmmgONohx37UNwsbRF2COtBJYExeQZ2VzyIjUrNBzadtRBdMixAbPWMCqJMK3IF2s5EHbPapjaBpUTKR4Iw37Ty0ZRSy2XkcUlP_O0jtwIqiw-p7_A5vxK-P63K729qbAuY4fybHw8PdOrMq2tXsorehR3W4I5kmapY0xedlYL7IUu6FdoBF_OGVQadvKw2ROw6-p6Gt6Rj1Tyuj
+
+POST {{baseUrl}}/login
+Content-Type: application/json
+
+{
+  "email": "admin2@local.com",
+  "password": "Admin123!"
+}
+
+### --------------------------------------------------
+### 4) Get cart as authenticated user (should merge guest -> user if your merge logic is enabled)
+### EXPECTED:
+### - 200 OK
+### - owner: "user"
+### - items still include productId 1 quantity 2 (merged)
+### --------------------------------------------------
+GET {{baseUrl}}/api/cart
+Authorization: Bearer {{token}}
+X-Session-Id: {{sessionId}}
+
+### --------------------------------------------------
+### 5) Checkout (creates order with initial status)
+### EXPECTED:
+### - 200 OK (or 201)
+### - returns orderId
+### - order has initial status (ex: "Pending" / "Placed")
+### --------------------------------------------------
+POST {{baseUrl}}/api/orders/checkout
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "shippingAddress": "123 Test St, Cincinnati, OH",
+  "paymentMethodId": 1
+}
+
+### --------------------------------------------------
+### 6) Get my orders (authenticated)
+### EXPECTED:
+### - 200 OK
+### - includes the new order
+### - status matches initial status from lifecycle (ex: "Pending")
+### --------------------------------------------------
+GET {{baseUrl}}/api/orders/my
+Authorization: Bearer {{token}}
+
+### --------------------------------------------------
+### 7) Update order status (admin-only if you enforced that)
+### Replace 123 with the orderId returned from checkout
+### EXPECTED:
+### - 200 OK
+### - status changed (ex: "Processing")
+### --------------------------------------------------
+PATCH {{baseUrl}}/api/orders/1/status
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "Paid"
+}
+
+### UPDATE ORDER STATUS (Admin)
+PUT {{baseUrl}}/api/orders/{{orderId}}/status
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "Paid"
+}
+
+### --------------------------------------------------
+### 8) Get order again / list orders again to confirm status changed
+### EXPECTED:
+### - 200 OK
+### - order status now "Processing"
+### --------------------------------------------------
+GET {{baseUrl}}/api/orders/my
+Authorization: Bearer {{token}}

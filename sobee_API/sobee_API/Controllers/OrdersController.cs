@@ -1,10 +1,13 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿// FILE: sobee_API/sobee_API/Controllers/OrdersController.cs
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Sobee.Domain.Data;
 using Sobee.Domain.Entities.Cart;
 using Sobee.Domain.Entities.Orders;
-using sobee_API.Services;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Security.Claims;
 
 namespace sobee_API.Controllers
@@ -14,429 +17,469 @@ namespace sobee_API.Controllers
     public class OrdersController : ControllerBase
     {
         private readonly SobeecoredbContext _db;
-        private readonly GuestSessionService _guestSessionService;
-        private readonly RequestIdentityResolver _identityResolver;
-        private readonly ILogger<OrdersController> _logger;
 
-        public OrdersController(
-            SobeecoredbContext db,
-            GuestSessionService guestSessionService,
-            RequestIdentityResolver identityResolver,
-            ILogger<OrdersController> logger)
+        public OrdersController(SobeecoredbContext db)
         {
             _db = db;
-            _guestSessionService = guestSessionService;
-            _identityResolver = identityResolver;
-            _logger = logger;
         }
 
-        // ============================================================
+        // ---------------------------------------------------------------------
         // DTOs
-        // ============================================================
-        public class CheckoutRequest
+        // ---------------------------------------------------------------------
+
+        public sealed class CheckoutRequest
         {
-            public string ShippingAddress { get; set; } = string.Empty;
-            public int? ShippingMethodId { get; set; }
+            public string? ShippingAddress { get; set; }
             public int? PaymentMethodId { get; set; }
         }
 
-        public class OrderItemResponse
-        {
-            public int OrderItemId { get; set; }
-            public int ProductId { get; set; }
-            public string ProductName { get; set; } = string.Empty;
-            public decimal PricePerUnit { get; set; }
-            public int Quantity { get; set; }
-            public decimal LineTotal { get; set; }
-        }
-
-        public class OrderResponse
+        private sealed class OrderResponse
         {
             public int OrderId { get; set; }
-            public string OwnerType { get; set; } = string.Empty; // "user" or "guest"
-            public string? UserId { get; set; }
-            public string? SessionId { get; set; }
-
-            public DateTime? OrderDateUtc { get; set; }
-            public string? OrderStatus { get; set; }
+            public DateTime? OrderDate { get; set; }
             public decimal? TotalAmount { get; set; }
-
-            public string? ShippingAddress { get; set; }
-            public int? ShippingStatusId { get; set; }
-
+            public string? OrderStatus { get; set; }
+            public string OwnerType { get; set; } = "guest";
+            public string? UserId { get; set; }
+            public string? GuestSessionId { get; set; }
             public List<OrderItemResponse> Items { get; set; } = new();
         }
 
-        // ============================================================
-        // POST: /api/orders/checkout
-        // - Authenticated: user checkout
-        // - Guest: requires X-Session-Id + X-Session-Secret
-        // - If authenticated + validated guest session: merges guest cart -> user cart first
-        // ============================================================
-        [HttpPost("checkout")]
-        [AllowAnonymous]
-        public async Task<IActionResult> Checkout([FromBody] CheckoutRequest request)
+        private sealed class OrderItemResponse
         {
-            if (request == null || string.IsNullOrWhiteSpace(request.ShippingAddress))
-                return BadRequest(new { error = "ShippingAddress is required." });
+            public int? OrderItemId { get; set; }
+            public int? ProductId { get; set; }
+            public string? ProductName { get; set; }
+            public decimal? UnitPrice { get; set; }
+            public int? Quantity { get; set; }
+            public decimal LineTotal { get; set; }
+        }
 
-            var (owner, errorResult) = await ResolveOwnerAsync();
-            if (errorResult != null)
+        // ---------------------------------------------------------------------
+        // Order status lifecycle helpers
+        // ---------------------------------------------------------------------
+        private static class OrderStatuses
+        {
+            // Canonical status strings stored in TOrders.StrOrderStatus
+            public const string Pending = "Pending";        // order created
+            public const string Paid = "Paid";              // payment captured (if applicable)
+            public const string Processing = "Processing";  // being prepared / packed
+            public const string Shipped = "Shipped";        // handed to carrier
+            public const string Delivered = "Delivered";    // delivered to customer
+            public const string Cancelled = "Cancelled";    // cancelled before fulfillment
+            public const string Refunded = "Refunded";      // refunded after payment
+
+            private static readonly string[] _all =
             {
-                return errorResult;
+                Pending, Paid, Processing, Shipped, Delivered, Cancelled, Refunded
+            };
+
+            // Allowed transitions (edit these rules as your business process changes)
+            private static readonly Dictionary<string, HashSet<string>> _allowedTransitions =
+                new(StringComparer.OrdinalIgnoreCase)
+                {
+                    [Pending] = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { Paid, Cancelled },
+                    [Paid] = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { Processing, Refunded },
+                    [Processing] = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { Shipped, Cancelled },
+                    [Shipped] = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { Delivered },
+                    [Delivered] = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { Refunded },
+                    [Cancelled] = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { },
+                    [Refunded] = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { }
+                };
+
+            public static IReadOnlyList<string> All => _all;
+
+            public static bool IsKnown(string? status)
+                => !string.IsNullOrWhiteSpace(status) && _all.Contains(status.Trim(), StringComparer.OrdinalIgnoreCase);
+
+            public static string Normalize(string status)
+            {
+                status = status.Trim();
+
+                foreach (var s in _all)
+                {
+                    if (string.Equals(s, status, StringComparison.OrdinalIgnoreCase))
+                        return s;
+                }
+
+                return status; // caller should reject unknown values via IsKnown
             }
 
-            var userId = owner!.UserId;
-            var sessionId = owner.GuestSessionId;
-            var ownerType = owner.OwnerType;
+            public static bool CanTransition(string? from, string to)
+            {
+                from = string.IsNullOrWhiteSpace(from) ? Pending : Normalize(from);
+                to = Normalize(to);
 
-            await using var tx = await _db.Database.BeginTransactionAsync();
-            TshoppingCart? cart = null;
+                if (!IsKnown(from) || !IsKnown(to))
+                    return false;
+
+                if (string.Equals(from, to, StringComparison.OrdinalIgnoreCase))
+                    return true; // no-op
+
+                return _allowedTransitions.TryGetValue(from, out var allowed) && allowed.Contains(to);
+            }
+
+            public static bool IsCancellable(string? status)
+            {
+                status = string.IsNullOrWhiteSpace(status) ? Pending : Normalize(status);
+
+                // Business rule: cancel allowed before shipment
+                return string.Equals(status, Pending, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(status, Paid, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(status, Processing, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        public sealed class UpdateOrderStatusRequest
+        {
+            public string? Status { get; set; }
+        }
+
+        // ---------------------------------------------------------------------
+        // ENDPOINTS
+        // ---------------------------------------------------------------------
+
+        /// <summary>
+        /// Checkout: creates an order from the current cart and clears the cart.
+        /// </summary>
+        [HttpPost("checkout")]
+        public async Task<IActionResult> Checkout([FromBody] CheckoutRequest request)
+        {
+            var owner = ResolveOwner();
+
+            if (owner.UserId == null && owner.GuestSessionId == null)
+                return Forbid();
+
+            // Load cart for this owner (user OR guest)
+            TshoppingCart? cart =
+                owner.UserId != null
+                    ? await _db.TshoppingCarts
+                        .Include(c => c.TcartItems)
+                        .ThenInclude(i => i.IntProduct)
+                        .FirstOrDefaultAsync(c => c.UserId == owner.UserId)
+                    : await _db.TshoppingCarts
+                        .Include(c => c.TcartItems)
+                        .ThenInclude(i => i.IntProduct)
+                        .FirstOrDefaultAsync(c => c.SessionId == owner.GuestSessionId);
+
+            if (cart == null)
+                return BadRequest(new { error = "No cart found for this owner." });
+
+            if (cart.TcartItems == null || cart.TcartItems.Count == 0)
+                return BadRequest(new { error = "Cart is empty." });
+
+            // Compute totals (also validates items exist)
+            decimal total = 0m;
+
+            foreach (var item in cart.TcartItems)
+            {
+                var qty = item.IntQuantity ?? 0;
+
+                if (qty <= 0)
+                    return BadRequest(new { error = "Cart has an item with invalid quantity.", cartItemId = item.IntCartItemId });
+
+                if (item.IntProduct == null)
+                    return BadRequest(new { error = "Cart contains an item with missing product reference.", cartItemId = item.IntCartItemId });
+
+                var price = item.IntProduct.DecPrice;
+                total += qty * price;
+            }
+
+            // Transaction: validate stock + decrement stock + create order + clear cart
+            using var tx = await _db.Database.BeginTransactionAsync();
 
             try
             {
-                // If logged in and a validated guest session exists, merge/migrate within this transaction.
-                if (!string.IsNullOrWhiteSpace(userId) && owner.GuestSessionValidated && !string.IsNullOrWhiteSpace(sessionId))
+                // 1) Validate stock and decrement it (this is what was missing)
+                foreach (var cartItem in cart.TcartItems)
                 {
-                    await MergeGuestCartIntoUserCartAsync(userId, sessionId);
-                    await MigrateGuestOrdersToUserAsync(userId, sessionId);
-                    await RotateGuestSessionAsync(sessionId);
+                    var qty = cartItem.IntQuantity ?? 0;
+                    var product = cartItem.IntProduct!; // validated above
+
+                    if (product.IntStockAmount < qty)
+                    {
+                        // Not enough stock to fulfill order; rollback later (we haven't saved yet)
+                        return Conflict(new
+                        {
+                            error = "Insufficient stock.",
+                            productId = product.IntProductId,
+                            productName = product.StrName,
+                            requested = qty,
+                            available = product.IntStockAmount
+                        });
+                    }
+
+                    // Decrement inventory now (reservation happens at checkout)
+                    product.IntStockAmount -= qty;
                 }
 
-                // Load cart (after merge, user cart should exist if anything was in session cart)
-                cart = await LoadCartAsync(userId, sessionId);
-                if (cart == null)
-                    return NotFound(new { error = "Cart not found." });
-
-                if (cart.TcartItems == null || cart.TcartItems.Count == 0)
-                    return BadRequest(new { error = "Cart is empty." });
-
-                foreach (var ci in cart.TcartItems)
-                {
-                    if (ci.IntProductId == null || ci.IntProduct == null)
-                        return BadRequest(new { error = "Cart contains invalid item(s). A product is missing." });
-
-                    if ((ci.IntQuantity ?? 0) <= 0)
-                        return BadRequest(new { error = "Cart contains invalid quantity." });
-                }
-
-                int? pendingShippingStatusId = await TryGetPendingShippingStatusIdAsync();
-
-                // Create order header
+                // 2) Create order header
                 var order = new Torder
                 {
                     DtmOrderDate = DateTime.UtcNow,
-                    StrOrderStatus = "Pending",
+                    DecTotalAmount = total,
                     StrShippingAddress = request.ShippingAddress,
-                    IntShippingStatusId = pendingShippingStatusId,
-
-                    // Ownership
-                    UserId = string.IsNullOrWhiteSpace(userId) ? null : userId,
-                    SessionId = string.IsNullOrWhiteSpace(userId) ? sessionId : null
+                    IntPaymentMethodId = request.PaymentMethodId,
+                    StrOrderStatus = OrderStatuses.Pending, // lifecycle starts here
+                    UserId = owner.UserId,
+                    SessionId = owner.GuestSessionId
                 };
 
                 _db.Torders.Add(order);
-                await _db.SaveChangesAsync(); // get IntOrderId
+                await _db.SaveChangesAsync(); // gets order.IntOrderId
 
-                // Create order items from cart items
-                var orderItems = new List<TorderItem>();
-                decimal total = 0m;
-
+                // 3) Create order items
                 foreach (var cartItem in cart.TcartItems)
                 {
-                    int qty = cartItem.IntQuantity ?? 0;
-                    var product = cartItem.IntProduct!;
-                    decimal price = product.DecPrice;
+                    var qty = cartItem.IntQuantity ?? 0;
+                    var price = cartItem.IntProduct?.DecPrice ?? 0m;
 
-                    var oi = new TorderItem
+                    var orderItem = new TorderItem
                     {
                         IntOrderId = order.IntOrderId,
-                        IntProductId = product.IntProductId,
+                        IntProductId = cartItem.IntProductId,
                         IntQuantity = qty,
                         MonPricePerUnit = price
                     };
 
-                    orderItems.Add(oi);
-                    total += price * qty;
+                    _db.TorderItems.Add(orderItem);
                 }
 
-                _db.TorderItems.AddRange(orderItems);
-
-                // Set order total
-                order.DecTotalAmount = total;
-
-                // Clear cart items (cart row remains)
+                // 4) Clear cart items
                 _db.TcartItems.RemoveRange(cart.TcartItems);
-
                 cart.DtmDateLastUpdated = DateTime.UtcNow;
 
+                // 5) Persist everything: (stock changes + order + items + cart clear)
                 await _db.SaveChangesAsync();
                 await tx.CommitAsync();
 
-                var created = await LoadOrderAsync(order.IntOrderId);
-                return Ok(ToOrderResponse(created!, ownerType: string.IsNullOrWhiteSpace(userId) ? "guest" : "user"));
+                // Reload order with items for response
+                var created = await _db.Torders
+                    .Include(o => o.TorderItems)
+                    .ThenInclude(oi => oi.IntProduct)
+                    .FirstAsync(o => o.IntOrderId == order.IntOrderId);
+
+                return Ok(ToOrderResponse(created));
             }
-            catch (Exception ex)
+            catch
             {
                 await tx.RollbackAsync();
-                _logger.LogError(ex, "Checkout failed for user {UserId} cart {CartId} session {SessionId}.", userId, cart?.IntShoppingCartId, sessionId);
                 return StatusCode(500, new { error = "Checkout failed." });
             }
         }
 
-        // ============================================================
-        // GET: /api/orders/{orderId}
-        // - User: must own (UserId matches)
-        // - Guest: must own (SessionId matches validated guest session)
-        // ============================================================
+        /// <summary>
+        /// Get a single order (owner-only: user or guest session).
+        /// </summary>
         [HttpGet("{orderId:int}")]
-        [AllowAnonymous]
-        public async Task<IActionResult> GetOrderById(int orderId)
+        public async Task<IActionResult> GetOrder(int orderId)
         {
-            var order = await LoadOrderAsync(orderId);
+            var owner = ResolveOwner();
+
+            if (owner.UserId == null && owner.GuestSessionId == null)
+                return Forbid();
+
+            var query = _db.Torders
+                .Include(o => o.TorderItems)
+                .ThenInclude(oi => oi.IntProduct)
+                .AsQueryable();
+
+            if (owner.UserId != null)
+                query = query.Where(o => o.UserId == owner.UserId);
+            else
+                query = query.Where(o => o.SessionId == owner.GuestSessionId);
+
+            var order = await query.FirstOrDefaultAsync(o => o.IntOrderId == orderId);
+
             if (order == null)
                 return NotFound(new { error = "Order not found." });
 
-            var (owner, errorResult) = await ResolveOwnerAsync();
-            if (errorResult != null)
-            {
-                return errorResult;
-            }
-
-            if (owner!.OwnerType == "user")
-            {
-                if (!string.Equals(order.UserId, owner.UserId, StringComparison.Ordinal))
-                    return Forbid();
-            }
-            else
-            {
-                if (!owner.GuestSessionValidated)
-                    return StatusCode(403, new { error = "Guest session is invalid." });
-
-                if (!string.Equals(order.SessionId, owner.GuestSessionId, StringComparison.Ordinal))
-                    return Forbid();
-            }
-
-            return Ok(ToOrderResponse(order, owner.OwnerType));
+            return Ok(ToOrderResponse(order));
         }
 
-        // ============================================================
-        // GET: /api/orders/my
-        // - Authenticated only
-        // - If validated guest session exists: migrate guest orders to user first
-        // ============================================================
+        /// <summary>
+        /// Authenticated: get my orders.
+        /// </summary>
         [HttpGet("my")]
         [Authorize]
         public async Task<IActionResult> GetMyOrders()
         {
-            string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrWhiteSpace(userId))
-                return Unauthorized(new { error = "Authenticated request is missing NameIdentifier claim." });
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            var guestSession = await _guestSessionService.ResolveAsync(Request, Response, allowCreate: false);
-            if (guestSession.WasValidated && !string.IsNullOrWhiteSpace(guestSession.SessionId))
-            {
-                await MigrateGuestOrdersToUserAsync(userId, guestSession.SessionId);
-                await RotateGuestSessionAsync(guestSession.SessionId);
-            }
+            if (string.IsNullOrWhiteSpace(userId))
+                return Unauthorized(new { error = "Missing NameIdentifier claim." });
 
             var orders = await _db.Torders
+                .Include(o => o.TorderItems)
+                .ThenInclude(oi => oi.IntProduct)
                 .Where(o => o.UserId == userId)
                 .OrderByDescending(o => o.DtmOrderDate)
-                .Include(o => o.TorderItems)
-                    .ThenInclude(oi => oi.IntProduct)
+                .Select(o => ToOrderResponse(o))
                 .ToListAsync();
 
-            var res = orders.Select(o => ToOrderResponse(o, "user")).ToList();
-            return Ok(res);
+            return Ok(orders);
         }
 
-        // ============================================================
-        // Helpers
-        // ============================================================
+        // ---------------------------------------------------------------------
+        // Order status lifecycle endpoints
+        // ---------------------------------------------------------------------
 
-        private async Task<(RequestIdentity? owner, IActionResult? errorResult)> ResolveOwnerAsync()
+        /// <summary>
+        /// Admin-only: update an order's status with transition validation.
+        /// </summary>
+        [HttpPatch("{orderId:int}/status")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> UpdateOrderStatus(int orderId, [FromBody] UpdateOrderStatusRequest request)
         {
-            var owner = await _identityResolver.ResolveAsync(
-                User,
-                Request,
-                Response,
-                allowCreateGuestSession: false,
-                allowAuthenticatedGuestSession: true);
+            if (request?.Status == null || string.IsNullOrWhiteSpace(request.Status))
+                return BadRequest(new { error = "Missing required field: status" });
 
-            if (owner.HasError)
-            {
-                if (owner.ErrorCode == "MissingNameIdentifier")
-                {
-                    return (null, Unauthorized(new { error = owner.ErrorMessage }));
-                }
+            var newStatus = OrderStatuses.Normalize(request.Status);
 
-                return (null, BadRequest(new { error = owner.ErrorMessage }));
-            }
+            if (!OrderStatuses.IsKnown(newStatus))
+                return BadRequest(new { error = "Invalid status value.", allowed = OrderStatuses.All });
 
-            return (owner, null);
-        }
-
-        private async Task<TshoppingCart?> LoadCartAsync(string? userId, string? sessionId)
-        {
-            var query = _db.TshoppingCarts
-                .Include(c => c.TcartItems)
-                    .ThenInclude(i => i.IntProduct)
-                .AsQueryable();
-
-            if (!string.IsNullOrWhiteSpace(userId))
-                return await query.FirstOrDefaultAsync(c => c.UserId == userId);
-
-            if (!string.IsNullOrWhiteSpace(sessionId))
-                return await query.FirstOrDefaultAsync(c => c.SessionId == sessionId);
-
-            return null;
-        }
-
-        private async Task<Torder?> LoadOrderAsync(int orderId)
-        {
-            return await _db.Torders
+            var order = await _db.Torders
                 .Include(o => o.TorderItems)
-                    .ThenInclude(oi => oi.IntProduct)
+                .ThenInclude(oi => oi.IntProduct)
                 .FirstOrDefaultAsync(o => o.IntOrderId == orderId);
-        }
 
-        private OrderResponse ToOrderResponse(Torder order, string ownerType)
-        {
-            var response = new OrderResponse
+            if (order == null)
+                return NotFound(new { error = "Order not found." });
+
+            var currentStatus = string.IsNullOrWhiteSpace(order.StrOrderStatus)
+                ? OrderStatuses.Pending
+                : OrderStatuses.Normalize(order.StrOrderStatus);
+
+            if (!OrderStatuses.CanTransition(currentStatus, newStatus))
             {
-                OrderId = order.IntOrderId,
-                OwnerType = ownerType,
-                UserId = order.UserId,
-                SessionId = order.SessionId,
-                OrderDateUtc = order.DtmOrderDate,
-                OrderStatus = order.StrOrderStatus,
-                TotalAmount = order.DecTotalAmount,
-                ShippingAddress = order.StrShippingAddress,
-                ShippingStatusId = order.IntShippingStatusId
-            };
-
-            foreach (var item in order.TorderItems)
-            {
-                var product = item.IntProduct;
-
-                int qty = item.IntQuantity ?? 0;
-                decimal price = item.MonPricePerUnit ?? 0m;
-
-                response.Items.Add(new OrderItemResponse
+                return Conflict(new
                 {
-                    OrderItemId = item.IntOrderItemId,
-                    ProductId = item.IntProductId ?? 0,
-                    ProductName = product?.StrName ?? "(unknown)",
-                    PricePerUnit = price,
-                    Quantity = qty,
-                    LineTotal = price * qty
+                    error = "Invalid status transition.",
+                    from = currentStatus,
+                    to = newStatus,
+                    allowedNext = OrderStatuses.All.Where(s => OrderStatuses.CanTransition(currentStatus, s)).ToArray()
                 });
             }
 
-            return response;
-        }
+            // Status change only. Stock already decremented at checkout.
+            order.StrOrderStatus = newStatus;
+            await _db.SaveChangesAsync();
 
-        private async Task<int?> TryGetPendingShippingStatusIdAsync()
-        {
-            // If you have a "Pending" row in TshippingStatuses and want to use it:
-            // return await _db.TshippingStatuses
-            //     .Where(s => s.StrStatusName == "Pending")
-            //     .Select(s => (int?)s.IntShippingStatusId)
-            //     .FirstOrDefaultAsync();
-
-            return null; // MVP: allow null
+            return Ok(ToOrderResponse(order));
         }
 
         /// <summary>
-        /// If user is authenticated and still has a guest session cart, merge it into user cart.
+        /// Owner (authenticated user or guest with valid session): cancel an order when allowed.
         /// </summary>
-        private async Task MergeGuestCartIntoUserCartAsync(string userId, string sessionId)
+        [HttpPost("{orderId:int}/cancel")]
+        public async Task<IActionResult> CancelOrder(int orderId)
         {
-            var userCart = await _db.TshoppingCarts
-                .Include(c => c.TcartItems)
-                .FirstOrDefaultAsync(c => c.UserId == userId);
+            var owner = ResolveOwner();
 
-            var sessionCart = await _db.TshoppingCarts
-                .Include(c => c.TcartItems)
-                .FirstOrDefaultAsync(c => c.SessionId == sessionId && c.UserId == null);
+            if (owner.UserId == null && owner.GuestSessionId == null)
+                return Forbid();
 
-            if (sessionCart == null)
-                return;
+            var query = _db.Torders
+                .Include(o => o.TorderItems)
+                .ThenInclude(oi => oi.IntProduct)
+                .AsQueryable();
 
-            if (userCart == null)
+            if (owner.UserId != null)
+                query = query.Where(o => o.UserId == owner.UserId);
+            else
+                query = query.Where(o => o.SessionId == owner.GuestSessionId);
+
+            var order = await query.FirstOrDefaultAsync(o => o.IntOrderId == orderId);
+
+            if (order == null)
+                return NotFound(new { error = "Order not found." });
+
+            var currentStatus = string.IsNullOrWhiteSpace(order.StrOrderStatus)
+                ? OrderStatuses.Pending
+                : OrderStatuses.Normalize(order.StrOrderStatus);
+
+            if (!OrderStatuses.IsCancellable(currentStatus))
             {
-                // Claim session cart as the user's cart
-                sessionCart.UserId = userId;
-                sessionCart.SessionId = null;
-                sessionCart.DtmDateLastUpdated = DateTime.UtcNow;
-                await _db.SaveChangesAsync();
-                return;
+                return Conflict(new
+                {
+                    error = "Order cannot be cancelled in its current status.",
+                    status = currentStatus
+                });
             }
 
-            // Merge items
-            foreach (var sessionItem in sessionCart.TcartItems.ToList())
+            // Optional: restock items here if you want "cancel" to return stock.
+            order.StrOrderStatus = OrderStatuses.Cancelled;
+
+            await _db.SaveChangesAsync();
+
+            return Ok(ToOrderResponse(order));
+        }
+
+        // ---------------------------------------------------------------------
+        // Helpers
+        // ---------------------------------------------------------------------
+
+        private (string? UserId, string? GuestSessionId, string OwnerType) ResolveOwner()
+        {
+            // Authenticated user
+            if (User?.Identity?.IsAuthenticated == true)
             {
-                if (sessionItem.IntProductId == null) continue;
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-                var existing = userCart.TcartItems
-                    .FirstOrDefault(i => i.IntProductId == sessionItem.IntProductId);
+                if (string.IsNullOrWhiteSpace(userId))
+                    return (null, null, "invalid");
 
-                if (existing == null)
+                return (userId, null, "user");
+            }
+
+            // Guest session
+            if (Request.Headers.TryGetValue("X-Session-Id", out var values))
+            {
+                var sessionId = values.ToString();
+
+                if (!string.IsNullOrWhiteSpace(sessionId))
+                    return (null, sessionId, "guest");
+            }
+
+            return (null, null, "none");
+        }
+
+        private static OrderResponse ToOrderResponse(Torder order)
+        {
+            var ownerType = !string.IsNullOrWhiteSpace(order.UserId) ? "user" : "guest";
+
+            var resp = new OrderResponse
+            {
+                OrderId = order.IntOrderId,
+                OrderDate = order.DtmOrderDate,
+                TotalAmount = order.DecTotalAmount,
+                OrderStatus = order.StrOrderStatus,
+                OwnerType = ownerType,
+                UserId = order.UserId,
+                GuestSessionId = order.SessionId
+            };
+
+            if (order.TorderItems != null)
+            {
+                foreach (var item in order.TorderItems)
                 {
-                    userCart.TcartItems.Add(new TcartItem
+                    var qty = item.IntQuantity ?? 0;
+                    var unit = item.MonPricePerUnit ?? (item.IntProduct?.DecPrice ?? 0m);
+
+                    resp.Items.Add(new OrderItemResponse
                     {
-                        IntShoppingCartId = userCart.IntShoppingCartId,
-                        IntProductId = sessionItem.IntProductId,
-                        IntQuantity = sessionItem.IntQuantity ?? 0,
-                        DtmDateAdded = DateTime.UtcNow
+                        OrderItemId = item.IntOrderItemId,
+                        ProductId = item.IntProductId,
+                        ProductName = item.IntProduct?.StrName,
+                        UnitPrice = unit,
+                        Quantity = qty,
+                        LineTotal = qty * unit
                     });
                 }
-                else
-                {
-                    existing.IntQuantity = (existing.IntQuantity ?? 0) + (sessionItem.IntQuantity ?? 0);
-                }
             }
 
-            userCart.DtmDateLastUpdated = DateTime.UtcNow;
-
-            // Remove guest cart after merge
-            _db.TshoppingCarts.Remove(sessionCart);
-
-            await _db.SaveChangesAsync();
+            return resp;
         }
-
-        /// <summary>
-        /// Migrates guest orders (SessionId, UserId null) to user after login.
-        /// </summary>
-        private async Task MigrateGuestOrdersToUserAsync(string userId, string sessionId)
-        {
-            var guestOrders = await _db.Torders
-                .Where(o => o.SessionId == sessionId && o.UserId == null)
-                .ToListAsync();
-
-            if (guestOrders.Count == 0)
-                return;
-
-            foreach (var o in guestOrders)
-            {
-                o.UserId = userId;
-                o.SessionId = null;
-            }
-
-            await _db.SaveChangesAsync();
-        }
-
-        private async Task RotateGuestSessionAsync(string? sessionId)
-        {
-            if (string.IsNullOrWhiteSpace(sessionId))
-            {
-                return;
-            }
-
-            // Rotate to prevent guest session fixation reuse after merge/migrate.
-            await _guestSessionService.InvalidateAsync(sessionId);
-        }
-
     }
 }

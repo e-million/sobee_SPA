@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Sobee.Domain.Data;
 
@@ -11,9 +12,11 @@ using Sobee.Domain.Data;
 namespace Sobee.Domain.Migrations.Sobee
 {
     [DbContext(typeof(SobeecoredbContext))]
-    partial class SobeecoredbContextModelSnapshot : ModelSnapshot
+    [Migration("20260109212745_StockAsInt")]
+    partial class StockAsInt
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

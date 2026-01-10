@@ -93,7 +93,7 @@ public class GuestSessionTests : IClassFixture<ApiTestFactory>
                 StrName = "Test Product",
                 strDescription = "Test Description",
                 DecPrice = 1.99m,
-                StrStockAmount = "10"
+                IntStockAmount = 10
             });
             await db.SaveChangesAsync();
         }
