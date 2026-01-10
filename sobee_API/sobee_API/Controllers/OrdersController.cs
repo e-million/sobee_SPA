@@ -169,7 +169,7 @@ namespace sobee_API.Controllers
                 return BadRequest(new { error = "Cart is empty." });
 
             // Compute totals (also validates items exist)
-            decimal total = 0m;
+            decimal subtotal = 0m;
 
             foreach (var item in cart.TcartItems)
             {
@@ -181,9 +181,30 @@ namespace sobee_API.Controllers
                 if (item.IntProduct == null)
                     return BadRequest(new { error = "Cart contains an item with missing product reference.", cartItemId = item.IntCartItemId });
 
-                var price = item.IntProduct.DecPrice;
-                total += qty * price;
+                subtotal += qty * item.IntProduct.DecPrice;
             }
+
+            // Promo discount (cart-scoped)
+            decimal discount = 0m;
+
+            var promo = await _db.TpromoCodeUsageHistories
+                .Join(_db.Tpromotions,
+                    usage => usage.PromoCode,
+                    promo => promo.StrPromoCode,
+                    (usage, promo) => new { usage, promo })
+                .Where(x => x.usage.IntShoppingCartId == cart.IntShoppingCartId &&
+                            x.promo.DtmExpirationDate > DateTime.UtcNow)
+                .OrderByDescending(x => x.usage.UsedDateTime)
+                .Select(x => x.promo)
+                .FirstOrDefaultAsync();
+
+            if (promo != null)
+            {
+                discount = subtotal * (promo.DecDiscountPercentage / 100m);
+            }
+
+            decimal total = subtotal - discount;
+
 
             // Transaction: validate stock + decrement stock + create order + clear cart
             using var tx = await _db.Database.BeginTransactionAsync();

@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Sobee.Domain.Data;
 using Sobee.Domain.Entities.Cart;
+using Sobee.Domain.Entities.Promotions;
+using sobee_API.DTOs;
 using sobee_API.Services;
 
 namespace sobee_API.Controllers
@@ -236,6 +238,88 @@ namespace sobee_API.Controllers
             cart = await LoadCartWithItemsAsync(cart.IntShoppingCartId);
             return Ok(ProjectCart(cart, identity.UserId, identity.GuestSessionId));
         }
+
+
+
+
+        // Promos
+        [HttpPost("promo/apply")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ApplyPromo([FromBody] ApplyPromoRequest request)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.PromoCode))
+                return BadRequest(new { error = "PromoCode is required." });
+
+            var (identity, errorResult) = await ResolveIdentityAsync(allowCreateGuestSession: true);
+            if (errorResult != null)
+                return errorResult;
+
+            var cart = await FindCartAsync(identity!.UserId, identity.GuestSessionId);
+            if (cart == null)
+                return NotFound(new { error = "Cart not found." });
+
+            var promoCode = request.PromoCode.Trim();
+
+            var promo = await _db.Tpromotions.FirstOrDefaultAsync(p =>
+                p.StrPromoCode == promoCode &&
+                p.DtmExpirationDate > DateTime.UtcNow);
+
+            if (promo == null)
+                return BadRequest(new { error = "Invalid or expired promo code." });
+
+            var alreadyApplied = await _db.TpromoCodeUsageHistories.AnyAsync(p =>
+                p.IntShoppingCartId == cart.IntShoppingCartId &&
+                p.PromoCode == promoCode);
+
+            if (alreadyApplied)
+                return Conflict(new { error = "Promo code already applied to this cart." });
+
+            _db.TpromoCodeUsageHistories.Add(new TpromoCodeUsageHistory
+            {
+                IntShoppingCartId = cart.IntShoppingCartId,
+                PromoCode = promoCode,
+                UsedDateTime = DateTime.UtcNow
+            });
+
+            await _db.SaveChangesAsync();
+
+            return Ok(new
+            {
+                message = "Promo code applied.",
+                promoCode,
+                discountPercentage = promo.DecDiscountPercentage
+            });
+        }
+
+
+        [HttpDelete("promo")]
+        [AllowAnonymous]
+        public async Task<IActionResult> RemovePromo()
+        {
+            var (identity, errorResult) = await ResolveIdentityAsync(allowCreateGuestSession: true);
+            if (errorResult != null)
+                return errorResult;
+
+            var cart = await FindCartAsync(identity!.UserId, identity.GuestSessionId);
+            if (cart == null)
+                return NotFound(new { error = "Cart not found." });
+
+            var promos = await _db.TpromoCodeUsageHistories
+                .Where(p => p.IntShoppingCartId == cart.IntShoppingCartId)
+                .ToListAsync();
+
+            if (promos.Count == 0)
+                return BadRequest(new { error = "No promo code applied to cart." });
+
+            _db.TpromoCodeUsageHistories.RemoveRange(promos);
+            await _db.SaveChangesAsync();
+
+            return Ok(new { message = "Promo code removed." });
+        }
+
+
+
+
 
         // ============================================================
         // Helpers
