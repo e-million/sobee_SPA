@@ -352,21 +352,36 @@ public partial class SobeecoredbContext : DbContext {
 
         });
 
-		modelBuilder.Entity<TproductImage>(entity => {
-			entity.HasKey(e => e.IntProductImageId).HasName("TProductImages_PK");
+        modelBuilder.Entity<TproductImage>(entity =>
+        {
+            entity.HasKey(e => e.IntProductImageId).HasName("TProductImages_PK");
 
-			entity.ToTable("TProductImages");
+            entity.ToTable("TProductImages");
 
-			entity.Property(e => e.IntProductImageId).HasColumnName("intProductImageID");
-			entity.Property(e => e.StrProductImageUrl)
-				.HasMaxLength(1000)
-				.IsUnicode(false)
-				.HasColumnName("strProductImageURL");
-		});
+            entity.Property(e => e.IntProductImageId).HasColumnName("intProductImageID");
 
-		
+            entity.Property(e => e.StrProductImageUrl)
+                .HasMaxLength(1000)
+                .IsUnicode(false)
+                .HasColumnName("strProductImageURL");
 
-		modelBuilder.Entity<TpromoCodeUsageHistory>(entity => {
+            // NEW: FK column
+            entity.Property(e => e.IntProductId).HasColumnName("intProductID");
+
+            // NEW: index (recommended)
+            entity.HasIndex(e => e.IntProductId).HasDatabaseName("IX_TProductImages_intProductID");
+
+            // NEW: relationship
+            entity.HasOne(d => d.IntProduct)
+                .WithMany(p => p.TproductImages)
+                .HasForeignKey(d => d.IntProductId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+
+
+
+        modelBuilder.Entity<TpromoCodeUsageHistory>(entity => {
 			entity.HasKey(e => e.IntUsageHistoryId).HasName("TPromoCodeUsageHistory_PK");
 
 			entity.ToTable("TPromoCodeUsageHistory");

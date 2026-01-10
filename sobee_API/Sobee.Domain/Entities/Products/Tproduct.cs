@@ -7,7 +7,8 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Sobee.Domain.Entities.Products;
 
-public partial class Tproduct {
+public partial class Tproduct
+{
     [Key]
     public int IntProductId { get; set; }
 
@@ -25,6 +26,8 @@ public partial class Tproduct {
 
     public virtual ICollection<TorderItem> TorderItems { get; set; } = new List<TorderItem>();
 
-
     public virtual ICollection<Treview> Treviews { get; set; } = new List<Treview>();
+
+    // NEW: product images
+    public virtual ICollection<TproductImage> TproductImages { get; set; } = new List<TproductImage>();
 }
