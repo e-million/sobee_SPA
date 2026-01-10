@@ -2,6 +2,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Sobee.Domain.Data;
+using Sobee.Domain.Entities.Products;
+using sobee_API.DTOs;
 
 namespace sobee_API.Controllers;
 
@@ -44,13 +46,13 @@ public class ProductsController : ControllerBase
 
         var products = await query
             .OrderBy(p => p.IntProductId)
-            .Select(p => new
+            .Select(p => new ProductListDto
             {
                 Id = p.IntProductId,
                 Name = p.StrName,
                 Description = p.strDescription,
                 Price = p.DecPrice,
-                Stock = p.StrStockAmount
+                Stock = p.IntStockAmount
             })
             .ToListAsync();
 
@@ -66,13 +68,13 @@ public class ProductsController : ControllerBase
         var product = await _db.Tproducts
             .AsNoTracking()
             .Where(p => p.IntProductId == id)
-            .Select(p => new
+            .Select(p => new ProductListDto
             {
                 Id = p.IntProductId,
                 Name = p.StrName,
                 Description = p.strDescription,
                 Price = p.DecPrice,
-                Stock = p.StrStockAmount
+                Stock = p.IntStockAmount
             })
             .FirstOrDefaultAsync();
 
@@ -89,7 +91,6 @@ public class ProductsController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Create([FromBody] CreateProductRequest request)
     {
-        // Basic validation (avoid silent bad data)
         if (request == null)
             return BadRequest(new { error = "Request body is required." });
 
@@ -102,29 +103,27 @@ public class ProductsController : ControllerBase
         if (request.Price < 0)
             return BadRequest(new { error = "Price must be 0 or greater." });
 
-        if (string.IsNullOrWhiteSpace(request.Stock))
-            return BadRequest(new { error = "Stock is required (string in current schema)." });
+        if (request.Stock < 0)
+            return BadRequest(new { error = "Stock must be 0 or greater." });
 
-        // Create entity
-        var entity = new Sobee.Domain.Entities.Products.Tproduct
+        var entity = new Tproduct
         {
             StrName = request.Name.Trim(),
             strDescription = request.Description.Trim(),
             DecPrice = request.Price,
-            StrStockAmount = request.Stock.Trim()
+            IntStockAmount = request.Stock
         };
 
         _db.Tproducts.Add(entity);
         await _db.SaveChangesAsync();
 
-        // Return 201 + route to new resource
-        return CreatedAtAction(nameof(GetById), new { id = entity.IntProductId }, new
+        return CreatedAtAction(nameof(GetById), new { id = entity.IntProductId }, new ProductListDto
         {
             Id = entity.IntProductId,
             Name = entity.StrName,
             Description = entity.strDescription,
             Price = entity.DecPrice,
-            Stock = entity.StrStockAmount
+            Stock = entity.IntStockAmount
         });
     }
 
@@ -138,12 +137,10 @@ public class ProductsController : ControllerBase
         if (request == null)
             return BadRequest(new { error = "Request body is required." });
 
-        // Find product (tracked)
         var entity = await _db.Tproducts.FirstOrDefaultAsync(p => p.IntProductId == id);
         if (entity == null)
             return NotFound(new { error = "Product not found." });
 
-        // Apply only provided fields (PATCH-like behavior but via PUT)
         if (request.Name != null)
         {
             if (string.IsNullOrWhiteSpace(request.Name))
@@ -168,23 +165,23 @@ public class ProductsController : ControllerBase
             entity.DecPrice = request.Price.Value;
         }
 
-        if (request.Stock != null)
+        if (request.Stock.HasValue)
         {
-            if (string.IsNullOrWhiteSpace(request.Stock))
-                return BadRequest(new { error = "Stock cannot be empty." });
+            if (request.Stock.Value < 0)
+                return BadRequest(new { error = "Stock must be 0 or greater." });
 
-            entity.StrStockAmount = request.Stock.Trim();
+            entity.IntStockAmount = request.Stock.Value;
         }
 
         await _db.SaveChangesAsync();
 
-        return Ok(new
+        return Ok(new ProductListDto
         {
             Id = entity.IntProductId,
             Name = entity.StrName,
             Description = entity.strDescription,
             Price = entity.DecPrice,
-            Stock = entity.StrStockAmount
+            Stock = entity.IntStockAmount
         });
     }
 
@@ -202,35 +199,23 @@ public class ProductsController : ControllerBase
         _db.Tproducts.Remove(entity);
         await _db.SaveChangesAsync();
 
-        // 200 with a small payload helps debugging/tests
         return Ok(new { deleted = true, id });
     }
 
-    // =========================================================
     // Request DTOs
-    // Keep them inside controller file to avoid extra files right now.
-    // =========================================================
     public class CreateProductRequest
     {
-        // Required
         public string Name { get; set; } = string.Empty;
-
-        // Required
         public string Description { get; set; } = string.Empty;
-
-        // Required
         public decimal Price { get; set; }
-
-        // Required (current DB schema stores stock as string)
-        public string Stock { get; set; } = string.Empty;
+        public int Stock { get; set; }
     }
 
     public class UpdateProductRequest
     {
-        // Optional fields. Only those provided are updated.
         public string? Name { get; set; }
         public string? Description { get; set; }
         public decimal? Price { get; set; }
-        public string? Stock { get; set; }
+        public int? Stock { get; set; }
     }
 }

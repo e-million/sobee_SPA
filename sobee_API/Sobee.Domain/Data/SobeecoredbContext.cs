@@ -346,11 +346,11 @@ public partial class SobeecoredbContext : DbContext {
 				.HasMaxLength(255)
 				.IsUnicode(false)
 				.HasColumnName("strName");
-			entity.Property(e => e.StrStockAmount)
-				.HasMaxLength(255)
-				.IsUnicode(false)
-				.HasColumnName("strStockAmount");
-		});
+            entity.Property(e => e.IntStockAmount)
+			  .HasColumnName("IntStockAmount")
+			  .HasDefaultValue(0);
+
+        });
 
 		modelBuilder.Entity<TproductImage>(entity => {
 			entity.HasKey(e => e.IntProductImageId).HasName("TProductImages_PK");
