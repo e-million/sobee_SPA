@@ -43,6 +43,12 @@ namespace sobee_API.Controllers
             public string? UserId { get; set; }
             public string? GuestSessionId { get; set; }
             public List<OrderItemResponse> Items { get; set; } = new();
+
+            public decimal? SubtotalAmount { get; set; }
+            public decimal? DiscountAmount { get; set; }
+            public decimal? DiscountPercentage { get; set; }
+            public string? PromoCode { get; set; }
+
         }
 
         private sealed class OrderItemResponse
@@ -238,13 +244,21 @@ namespace sobee_API.Controllers
                 var order = new Torder
                 {
                     DtmOrderDate = DateTime.UtcNow,
+
+                    // pricing snapshot
+                    DecSubtotalAmount = subtotal,
+                    DecDiscountPercentage = promo?.DecDiscountPercentage,
+                    DecDiscountAmount = discount,
+                    StrPromoCode = promo?.StrPromoCode,
                     DecTotalAmount = total,
+
                     StrShippingAddress = request.ShippingAddress,
                     IntPaymentMethodId = request.PaymentMethodId,
-                    StrOrderStatus = OrderStatuses.Pending, // lifecycle starts here
+                    StrOrderStatus = OrderStatuses.Pending,
                     UserId = owner.UserId,
                     SessionId = owner.GuestSessionId
                 };
+
 
                 _db.Torders.Add(order);
                 await _db.SaveChangesAsync(); // gets order.IntOrderId
@@ -478,7 +492,12 @@ namespace sobee_API.Controllers
                 OrderStatus = order.StrOrderStatus,
                 OwnerType = ownerType,
                 UserId = order.UserId,
-                GuestSessionId = order.SessionId
+                GuestSessionId = order.SessionId,
+                SubtotalAmount = order.DecSubtotalAmount,
+                DiscountAmount = order.DecDiscountAmount,
+                DiscountPercentage = order.DecDiscountPercentage,
+                PromoCode = order.StrPromoCode,
+
             };
 
             if (order.TorderItems != null)

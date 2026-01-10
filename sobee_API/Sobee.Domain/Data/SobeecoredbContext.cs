@@ -261,6 +261,24 @@ public partial class SobeecoredbContext : DbContext {
             entity.HasIndex(e => e.SessionId)
                   .HasDatabaseName("IX_TOrders_session_id");
 
+            entity.Property(e => e.StrPromoCode)
+					.HasMaxLength(255)
+					.IsUnicode(false)
+					.HasColumnName("strPromoCode");
+
+            entity.Property(e => e.DecDiscountPercentage)
+                .HasColumnType("decimal(18,2)")
+                .HasColumnName("decDiscountPercentage");
+
+            entity.Property(e => e.DecDiscountAmount)
+                .HasColumnType("decimal(18,2)")
+                .HasColumnName("decDiscountAmount");
+
+            entity.Property(e => e.DecSubtotalAmount)
+                .HasColumnType("decimal(18,2)")
+                .HasColumnName("decSubtotalAmount");
+
+
         });
 
 		modelBuilder.Entity<TorderItem>(entity => {
