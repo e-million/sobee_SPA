@@ -2,11 +2,19 @@
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
-namespace Sobee.Domain.Entities.Products;
+namespace Sobee.Domain.Entities.Products
+{
+    public partial class TproductImage
+    {
+        [Key]
+        public int IntProductImageId { get; set; }
 
-public partial class TproductImage {
-    [Key]
-    public int IntProductImageId { get; set; }
+        public string StrProductImageUrl { get; set; } = null!;
 
-    public string StrProductImageUrl { get; set; } = null!;
+        // FK column (dbo.TProductImages.intProductID)
+        public int IntProductId { get; set; }
+
+        // Navigation
+        public virtual Tproduct? IntProduct { get; set; }
+    }
 }
