@@ -32,7 +32,7 @@ namespace sobee_API.Controllers
             if (product.TproductImages == null || product.TproductImages.Count == 0)
                 return null;
 
-            // Primary = lowest image id (simple deterministic rule)
+            // Deterministic rule: lowest image ID
             return product.TproductImages
                 .OrderBy(i => i.IntProductImageId)
                 .Select(i => i.StrProductImageUrl)
@@ -44,21 +44,52 @@ namespace sobee_API.Controllers
         // ----------------------------
 
         /// <summary>
-        /// List products. Public users get InStock + PrimaryImageUrl.
-        /// Admin additionally sees StockAmount.
+        /// List products with paging, search, and sorting.
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> GetProducts()
+        public async Task<IActionResult> GetProducts(
+            [FromQuery] string? q,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20,
+            [FromQuery] string? sort = null)
         {
+            if (page <= 0)
+                return BadRequest(new { error = "page must be >= 1" });
+
+            if (pageSize <= 0 || pageSize > 100)
+                return BadRequest(new { error = "pageSize must be between 1 and 100" });
+
             bool admin = IsAdmin();
 
-            var products = await _db.Tproducts
+            IQueryable<Tproduct> query = _db.Tproducts
                 .AsNoTracking()
-                .Include(p => p.TproductImages)
-                .OrderBy(p => p.IntProductId)
+                .Include(p => p.TproductImages);
+
+            // Search (name + description)
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var term = q.Trim();
+                query = query.Where(p =>
+                    p.StrName.Contains(term) ||
+                    p.strDescription.Contains(term));
+            }
+
+            // Sorting
+            query = sort switch
+            {
+                "priceAsc" => query.OrderBy(p => p.DecPrice),
+                "priceDesc" => query.OrderByDescending(p => p.DecPrice),
+                _ => query.OrderBy(p => p.IntProductId)
+            };
+
+            var totalCount = await query.CountAsync();
+
+            var products = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
 
-            var dto = products.Select(p => new ProductListDto
+            var items = products.Select(p => new ProductListDto
             {
                 Id = p.IntProductId,
                 Name = p.StrName,
@@ -71,7 +102,13 @@ namespace sobee_API.Controllers
                 StockAmount = admin ? p.IntStockAmount : null
             }).ToList();
 
-            return Ok(dto);
+            return Ok(new
+            {
+                page,
+                pageSize,
+                totalCount,
+                items
+            });
         }
 
         /// <summary>
@@ -218,8 +255,6 @@ namespace sobee_API.Controllers
             if (product == null)
                 return NotFound(new { error = "Product not found." });
 
-            // Images will delete via cascade if FK is configured that way.
-            // This explicit remove is safe either way.
             if (product.TproductImages != null && product.TproductImages.Count > 0)
                 _db.TproductImages.RemoveRange(product.TproductImages);
 
@@ -278,7 +313,7 @@ namespace sobee_API.Controllers
         }
 
         // ----------------------------
-        // Request Models (public to avoid accessibility errors)
+        // Request Models
         // ----------------------------
 
         public class CreateProductRequest

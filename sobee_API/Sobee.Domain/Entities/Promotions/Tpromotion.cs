@@ -6,7 +6,7 @@ namespace Sobee.Domain.Entities.Promotions;
 
 public partial class Tpromotion {
     [Key]
-    public int? IntPromotionId { get; set; }
+    public int IntPromotionId { get; set; }
 
     public string StrPromoCode { get; set; } = null!;
 
