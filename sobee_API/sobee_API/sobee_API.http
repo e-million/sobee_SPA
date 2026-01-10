@@ -1,156 +1,112 @@
 ﻿@baseUrl = https://localhost:7058
 
-### =========================================================
-### 0) SET THESE AFTER STEP 1 RESPONSE HEADERS
-### =========================================================
-@sessionId = 4fa872e6-2eaa-4de4-9e5d-fc7514731c28
-@sessionSecret = WcWxAIMamWknhiA46NpN540Wm6m3kWHZvdynqBjqHL4=
-@token = CfDJ8FE_QEmxr_5Gl8E9uQQwwd1_BPLQW_ICYQfsKP9GSeetA7lmogOD3ToWy0Y4Q0zBpBwBLbs2YN2eDnCCeqeb9wqm9oJFyQ8YP3gruWOP34gBit3cBvqB1YCK3Eid1XNCiSYCDRV92eKh8Sqy2Iy5uMEy2wn74tZPtV9DHgtD-W1W3E1G511SnGjljPcaCP9J0zjLjS9QK9_b0-7bXRB821KY-UUzZ9__HlGCtYErcE8X2jTnOILCmCEXbAa4tKFWERySbAtUx0YezZjEiq_pTgtde_Ma1w5sIzUH7-Zra9XMlw-TIcbOC-5NRl5J-je8AsOwMSI3v-MeRlbTRhoJeZWtFWaFRlhNnU8IfXbXyKklRIy7_nc0emsFLprxNhDkWflwKXzFnAi5VPqbCeLVP7qph9YUO_CsDHptWk9X9kg4ckXWIb3ZiFx7fMdTyCZ0rEwSWRMxZmQaJ0NCBcRqWQNs8OJvVmGag7NnS9LsBqYMdyTtj_WF66LpRZnDWzUN_1qFn30fha-cvFUPIFCKOtAkEf_tuOwmOkKp49rkt3PbQMZvvaGmK86GIRWtcIUQJ3erPQuSdaTcUpOMe_2FYhkRLjcHOwed9s2cGb-IJqtB8njawvaN-9oIwdCos-_L25mEByKOVZa-8_H1NXiKl7mxeBx0EwHwhw4UXqPiOVu5zuJ0JM0f1_Wl9dnFHM9Boegv8rvaxFX3ILrzyDqNn4k
+### ------------------------------------------------------------
+### 0) Get products (pick a productId from response)
+### ------------------------------------------------------------
+GET {{baseUrl}}/api/products
+Accept: application/json
 
-### =========================================================
-### 1) GET CART AS GUEST (creates guest session + cart)
-### =========================================================
-GET {{baseUrl}}/api/cart
 
-### EXPECTED:
-### - 200 OK
-### - Response headers include:
-###   - X-Session-Id: <guid>
-###   - X-Session-Secret: <secret>
-### - Response body owner="guest"
-### ACTION:
-### - Copy X-Session-Id into @sessionId
-### - Copy X-Session-Secret into @sessionSecret
-
-### =========================================================
-### 2) ADD ITEM AS GUEST (uses session headers)
-### =========================================================
+### ------------------------------------------------------------
+### 1) Add item to cart as GUEST
+### - This should ISSUE X-Session-Id + X-Session-Secret in RESPONSE headers
+### - Copy those values into @sessionId / @sessionSecret below
+### ------------------------------------------------------------
 POST {{baseUrl}}/api/cart/items
 Content-Type: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
+Accept: application/json
 
 {
-  "productId": 1002,
-  "quantity": 10
+  "productId": 1003,
+  "quantity": 2
 }
 
-### EXPECTED:
-### - 200 OK
-### - owner="guest"
-### - items contains productId=1 quantity=2
 
-### =========================================================
-### 3) CONFIRM GUEST CART HAS ITEMS
-### =========================================================
+### ------------------------------------------------------------
+### 2) Set guest session vars (PASTE from response headers of step 1)
+### ------------------------------------------------------------
+@sessionId = 71a6f470-e602-4e68-be81-c0d52b5f8774
+@sessionSecret = w76lgYIeSyt7H0Ti30tFdfU9en7NNaFG8+06GdtgWO0=
+
+
+### ------------------------------------------------------------
+### 3) Get cart as GUEST (should persist)
+### ------------------------------------------------------------
 GET {{baseUrl}}/api/cart
+Accept: application/json
 X-Session-Id: {{sessionId}}
 X-Session-Secret: {{sessionSecret}}
 
-### EXPECTED:
-### - 200 OK
-### - owner="guest"
-### - items still present
 
-### =========================================================
-### 4) REGISTER (if needed)
-### =========================================================
-POST {{baseUrl}}/register
+### ------------------------------------------------------------
+### 4) Apply promo as GUEST
+### - Promo must exist in TPromotions and not be expired
+### ------------------------------------------------------------
+POST {{baseUrl}}/api/cart/promo/apply
 Content-Type: application/json
-
-{
-  "email": "testuser1@local.com",
-  "password": "Test123!",
-  "firstName": "Test",
-  "lastName": "User"
-}
-
-### EXPECTED:
-### - 200 or 201 (depends on your controller)
-### - If already exists, you may get 400/409; proceed to login.
-
-### =========================================================
-### 5) LOGIN (Get JWT)
-### =========================================================
-POST {{baseUrl}}/login
-Content-Type: application/json
-
-{
-  "email": "testuser1@local.com",
-  "password": "Test123!"
-}
-
-### EXPECTED:
-### - 200 OK
-### - Response contains accessToken (or token)
-### ACTION:
-### - Copy token into @token
-
-### =========================================================
-### 6) GET CART AS AUTHENTICATED + INCLUDE GUEST SESSION HEADERS
-###    (THIS IS THE MERGE TEST)
-### =========================================================
-GET {{baseUrl}}/api/cart
-Authorization: Bearer {{token}}
+Accept: application/json
 X-Session-Id: {{sessionId}}
 X-Session-Secret: {{sessionSecret}}
 
-### EXPECTED (after the CartController fix):
-### - 200 OK
-### - owner="user"
-### - userId is NOT null
-### - items includes the guest items (productId=1 quantity=2)
-### - guest session should be invalidated server-side (RotateGuestSessionAsync)
-
-### =========================================================
-### 7) GET CART AS AUTHENTICATED (NO SESSION HEADERS)
-### =========================================================
-GET {{baseUrl}}/api/cart
-Authorization: Bearer {{token}}
-
-### EXPECTED:
-### - 200 OK
-### - owner="user"
-### - cart still has the merged items
-
-### =========================================================
-### 8) CHECKOUT AS AUTHENTICATED
-### =========================================================
-POST {{baseUrl}}/api/orders/checkout
-Authorization: Bearer {{token}}
-Content-Type: application/json
-
 {
-  "shippingAddress": "123 Test St, Cincinnati, OH 45202",
-  "shippingMethodId": null,
-  "paymentMethodId": null
+  "promoCode": "SUMMER10"
 }
 
-### EXPECTED:
-### - 200 OK
-### - returns created order with items
-### - cart items cleared (cart row remains)
 
-### =========================================================
-### 9) GET MY ORDERS (AUTHENTICATED)
-### =========================================================
-GET {{baseUrl}}/api/orders/my
-Authorization: Bearer {{token}}
-
-### EXPECTED:
-### - 200 OK
-### - array of orders including the one from checkout
-
-### =========================================================
-### 10) OPTIONAL: TRY USING OLD GUEST SESSION AFTER MERGE
-###     (should NOT give access to old guest cart; will create a NEW guest session)
-### =========================================================
+### ------------------------------------------------------------
+### 5) Get cart again (should show promo + subtotal/discount/total)
+### ------------------------------------------------------------
 GET {{baseUrl}}/api/cart
+Accept: application/json
 X-Session-Id: {{sessionId}}
 X-Session-Secret: {{sessionSecret}}
 
-### EXPECTED:
-### - 200 OK (because allowCreateGuestSession=true for cart endpoints)
-### - BUT: should issue NEW X-Session-Id / X-Session-Secret headers
-### - and return a NEW empty guest cart
-### (This confirms rotation/invalidation is working)
+
+### ------------------------------------------------------------
+### 6) Remove promo
+### ------------------------------------------------------------
+DELETE {{baseUrl}}/api/cart/promo
+Accept: application/json
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
+
+
+### ------------------------------------------------------------
+### 7) Get cart again (promo should be null, totals revert)
+### ------------------------------------------------------------
+GET {{baseUrl}}/api/cart
+Accept: application/json
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
+
+
+### ------------------------------------------------------------
+### 8) Update cart item quantity (set cartItemId from step 3 response)
+### ------------------------------------------------------------
+PUT {{baseUrl}}/api/cart/items/4
+Content-Type: application/json
+Accept: application/json
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
+
+{
+  "quantity": 3
+}
+
+
+### ------------------------------------------------------------
+### 9) Clear cart
+### ------------------------------------------------------------
+DELETE {{baseUrl}}/api/cart
+Accept: application/json
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
+
+
+### ------------------------------------------------------------
+### 10) Get cart (should be empty totals)
+### ------------------------------------------------------------
+GET {{baseUrl}}/api/cart
+Accept: application/json
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}

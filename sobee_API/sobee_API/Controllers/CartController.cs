@@ -58,7 +58,7 @@ namespace sobee_API.Controllers
             }
 
             var cart = await GetOrCreateCartAsync(identity!.UserId, identity.GuestSessionId, identity.GuestSessionValidated);
-            return Ok(ProjectCart(cart, identity.UserId, identity.GuestSessionId));
+            return Ok(await ProjectCartAsync(cart, identity.UserId, identity.GuestSessionId));
         }
 
         // ---------------------------------------------
@@ -120,7 +120,7 @@ namespace sobee_API.Controllers
 
             // Reload with products for response
             cart = await LoadCartWithItemsAsync(cart.IntShoppingCartId);
-            return Ok(ProjectCart(cart, identity.UserId, identity.GuestSessionId));
+            return Ok(await ProjectCartAsync(cart, identity.UserId, identity.GuestSessionId));
         }
 
         // ---------------------------------------------
@@ -169,7 +169,7 @@ namespace sobee_API.Controllers
             await _db.SaveChangesAsync();
 
             cart = await LoadCartWithItemsAsync(cart.IntShoppingCartId);
-            return Ok(ProjectCart(cart, identity.UserId, identity.GuestSessionId));
+            return Ok(await ProjectCartAsync(cart, identity.UserId, identity.GuestSessionId));
         }
 
         // ---------------------------------------------
@@ -204,7 +204,7 @@ namespace sobee_API.Controllers
             await _db.SaveChangesAsync();
 
             cart = await LoadCartWithItemsAsync(cart.IntShoppingCartId);
-            return Ok(ProjectCart(cart, identity.UserId, identity.GuestSessionId));
+            return Ok(await ProjectCartAsync(cart, identity.UserId, identity.GuestSessionId));
         }
 
         // ---------------------------------------------
@@ -236,7 +236,7 @@ namespace sobee_API.Controllers
             await _db.SaveChangesAsync();
 
             cart = await LoadCartWithItemsAsync(cart.IntShoppingCartId);
-            return Ok(ProjectCart(cart, identity.UserId, identity.GuestSessionId));
+            return Ok(await ProjectCartAsync(cart, identity.UserId, identity.GuestSessionId));
         }
 
 
@@ -471,7 +471,7 @@ namespace sobee_API.Controllers
                 .FirstAsync(c => c.IntShoppingCartId == cartId);
         }
 
-        private object ProjectCart(TshoppingCart cart, string? userId, string? sessionId)
+        private async Task<object> ProjectCartAsync(TshoppingCart cart, string? userId, string? sessionId)
         {
             var items = cart.TcartItems.Select(i => new
             {
@@ -489,7 +489,22 @@ namespace sobee_API.Controllers
                 lineTotal = (i.IntQuantity ?? 0) * (i.IntProduct?.DecPrice ?? 0m)
             }).ToList();
 
-            var cartTotal = items.Sum(x => (decimal)x.lineTotal);
+            var subtotal = items.Sum(x => (decimal)x.lineTotal);
+
+            // -------------------------------------------------
+            // Promo (cart-scoped, most recently applied)
+            // -------------------------------------------------
+            var promo = await GetActivePromoForCartAsync(cart.IntShoppingCartId);
+
+            var discountAmount = 0m;
+            if (promo.DiscountPercentage > 0 && subtotal > 0)
+            {
+                discountAmount = subtotal * (promo.DiscountPercentage / 100m);
+            }
+
+            var total = subtotal - discountAmount;
+            if (total < 0)
+                total = 0;
 
             return new
             {
@@ -500,9 +515,41 @@ namespace sobee_API.Controllers
                 created = cart.DtmDateCreated,
                 updated = cart.DtmDateLastUpdated,
                 items,
-                total = cartTotal
+
+                promo = promo.Code == null ? null : new
+                {
+                    code = promo.Code,
+                    discountPercentage = promo.DiscountPercentage
+                },
+
+                subtotal,
+                discount = discountAmount,
+                total
             };
         }
+
+        private async Task<(string? Code, decimal DiscountPercentage)> GetActivePromoForCartAsync(int cartId)
+        {
+            // Most recently applied promo code for this cart
+            var promo = await _db.TpromoCodeUsageHistories
+                .Join(_db.Tpromotions,
+                    usage => usage.PromoCode,
+                    promo => promo.StrPromoCode,
+                    (usage, promo) => new { usage, promo })
+                .Where(x => x.usage.IntShoppingCartId == cartId &&
+                            x.promo.DtmExpirationDate > DateTime.UtcNow)
+                .OrderByDescending(x => x.usage.UsedDateTime)
+                .Select(x => new { x.promo.StrPromoCode, x.promo.DecDiscountPercentage })
+                .FirstOrDefaultAsync();
+
+            if (promo == null)
+                return (null, 0m);
+
+            return (promo.StrPromoCode, promo.DecDiscountPercentage);
+        }
+
+
+
 
     }
 }
