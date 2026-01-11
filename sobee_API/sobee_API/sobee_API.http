@@ -1,34 +1,202 @@
 ﻿@baseUrl = https://localhost:7058
-@token = CfDJ8FE_QEmxr_5Gl8E9uQQwwd17LeYV-H2iS7kAJL0XcFIhVqSQtqyBzKyf_xp5voV1SZ23OUHDFgMfwSS80PiCR0fgEJ_24uV0iBvgwQDmoY8pIWvCpT0H3YeOOGgQgJMt4K9kK_apxiwXFe87fI8gRwJqKDU3GR5zGMrJ704pUUhtnjWeBgK4PBP5SjLYiwxB1t3ldjXYOTTdjjBUuFUehZFgD4swCN-050nNQuwsteuxOhCog2BuBU5ovrmxoAsJwmN9KhU8b2ytvkHbae9l1fuwJy-rolVtxcDF4dt8QnegwOjVpJ4WG5GkjkSWwgS1qP0jgtl2UWt6U_ELlIo9TW5hvb1Wlizm16fTT7Ig_fJlqoxx4U7Sy3jQqCM4EIl-5MNsVJy7IK_kLBNUxU85yjaBNe4D8Q_JdXpQiUKES_61LYIrl3t1onJRVPiRszt6MijVo84TJl4PQnZyF_PVvZsEyjo3tFA6zYcLMpARJmJp4VPEdJQH5Q9o6bn2sP6ww7xEEivUujC-Xw2yEddxkIzsfdi_q3K2votZpQ9p0sHy4k5OeK-axFVsFkkxFP18VPPczhC2ZA5Nkbn_6SwhYzR1EgLfiDQgO3kGFuTFmY4QewAnWjKrrrT9AYGYdVdB9oyLMSvRxlRidjqvZwpfKcAMfTa_nf0cmqxj7qnsRUwJhgW2-0hEotKYzi5nD8SmUlrdhkj3FpGTToyTSl56PTA
 
-### 1) List payment methods (auth required)
-GET {{baseUrl}}/api/paymentmethods
+### ============================================================
+### GUEST END-TO-END FLOW (Cart -> Promo -> Totals -> Checkout)
+### - IMPORTANT: Step 2 issues guest headers (X-Session-Id / X-Session-Secret)
+### - Copy them into @sessionId / @sessionSecret before running the rest
+### ============================================================
+
+
+### ------------------------------------------------------------
+### 0) Get products (pick a productId with known stock/price)
+### ------------------------------------------------------------
+GET {{baseUrl}}/api/products
 Accept: application/json
-Authorization: Bearer {{token}}
 
-### 2) Checkout (create an order) - adjust body as needed
+
+### ------------------------------------------------------------
+### 1) (Optional) Clear any existing guest cart (requires session vars)
+### - Skip this if you don't have session vars yet
+### ------------------------------------------------------------
+# DELETE {{baseUrl}}/api/cart
+# Accept: application/json
+# X-Session-Id: {{sessionId}}
+# X-Session-Secret: {{sessionSecret}}
+
+
+### ------------------------------------------------------------
+### 2) Add item to cart as GUEST (ISSUES guest session headers)
+### - Copy response headers into @sessionId / @sessionSecret below
+### ------------------------------------------------------------
+POST {{baseUrl}}/api/cart/items
+Content-Type: application/json
+Accept: application/json
+
+{
+  "productId": 1004,
+  "quantity": 1
+}
+
+
+### ------------------------------------------------------------
+### 3) Set guest session vars (PASTE from response headers of step 2)
+### ------------------------------------------------------------
+@sessionId = 0845441a-6f8d-43b1-8d3f-7cb9f24a0631
+@sessionSecret = z8gNN48G83nhthtd2gETRPfM0Eu44aE5H2ZvZO05lbA=
+
+
+### ------------------------------------------------------------
+### 4) Get cart as GUEST (should persist + show totals)
+### ------------------------------------------------------------
+GET {{baseUrl}}/api/cart
+Accept: application/json
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
+
+
+### ------------------------------------------------------------
+### 5) Add same item again (tests "increment existing item" stock logic)
+### ------------------------------------------------------------
+POST {{baseUrl}}/api/cart/items
+Content-Type: application/json
+Accept: application/json
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
+
+{
+  "productId": 1004,
+  "quantity": 1
+}
+
+
+### ------------------------------------------------------------
+### 6) Get cart (grab cartItemId for product 1003)
+### ------------------------------------------------------------
+GET {{baseUrl}}/api/cart
+Accept: application/json
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
+
+
+### ------------------------------------------------------------
+### 7) Update quantity (set cartItemId from step 6 response)
+### - Replace 4 with your actual cartItemId
+### ------------------------------------------------------------
+PUT {{baseUrl}}/api/cart/items/1005
+Content-Type: application/json
+Accept: application/json
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
+
+{
+  "quantity": 2
+}
+
+
+### ------------------------------------------------------------
+### 8) Stock enforcement (expect 409 Conflict)
+### - Set an intentionally huge quantity
+### - Replace 4 with your cartItemId again
+### ------------------------------------------------------------
+PUT {{baseUrl}}/api/cart/items/1006
+Content-Type: application/json
+Accept: application/json
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
+
+{
+  "quantity": 999999
+}
+
+
+### ------------------------------------------------------------
+### 9) Apply promo (promo must exist + not expired)
+### ------------------------------------------------------------
+POST {{baseUrl}}/api/cart/promo/apply
+Content-Type: application/json
+Accept: application/json
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
+
+{
+  "promoCode": "SUMMER10"
+}
+
+
+### ------------------------------------------------------------
+### 10) Get cart (should show promo + subtotal/discount/total)
+### ------------------------------------------------------------
+GET {{baseUrl}}/api/cart
+Accept: application/json
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
+
+
+### ------------------------------------------------------------
+### 11) Checkout as GUEST (now requires VALID session id + secret)
+### - Should create order, decrement stock, clear cart
+### - Adjust request body fields if your CheckoutRequest differs
+### ------------------------------------------------------------
 POST {{baseUrl}}/api/orders/checkout
 Content-Type: application/json
 Accept: application/json
-Authorization: Bearer {{token}}
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
 
 {
   "shippingAddress": "123 Test St, Test City, OH",
   "paymentMethodId": 1
 }
 
-### 3) Pay order (set orderId from checkout response)
-POST {{baseUrl}}/api/orders/1003/pay
-Content-Type: application/json
+
+### ------------------------------------------------------------
+### 12) Get cart after checkout (should be empty + totals 0)
+### ------------------------------------------------------------
+GET {{baseUrl}}/api/cart
 Accept: application/json
-Authorization: Bearer {{token}}
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
 
-{
-  "paymentMethodId": 1
-}
 
-### Expected:
-### - 200 OK
-### - orderStatus becomes "Paid"
-### - order.IntPaymentMethodId set
-### - a row inserted into TPayments
+### ------------------------------------------------------------
+### 13) Guest orders list (should show the created order)
+### - If your route differs, update it accordingly
+### ------------------------------------------------------------
+GET {{baseUrl}}/api/orders/my
+Accept: application/json
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
+
+
+### ------------------------------------------------------------
+### 14) Guest order detail (set orderId from step 11 or step 13)
+### ------------------------------------------------------------
+GET {{baseUrl}}/api/orders/1007
+Accept: application/json
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
+
+
+### ------------------------------------------------------------
+### 15) Guest security tests (new hardened behavior)
+### ------------------------------------------------------------
+
+### 15.1 Missing secret should FAIL (expect 400 BadRequest)
+GET {{baseUrl}}/api/orders/1004
+Accept: application/json
+X-Session-Id: {{sessionId}}
+
+### 15.2 Invalid secret should FAIL (expect 400 BadRequest)
+GET {{baseUrl}}/api/orders/1004
+Accept: application/json
+X-Session-Id: {{sessionId}}
+X-Session-Secret: INVALID_SECRET
+
+
+### ------------------------------------------------------------
+### 16) (Optional) Remove promo (should be 400 after checkout if no promo exists)
+### ------------------------------------------------------------
+DELETE {{baseUrl}}/api/cart/promo
+Accept: application/json
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
