@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Sobee.Domain.Data;
+using sobee_API.DTOs.Reviews;
 using sobee_API.Services;
 
 namespace sobee_API.Controllers
@@ -19,24 +20,9 @@ namespace sobee_API.Controllers
             _identity = identity;
         }
 
-        // -----------------------------
-        // Request DTOs
-        // -----------------------------
-        public class CreateReviewRequest
-        {
-            public string? ReviewText { get; set; }
-            public int Rating { get; set; }
-        }
-
-        public class CreateReplyRequest
-        {
-            public string? Content { get; set; }
-        }
-
-        // -----------------------------
-        // 1) GET reviews for a product
-        // GET /api/reviews/product/{productId}
-        // -----------------------------
+        /// <summary>
+        /// Get reviews for a product (public).
+        /// </summary>
         [HttpGet("product/{productId:int}")]
         public async Task<IActionResult> GetByProduct(int productId)
         {
@@ -84,10 +70,9 @@ namespace sobee_API.Controllers
             });
         }
 
-        // -----------------------------
-        // 2) CREATE a review (auth OR guest-with-valid-session)
-        // POST /api/reviews/product/{productId}
-        // -----------------------------
+        /// <summary>
+        /// Create a review for a product (authenticated or valid guest session).
+        /// </summary>
         [HttpPost("product/{productId:int}")]
         public async Task<IActionResult> Create(int productId, [FromBody] CreateReviewRequest request)
         {
@@ -146,51 +131,9 @@ namespace sobee_API.Controllers
             });
         }
 
-        // -----------------------------
-        // 3) DELETE a review (owner OR admin)
-        // DELETE /api/reviews/{reviewId}
-        // -----------------------------
-        [HttpDelete("{reviewId:int}")]
-        [Authorize] // keep destructive actions authenticated
-        public async Task<IActionResult> DeleteReview(int reviewId)
-        {
-            var owner = await _identity.ResolveAsync(
-                User,
-                Request,
-                Response,
-                allowCreateGuestSession: false,
-                allowAuthenticatedGuestSession: false
-            );
-
-            if (string.IsNullOrWhiteSpace(owner.UserId))
-                return Unauthorized(new { error = "Missing NameIdentifier claim." });
-
-            var review = await _db.Treviews.FirstOrDefaultAsync(r => r.IntReviewId == reviewId);
-            if (review == null)
-                return NotFound(new { error = "Review not found.", reviewId });
-
-            // Owner check or Admin role
-            var isAdmin = User.IsInRole("Admin");
-            var isOwner = !string.IsNullOrWhiteSpace(review.UserId) && review.UserId == owner.UserId;
-
-            if (!isOwner && !isAdmin)
-                return Forbid();
-
-            // Remove replies first (if FK doesn't cascade)
-            var replies = await _db.TReviewReplies.Where(rr => rr.IntReviewId == reviewId).ToListAsync();
-            if (replies.Count > 0)
-                _db.TReviewReplies.RemoveRange(replies);
-
-            _db.Treviews.Remove(review);
-            await _db.SaveChangesAsync();
-
-            return Ok(new { message = "Review deleted.", reviewId });
-        }
-
-        // -----------------------------
-        // 4) REPLY to a review (auth only)
-        // POST /api/reviews/{reviewId}/reply
-        // -----------------------------
+        /// <summary>
+        /// Reply to a review (authenticated only).
+        /// </summary>
         [HttpPost("{reviewId:int}/reply")]
         [Authorize]
         public async Task<IActionResult> Reply(int reviewId, [FromBody] CreateReplyRequest request)
@@ -235,10 +178,49 @@ namespace sobee_API.Controllers
             });
         }
 
-        // -----------------------------
-        // 5) DELETE a reply (author OR admin)
-        // DELETE /api/reviews/replies/{replyId}
-        // -----------------------------
+        /// <summary>
+        /// Delete a review (owner or admin).
+        /// </summary>
+        [HttpDelete("{reviewId:int}")]
+        [Authorize] // keep destructive actions authenticated
+        public async Task<IActionResult> DeleteReview(int reviewId)
+        {
+            var owner = await _identity.ResolveAsync(
+                User,
+                Request,
+                Response,
+                allowCreateGuestSession: false,
+                allowAuthenticatedGuestSession: false
+            );
+
+            if (string.IsNullOrWhiteSpace(owner.UserId))
+                return Unauthorized(new { error = "Missing NameIdentifier claim." });
+
+            var review = await _db.Treviews.FirstOrDefaultAsync(r => r.IntReviewId == reviewId);
+            if (review == null)
+                return NotFound(new { error = "Review not found.", reviewId });
+
+            // Owner check or Admin role
+            var isAdmin = User.IsInRole("Admin");
+            var isOwner = !string.IsNullOrWhiteSpace(review.UserId) && review.UserId == owner.UserId;
+
+            if (!isOwner && !isAdmin)
+                return Forbid();
+
+            // Remove replies first (if FK doesn't cascade)
+            var replies = await _db.TReviewReplies.Where(rr => rr.IntReviewId == reviewId).ToListAsync();
+            if (replies.Count > 0)
+                _db.TReviewReplies.RemoveRange(replies);
+
+            _db.Treviews.Remove(review);
+            await _db.SaveChangesAsync();
+
+            return Ok(new { message = "Review deleted.", reviewId });
+        }
+
+        /// <summary>
+        /// Delete a reply (author or admin).
+        /// </summary>
         [HttpDelete("replies/{replyId:int}")]
         [Authorize]
         public async Task<IActionResult> DeleteReply(int replyId)

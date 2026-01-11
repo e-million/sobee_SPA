@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Sobee.Domain.Identity;
+using sobee_API.DTOs.Auth;
 
 namespace sobee_API.Controllers
 {
@@ -15,18 +16,9 @@ namespace sobee_API.Controllers
             _userManager = userManager;
         }
 
-        public sealed class RegisterWithProfileRequest
-        {
-            public string Email { get; set; } = string.Empty;
-            public string Password { get; set; } = string.Empty;
-
-            public string FirstName { get; set; } = string.Empty;
-            public string LastName { get; set; } = string.Empty;
-
-            public string BillingAddress { get; set; } = string.Empty;
-            public string ShippingAddress { get; set; } = string.Empty;
-        }
-
+        /// <summary>
+        /// Register a new user with profile details (no token issuance).
+        /// </summary>
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterWithProfileRequest req)
         {
