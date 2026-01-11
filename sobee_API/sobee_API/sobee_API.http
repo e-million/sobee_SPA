@@ -1,168 +1,22 @@
 ﻿@baseUrl = https://localhost:7058
+@token = CfDJ8FE_QEmxr_5Gl8E9uQQwwd0CM6P3wytAZJgcyz8Q4HmlZDuvWprq4XyPMgpPllpy96sXqgIALP7C9m1zB5Z7CLWM9Wuuix70CC6gOVXdcJvRnJGI9RxZefmT9uL327cg3x76EkdiJRelOfbJStvVJthEIJGYfo0yIUYkyX1NQw6AllsPUO_dXMKhAAAMP4tFSr3Xm1tUpWJcg4gHcb5uYPAULl1wgIvx_l8xvud_g93-6TePctISSFqQ62GpX6Mw6UGLznjf8IijdtGMbeqM-gN_mK0svxoI8pA3UVHFyxoURCjF8l_GciHHhwFSrJ-NG3a3UeOSpdyuvWWPdrsTizIDT1MsoaEdpnYOLRg6qLdPBgj9MHA_sQwEvBGl4UdDBuUiwcxuvv4rt4ybS0i9iikyFGz6IwNMO2yw20kUf8DfMg1DVcRdHLWPm2rMDBJZ1DrrUsVJJ1_qSshMs8UrwufwbGfxoMTfjhrsC27Sgbhp3dCBJoeMU2hE48aTESfPR5HftP0RdbJsvLHL2UXd9fz5K35GUHn8RQZrBps8sl4R_6p4PtgGPnE-wHukI2Qjqtmdzj0trTeDrxkp2wH6aK8X6w9lkCT8m4px1i1HbLGMPOgQB1kBqxYGG3dwO_nlZG8dsg3rfFB_qkbopQQyafJdYilLa3R9aDFStZwy-A8TmwsFJp6-doIV8qy3v7MfnfVOMn0s7TYIfv-H4rgEtOA
 
-### ------------------------------------------------------------
-### 0) Get products (pick a productId from response)
-### - Use this to confirm IntStockAmount for the chosen product
-### ------------------------------------------------------------
-GET {{baseUrl}}/api/products
-Accept: application/json
+### Ping
+GET {{baseUrl}}/api/admin/ping
+Authorization: Bearer {{token}}
 
+### Summary
+GET {{baseUrl}}/api/admin/summary
+Authorization: Bearer {{token}}
 
-### ------------------------------------------------------------
-### 1) Add item to cart as GUEST (happy path)
-### - This should ISSUE X-Session-Id + X-Session-Secret in RESPONSE headers
-### - Copy those values into @sessionId / @sessionSecret below
-### ------------------------------------------------------------
-POST {{baseUrl}}/api/cart/items
-Content-Type: application/json
-Accept: application/json
+### Orders per day
+GET {{baseUrl}}/api/admin/orders-per-day?days=30
+Authorization: Bearer {{token}}
 
-{
-  "productId": 1003,
-  "quantity": 2
-}
+### Low stock
+GET {{baseUrl}}/api/admin/low-stock?threshold=5
+Authorization: Bearer {{token}}
 
-
-### ------------------------------------------------------------
-### 2) Set guest session vars (PASTE from response headers of step 1)
-### ------------------------------------------------------------
-@sessionId = 295d5498-2709-4467-81f6-e36ad6f8ec2d
-@sessionSecret = waqGun5ydvT3x5ob+pV+g3O7PvbzxbRBW/k+vwxrjxg=
-
-
-### ------------------------------------------------------------
-### 3) Get cart as GUEST (should persist)
-### - Grab cartItemId for the product from the response
-### ------------------------------------------------------------
-GET {{baseUrl}}/api/cart
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-
-### ------------------------------------------------------------
-### 4) Apply promo as GUEST
-### - Promo must exist in TPromotions and not be expired
-### ------------------------------------------------------------
-POST {{baseUrl}}/api/cart/promo/apply
-Content-Type: application/json
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-{
-  "promoCode": "SUMMER10"
-}
-
-
-### ------------------------------------------------------------
-### 5) Get cart again (should show promo + subtotal/discount/total)
-### ------------------------------------------------------------
-GET {{baseUrl}}/api/cart
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-
-### ------------------------------------------------------------
-### 6) Remove promo
-### ------------------------------------------------------------
-DELETE {{baseUrl}}/api/cart/promo
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-
-### ------------------------------------------------------------
-### 7) Get cart again (promo should be null, totals revert)
-### ------------------------------------------------------------
-GET {{baseUrl}}/api/cart
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-
-### ------------------------------------------------------------
-### 8) Update cart item quantity (happy path)
-### - Set cartItemId from step 3 response
-### ------------------------------------------------------------
-PUT {{baseUrl}}/api/cart/items/1002
-Content-Type: application/json
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-{
-  "quantity": 3
-}
-
-
-### ------------------------------------------------------------
-### 9) STOCK VALIDATION TESTS (new behavior)
-### ------------------------------------------------------------
-
-### 9.1 Add item beyond available stock (expect 409 Conflict)
-### - Set quantity to something you KNOW is > IntStockAmount for product 1003
-POST {{baseUrl}}/api/cart/items
-Content-Type: application/json
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-{
-  "productId": 1003,
-  "quantity": 999999
-}
-
-
-### 9.2 Update item beyond available stock (expect 409 Conflict)
-### - Use the SAME cartItemId as step 8
-PUT {{baseUrl}}/api/cart/items/1002
-Content-Type: application/json
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-{
-  "quantity": 999999
-}
-
-
-### 9.3 Add more of the same product to exceed stock via increment (expect 409 Conflict)
-### - This tests the "existingItem + request.Quantity" path.
-### - If you want to force this, first set your cart item to a known value close to stock, then add a bit more.
-POST {{baseUrl}}/api/cart/items
-Content-Type: application/json
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-{
-  "productId": 1003,
-  "quantity": 57
-}
-
-
-### 9.4 Verify cart unchanged after failed stock operations (should still persist and not increase qty)
-GET {{baseUrl}}/api/cart
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-
-### ------------------------------------------------------------
-### 10) Clear cart
-### ------------------------------------------------------------
-DELETE {{baseUrl}}/api/cart
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-
-### ------------------------------------------------------------
-### 11) Get cart (should be empty totals)
-### ------------------------------------------------------------
-GET {{baseUrl}}/api/cart
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
+### Top products
+GET {{baseUrl}}/api/admin/top-products?limit=5
+Authorization: Bearer {{token}}
