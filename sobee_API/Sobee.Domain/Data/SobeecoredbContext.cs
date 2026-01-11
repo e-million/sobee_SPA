@@ -109,7 +109,9 @@ public partial class SobeecoredbContext : DbContext {
 				.HasForeignKey(d => d.IntShoppingCartId)
 				.OnDelete(DeleteBehavior.Cascade)
 				.HasConstraintName("TCartItems_TShoppingCarts_FK");
-		});
+            entity.HasIndex(e => new { e.IntShoppingCartId, e.IntProductId })
+				 .HasDatabaseName("IX_TCartItems_cart_product");
+        });
 
 		modelBuilder.Entity<GuestSession>(entity => {
 			entity.HasKey(e => e.SessionId).HasName("GuestSessions_PK");
@@ -176,7 +178,11 @@ public partial class SobeecoredbContext : DbContext {
 			entity.HasOne(d => d.IntProduct).WithMany(p => p.Tfavorites)
 				.HasForeignKey(d => d.IntProductId)
 				.HasConstraintName("TFavorites_TProducts_FK");
-       
+
+            entity.HasIndex(e => new { e.UserId, e.IntProductId })
+				.IsUnique()
+				.HasDatabaseName("UX_TFavorites_user_product");
+
         });
 
 		modelBuilder.Entity<Tflavor>(entity => {
@@ -249,8 +255,12 @@ public partial class SobeecoredbContext : DbContext {
 				.HasForeignKey(d => d.IntShippingStatusId)
 				.OnDelete(DeleteBehavior.Cascade)
 				.HasConstraintName("TOrders_TShippingStatus_FK");
-
           
+			entity.HasIndex(e => e.UserId)
+				 .HasDatabaseName("IX_TOrders_user_id");
+            entity.HasIndex(e => e.SessionId)
+                  .HasDatabaseName("IX_TOrders_session_id");
+
         });
 
 		modelBuilder.Entity<TorderItem>(entity => {
@@ -536,8 +546,11 @@ public partial class SobeecoredbContext : DbContext {
 			entity.Property(e => e.UserId)
 				.HasMaxLength(450)
 				.HasColumnName("user_id");
+            entity.HasIndex(e => e.UserId)
+			    .HasDatabaseName("IX_TShoppingCarts_user_id");
+            entity.HasIndex(e => e.SessionId)
+                .HasDatabaseName("IX_TShoppingCarts_session_id");
 
-           
         });
 
 
