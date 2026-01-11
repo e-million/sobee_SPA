@@ -82,24 +82,36 @@ namespace sobee_API.Controllers
 
             var (identity, errorResult) = await ResolveIdentityAsync(allowCreateGuestSession: true);
             if (errorResult != null)
-            {
                 return errorResult;
-            }
 
-            // Ensure product exists
-            var productExists = await _db.Tproducts.AnyAsync(p => p.IntProductId == request.ProductId);
-            if (!productExists)
+            // Load product (needed for stock check)
+            var product = await _db.Tproducts
+                .FirstOrDefaultAsync(p => p.IntProductId == request.ProductId);
+
+            if (product == null)
                 return NotFound(new { error = $"Product {request.ProductId} not found." });
 
-            var cart = await GetOrCreateCartAsync(identity!.UserId, identity.GuestSessionId, identity.GuestSessionValidated);
+            var cart = await GetOrCreateCartAsync(
+                identity!.UserId,
+                identity.GuestSessionId,
+                identity.GuestSessionValidated);
 
-            // Find existing cart item for the product
+            // Find existing cart item
             var existingItem = await _db.TcartItems.FirstOrDefaultAsync(i =>
                 i.IntShoppingCartId == cart.IntShoppingCartId &&
                 i.IntProductId == request.ProductId);
 
             if (existingItem == null)
             {
+                // Stock check for new item
+                if (request.Quantity > product.IntStockAmount)
+                    return Conflict(new
+                    {
+                        error = "Insufficient stock.",
+                        productId = product.IntProductId,
+                        availableStock = product.IntStockAmount
+                    });
+
                 var newItem = new TcartItem
                 {
                     IntShoppingCartId = cart.IntShoppingCartId,
@@ -112,13 +124,23 @@ namespace sobee_API.Controllers
             }
             else
             {
-                existingItem.IntQuantity = (existingItem.IntQuantity ?? 0) + request.Quantity;
+                var newQuantity = (existingItem.IntQuantity ?? 0) + request.Quantity;
+
+                // Stock check for increment
+                if (newQuantity > product.IntStockAmount)
+                    return Conflict(new
+                    {
+                        error = "Insufficient stock.",
+                        productId = product.IntProductId,
+                        availableStock = product.IntStockAmount
+                    });
+
+                existingItem.IntQuantity = newQuantity;
             }
 
             cart.DtmDateLastUpdated = DateTime.UtcNow;
             await _db.SaveChangesAsync();
 
-            // Reload with products for response
             cart = await LoadCartWithItemsAsync(cart.IntShoppingCartId);
             return Ok(await ProjectCartAsync(cart, identity.UserId, identity.GuestSessionId));
         }
@@ -141,9 +163,7 @@ namespace sobee_API.Controllers
 
             var (identity, errorResult) = await ResolveIdentityAsync(allowCreateGuestSession: true);
             if (errorResult != null)
-            {
                 return errorResult;
-            }
 
             var cart = await FindCartAsync(identity!.UserId, identity.GuestSessionId);
             if (cart == null)
@@ -162,6 +182,21 @@ namespace sobee_API.Controllers
             }
             else
             {
+                // Load product for stock validation
+                var product = await _db.Tproducts
+                    .FirstOrDefaultAsync(p => p.IntProductId == item.IntProductId);
+
+                if (product == null)
+                    return NotFound(new { error = $"Product {item.IntProductId} not found." });
+
+                if (request.Quantity > product.IntStockAmount)
+                    return Conflict(new
+                    {
+                        error = "Insufficient stock.",
+                        productId = product.IntProductId,
+                        availableStock = product.IntStockAmount
+                    });
+
                 item.IntQuantity = request.Quantity;
             }
 
@@ -548,6 +583,15 @@ namespace sobee_API.Controllers
             return (promo.StrPromoCode, promo.DecDiscountPercentage);
         }
 
+        private IActionResult StockConflict(int productId, int available)
+        {
+            return Conflict(new
+            {
+                error = "Insufficient stock.",
+                productId,
+                availableStock = available
+            });
+        }
 
 
 

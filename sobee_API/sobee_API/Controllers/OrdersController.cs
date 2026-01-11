@@ -9,6 +9,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
+using sobee_API.Services;
+
 
 namespace sobee_API.Controllers
 {
@@ -17,11 +19,14 @@ namespace sobee_API.Controllers
     public class OrdersController : ControllerBase
     {
         private readonly SobeecoredbContext _db;
+        private readonly RequestIdentityResolver _identityResolver;
 
-        public OrdersController(SobeecoredbContext db)
+        public OrdersController(SobeecoredbContext db, RequestIdentityResolver identityResolver)
         {
             _db = db;
+            _identityResolver = identityResolver;
         }
+
 
         // ---------------------------------------------------------------------
         // DTOs
@@ -31,6 +36,11 @@ namespace sobee_API.Controllers
         {
             public string? ShippingAddress { get; set; }
             public int? PaymentMethodId { get; set; }
+        }
+
+        public sealed class PayOrderRequest
+        {
+            public int PaymentMethodId { get; set; }
         }
 
         private sealed class OrderResponse
@@ -43,6 +53,12 @@ namespace sobee_API.Controllers
             public string? UserId { get; set; }
             public string? GuestSessionId { get; set; }
             public List<OrderItemResponse> Items { get; set; } = new();
+
+            public decimal? SubtotalAmount { get; set; }
+            public decimal? DiscountAmount { get; set; }
+            public decimal? DiscountPercentage { get; set; }
+            public string? PromoCode { get; set; }
+
         }
 
         private sealed class OrderItemResponse
@@ -145,22 +161,28 @@ namespace sobee_API.Controllers
         [HttpPost("checkout")]
         public async Task<IActionResult> Checkout([FromBody] CheckoutRequest request)
         {
-            var owner = ResolveOwner();
+            if (request == null)
+                return BadRequest(new { error = "Request body is required." });
 
-            if (owner.UserId == null && owner.GuestSessionId == null)
-                return Forbid();
+            if (string.IsNullOrWhiteSpace(request.ShippingAddress))
+                return BadRequest(new { error = "ShippingAddress is required." });
+
+            // Require an existing validated guest session if not authenticated
+            var (identity, errorResult) = await ResolveIdentityAsync(allowCreateGuestSession: false);
+            if (errorResult != null)
+                return errorResult;
 
             // Load cart for this owner (user OR guest)
             TshoppingCart? cart =
-                owner.UserId != null
+                identity!.UserId != null
                     ? await _db.TshoppingCarts
                         .Include(c => c.TcartItems)
                         .ThenInclude(i => i.IntProduct)
-                        .FirstOrDefaultAsync(c => c.UserId == owner.UserId)
+                        .FirstOrDefaultAsync(c => c.UserId == identity.UserId)
                     : await _db.TshoppingCarts
                         .Include(c => c.TcartItems)
                         .ThenInclude(i => i.IntProduct)
-                        .FirstOrDefaultAsync(c => c.SessionId == owner.GuestSessionId);
+                        .FirstOrDefaultAsync(c => c.SessionId == identity.GuestSessionId);
 
             if (cart == null)
                 return BadRequest(new { error = "No cart found for this owner." });
@@ -201,25 +223,26 @@ namespace sobee_API.Controllers
             if (promo != null)
             {
                 discount = subtotal * (promo.DecDiscountPercentage / 100m);
+                if (discount < 0) discount = 0;
+                if (discount > subtotal) discount = subtotal;
             }
 
             decimal total = subtotal - discount;
-
+            if (total < 0) total = 0;
 
             // Transaction: validate stock + decrement stock + create order + clear cart
             using var tx = await _db.Database.BeginTransactionAsync();
 
             try
             {
-                // 1) Validate stock and decrement it (this is what was missing)
+                // 1) Validate stock and decrement it
                 foreach (var cartItem in cart.TcartItems)
                 {
                     var qty = cartItem.IntQuantity ?? 0;
-                    var product = cartItem.IntProduct!; // validated above
+                    var product = cartItem.IntProduct!;
 
                     if (product.IntStockAmount < qty)
                     {
-                        // Not enough stock to fulfill order; rollback later (we haven't saved yet)
                         return Conflict(new
                         {
                             error = "Insufficient stock.",
@@ -230,7 +253,6 @@ namespace sobee_API.Controllers
                         });
                     }
 
-                    // Decrement inventory now (reservation happens at checkout)
                     product.IntStockAmount -= qty;
                 }
 
@@ -238,12 +260,19 @@ namespace sobee_API.Controllers
                 var order = new Torder
                 {
                     DtmOrderDate = DateTime.UtcNow,
+
+                    // pricing snapshot
+                    DecSubtotalAmount = subtotal,
+                    DecDiscountPercentage = promo?.DecDiscountPercentage,
+                    DecDiscountAmount = discount,
+                    StrPromoCode = promo?.StrPromoCode,
                     DecTotalAmount = total,
+
                     StrShippingAddress = request.ShippingAddress,
                     IntPaymentMethodId = request.PaymentMethodId,
-                    StrOrderStatus = OrderStatuses.Pending, // lifecycle starts here
-                    UserId = owner.UserId,
-                    SessionId = owner.GuestSessionId
+                    StrOrderStatus = OrderStatuses.Pending,
+                    UserId = identity.UserId,
+                    SessionId = identity.GuestSessionId
                 };
 
                 _db.Torders.Add(order);
@@ -270,7 +299,17 @@ namespace sobee_API.Controllers
                 _db.TcartItems.RemoveRange(cart.TcartItems);
                 cart.DtmDateLastUpdated = DateTime.UtcNow;
 
-                // 5) Persist everything: (stock changes + order + items + cart clear)
+                // 4.5) Clear applied promo(s) for this cart (since order has the snapshot)
+                var appliedPromos = await _db.TpromoCodeUsageHistories
+                    .Where(p => p.IntShoppingCartId == cart.IntShoppingCartId)
+                    .ToListAsync();
+
+                if (appliedPromos.Count > 0)
+                {
+                    _db.TpromoCodeUsageHistories.RemoveRange(appliedPromos);
+                }
+
+                // 5) Persist everything: (stock changes + order + items + cart clear + promo clear)
                 await _db.SaveChangesAsync();
                 await tx.CommitAsync();
 
@@ -295,28 +334,27 @@ namespace sobee_API.Controllers
         [HttpGet("{orderId:int}")]
         public async Task<IActionResult> GetOrder(int orderId)
         {
-            var owner = ResolveOwner();
-
-            if (owner.UserId == null && owner.GuestSessionId == null)
-                return Forbid();
+            var (identity, errorResult) = await ResolveIdentityAsync(allowCreateGuestSession: false);
+            if (errorResult != null)
+                return errorResult;
 
             var query = _db.Torders
                 .Include(o => o.TorderItems)
                 .ThenInclude(oi => oi.IntProduct)
                 .AsQueryable();
 
-            if (owner.UserId != null)
-                query = query.Where(o => o.UserId == owner.UserId);
+            if (identity!.UserId != null)
+                query = query.Where(o => o.UserId == identity.UserId);
             else
-                query = query.Where(o => o.SessionId == owner.GuestSessionId);
+                query = query.Where(o => o.SessionId == identity.GuestSessionId);
 
             var order = await query.FirstOrDefaultAsync(o => o.IntOrderId == orderId);
-
             if (order == null)
                 return NotFound(new { error = "Order not found." });
 
             return Ok(ToOrderResponse(order));
         }
+
 
         /// <summary>
         /// Authenticated: get my orders.
@@ -396,23 +434,21 @@ namespace sobee_API.Controllers
         [HttpPost("{orderId:int}/cancel")]
         public async Task<IActionResult> CancelOrder(int orderId)
         {
-            var owner = ResolveOwner();
-
-            if (owner.UserId == null && owner.GuestSessionId == null)
-                return Forbid();
+            var (identity, errorResult) = await ResolveIdentityAsync(allowCreateGuestSession: false);
+            if (errorResult != null)
+                return errorResult;
 
             var query = _db.Torders
                 .Include(o => o.TorderItems)
                 .ThenInclude(oi => oi.IntProduct)
                 .AsQueryable();
 
-            if (owner.UserId != null)
-                query = query.Where(o => o.UserId == owner.UserId);
+            if (identity!.UserId != null)
+                query = query.Where(o => o.UserId == identity.UserId);
             else
-                query = query.Where(o => o.SessionId == owner.GuestSessionId);
+                query = query.Where(o => o.SessionId == identity.GuestSessionId);
 
             var order = await query.FirstOrDefaultAsync(o => o.IntOrderId == orderId);
-
             if (order == null)
                 return NotFound(new { error = "Order not found." });
 
@@ -429,42 +465,153 @@ namespace sobee_API.Controllers
                 });
             }
 
-            // Optional: restock items here if you want "cancel" to return stock.
             order.StrOrderStatus = OrderStatuses.Cancelled;
-
             await _db.SaveChangesAsync();
 
             return Ok(ToOrderResponse(order));
         }
 
+
+        /// <summary>
+        /// Owner-only (authenticated user or guest session): marks an order as Paid (placeholder payment).
+        /// Creates a TPayment row and updates the order's status.
+        /// </summary>
+        [HttpPost("{orderId:int}/pay")]
+        public async Task<IActionResult> PayOrder(int orderId, [FromBody] PayOrderRequest request)
+        {
+            if (request == null)
+                return BadRequest(new { error = "Request body is required." });
+
+            if (request.PaymentMethodId <= 0)
+                return BadRequest(new { error = "PaymentMethodId must be a positive integer." });
+
+            var (identity, errorResult) = await ResolveIdentityAsync(allowCreateGuestSession: false);
+            if (errorResult != null)
+                return errorResult;
+
+            var query = _db.Torders.AsQueryable();
+
+            if (identity!.UserId != null)
+                query = query.Where(o => o.UserId == identity.UserId);
+            else
+                query = query.Where(o => o.SessionId == identity.GuestSessionId);
+
+            var order = await query.FirstOrDefaultAsync(o => o.IntOrderId == orderId);
+            if (order == null)
+                return NotFound(new { error = "Order not found." });
+
+            var paymentMethod = await _db.TpaymentMethods
+                .AsNoTracking()
+                .FirstOrDefaultAsync(pm => pm.IntPaymentMethodId == request.PaymentMethodId);
+
+            if (paymentMethod == null)
+                return NotFound(new { error = $"Payment method {request.PaymentMethodId} not found." });
+
+            var currentStatus = string.IsNullOrWhiteSpace(order.StrOrderStatus)
+                ? OrderStatuses.Pending
+                : OrderStatuses.Normalize(order.StrOrderStatus);
+
+            var targetStatus = OrderStatuses.Paid;
+
+            if (!OrderStatuses.CanTransition(currentStatus, targetStatus))
+            {
+                return Conflict(new
+                {
+                    error = "Invalid status transition.",
+                    from = currentStatus,
+                    to = targetStatus,
+                    allowedNext = OrderStatuses.All.Where(s => OrderStatuses.CanTransition(currentStatus, s)).ToArray()
+                });
+            }
+
+            using var tx = await _db.Database.BeginTransactionAsync();
+
+            try
+            {
+                var payment = new Sobee.Domain.Entities.Payments.Tpayment
+                {
+                    IntPaymentMethodId = paymentMethod.IntPaymentMethodId,
+                    StrBillingAddress = paymentMethod.StrBillingAddress
+                };
+
+                _db.Tpayments.Add(payment);
+
+                order.IntPaymentMethodId = paymentMethod.IntPaymentMethodId;
+                order.StrOrderStatus = targetStatus;
+
+                await _db.SaveChangesAsync();
+                await tx.CommitAsync();
+
+                var updated = await _db.Torders
+                    .Include(o => o.TorderItems)
+                    .ThenInclude(oi => oi.IntProduct)
+                    .FirstAsync(o => o.IntOrderId == order.IntOrderId);
+
+                return Ok(ToOrderResponse(updated));
+            }
+            catch
+            {
+                await tx.RollbackAsync();
+                return StatusCode(500, new { error = "Payment failed." });
+            }
+        }
+
+
         // ---------------------------------------------------------------------
         // Helpers
         // ---------------------------------------------------------------------
 
-        private (string? UserId, string? GuestSessionId, string OwnerType) ResolveOwner()
+        private async Task<(RequestIdentity? identity, IActionResult? errorResult)> ResolveIdentityAsync(bool allowCreateGuestSession)
         {
-            // Authenticated user
-            if (User?.Identity?.IsAuthenticated == true)
+            var identity = await _identityResolver.ResolveAsync(
+                User,
+                Request,
+                Response,
+                allowCreateGuestSession,
+                allowAuthenticatedGuestSession: false);
+
+            if (identity.HasError)
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (identity.ErrorCode == "MissingNameIdentifier")
+                    return (null, Unauthorized(new { error = identity.ErrorMessage, code = identity.ErrorCode }));
 
-                if (string.IsNullOrWhiteSpace(userId))
-                    return (null, null, "invalid");
-
-                return (userId, null, "user");
+                return (null, BadRequest(new { error = identity.ErrorMessage, code = identity.ErrorCode }));
             }
 
-            // Guest session
-            if (Request.Headers.TryGetValue("X-Session-Id", out var values))
+            // For anonymous requests we require validated guest session (unless allowCreateGuestSession=true)
+            if (!identity.IsAuthenticated && !identity.GuestSessionValidated)
             {
-                var sessionId = values.ToString();
-
-                if (!string.IsNullOrWhiteSpace(sessionId))
-                    return (null, sessionId, "guest");
+                return (null, BadRequest(new { error = "Missing or invalid guest session headers.", code = "MissingOrInvalidGuestSession" }));
             }
 
-            return (null, null, "none");
+            return (identity, null);
         }
+
+
+        //private (string? UserId, string? GuestSessionId, string OwnerType) ResolveOwner()
+        //{
+        //    // Authenticated user
+        //    if (User?.Identity?.IsAuthenticated == true)
+        //    {
+        //        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        //        if (string.IsNullOrWhiteSpace(userId))
+        //            return (null, null, "invalid");
+
+        //        return (userId, null, "user");
+        //    }
+
+        //    // Guest session
+        //    if (Request.Headers.TryGetValue("X-Session-Id", out var values))
+        //    {
+        //        var sessionId = values.ToString();
+
+        //        if (!string.IsNullOrWhiteSpace(sessionId))
+        //            return (null, sessionId, "guest");
+        //    }
+
+        //    return (null, null, "none");
+        //}
 
         private static OrderResponse ToOrderResponse(Torder order)
         {
@@ -478,7 +625,12 @@ namespace sobee_API.Controllers
                 OrderStatus = order.StrOrderStatus,
                 OwnerType = ownerType,
                 UserId = order.UserId,
-                GuestSessionId = order.SessionId
+                GuestSessionId = order.SessionId,
+                SubtotalAmount = order.DecSubtotalAmount,
+                DiscountAmount = order.DecDiscountAmount,
+                DiscountPercentage = order.DecDiscountPercentage,
+                PromoCode = order.StrPromoCode,
+
             };
 
             if (order.TorderItems != null)

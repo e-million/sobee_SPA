@@ -33,5 +33,11 @@ public partial class Torder {
 
     public virtual ICollection<TorderItem> TorderItems { get; set; } = new List<TorderItem>();
 
- 
+
+    public string? StrPromoCode { get; set; }
+    public decimal? DecDiscountPercentage { get; set; }
+    public decimal? DecDiscountAmount { get; set; }
+    public decimal? DecSubtotalAmount { get; set; }
+
+
 }
