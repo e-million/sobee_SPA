@@ -21,12 +21,15 @@ namespace sobee_API
             {
                 options.AddDefaultPolicy(policy =>
                 {
-                    policy.WithOrigins("http://localhost:4200") // Angular dev server
+                    policy.WithOrigins("http://localhost:4200")
+                          .AllowAnyMethod()
                           .AllowAnyHeader()
-                          .AllowAnyMethod();
-                    // .AllowCredentials(); // only if you ever use cookies; not needed for bearer tokens
+                          // Let Angular read these response headers when a new guest session is issued
+                          .WithExposedHeaders(GuestSessionService.SessionIdHeaderName,
+                                              GuestSessionService.SessionSecretHeaderName);
                 });
             });
+
 
 
             // ==========================================

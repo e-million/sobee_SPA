@@ -2,13 +2,14 @@
 
 ### ------------------------------------------------------------
 ### 0) Get products (pick a productId from response)
+### - Use this to confirm IntStockAmount for the chosen product
 ### ------------------------------------------------------------
 GET {{baseUrl}}/api/products
 Accept: application/json
 
 
 ### ------------------------------------------------------------
-### 1) Add item to cart as GUEST
+### 1) Add item to cart as GUEST (happy path)
 ### - This should ISSUE X-Session-Id + X-Session-Secret in RESPONSE headers
 ### - Copy those values into @sessionId / @sessionSecret below
 ### ------------------------------------------------------------
@@ -25,12 +26,13 @@ Accept: application/json
 ### ------------------------------------------------------------
 ### 2) Set guest session vars (PASTE from response headers of step 1)
 ### ------------------------------------------------------------
-@sessionId = 71a6f470-e602-4e68-be81-c0d52b5f8774
-@sessionSecret = w76lgYIeSyt7H0Ti30tFdfU9en7NNaFG8+06GdtgWO0=
+@sessionId = 295d5498-2709-4467-81f6-e36ad6f8ec2d
+@sessionSecret = waqGun5ydvT3x5ob+pV+g3O7PvbzxbRBW/k+vwxrjxg=
 
 
 ### ------------------------------------------------------------
 ### 3) Get cart as GUEST (should persist)
+### - Grab cartItemId for the product from the response
 ### ------------------------------------------------------------
 GET {{baseUrl}}/api/cart
 Accept: application/json
@@ -81,9 +83,10 @@ X-Session-Secret: {{sessionSecret}}
 
 
 ### ------------------------------------------------------------
-### 8) Update cart item quantity (set cartItemId from step 3 response)
+### 8) Update cart item quantity (happy path)
+### - Set cartItemId from step 3 response
 ### ------------------------------------------------------------
-PUT {{baseUrl}}/api/cart/items/4
+PUT {{baseUrl}}/api/cart/items/1002
 Content-Type: application/json
 Accept: application/json
 X-Session-Id: {{sessionId}}
@@ -95,7 +98,60 @@ X-Session-Secret: {{sessionSecret}}
 
 
 ### ------------------------------------------------------------
-### 9) Clear cart
+### 9) STOCK VALIDATION TESTS (new behavior)
+### ------------------------------------------------------------
+
+### 9.1 Add item beyond available stock (expect 409 Conflict)
+### - Set quantity to something you KNOW is > IntStockAmount for product 1003
+POST {{baseUrl}}/api/cart/items
+Content-Type: application/json
+Accept: application/json
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
+
+{
+  "productId": 1003,
+  "quantity": 999999
+}
+
+
+### 9.2 Update item beyond available stock (expect 409 Conflict)
+### - Use the SAME cartItemId as step 8
+PUT {{baseUrl}}/api/cart/items/1002
+Content-Type: application/json
+Accept: application/json
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
+
+{
+  "quantity": 999999
+}
+
+
+### 9.3 Add more of the same product to exceed stock via increment (expect 409 Conflict)
+### - This tests the "existingItem + request.Quantity" path.
+### - If you want to force this, first set your cart item to a known value close to stock, then add a bit more.
+POST {{baseUrl}}/api/cart/items
+Content-Type: application/json
+Accept: application/json
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
+
+{
+  "productId": 1003,
+  "quantity": 57
+}
+
+
+### 9.4 Verify cart unchanged after failed stock operations (should still persist and not increase qty)
+GET {{baseUrl}}/api/cart
+Accept: application/json
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
+
+
+### ------------------------------------------------------------
+### 10) Clear cart
 ### ------------------------------------------------------------
 DELETE {{baseUrl}}/api/cart
 Accept: application/json
@@ -104,7 +160,7 @@ X-Session-Secret: {{sessionSecret}}
 
 
 ### ------------------------------------------------------------
-### 10) Get cart (should be empty totals)
+### 11) Get cart (should be empty totals)
 ### ------------------------------------------------------------
 GET {{baseUrl}}/api/cart
 Accept: application/json
