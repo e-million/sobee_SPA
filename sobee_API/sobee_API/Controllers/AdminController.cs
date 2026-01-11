@@ -17,10 +17,16 @@ namespace sobee_API.Controllers
             _db = db;
         }
 
+        /// <summary>
+        /// Admin-only health check for the admin area.
+        /// </summary>
         [HttpGet("ping")]
         public IActionResult Ping() => Ok(new { status = "ok", area = "admin" });
 
 
+        /// <summary>
+        /// Admin-only summary of orders and revenue metrics.
+        /// </summary>
         [HttpGet("summary")]
         public async Task<IActionResult> GetSummary()
         {
@@ -48,6 +54,9 @@ namespace sobee_API.Controllers
         }
 
 
+        /// <summary>
+        /// Admin-only daily order counts and revenue for the last N days.
+        /// </summary>
         [HttpGet("orders-per-day")]
         public async Task<IActionResult> GetOrdersPerDay([FromQuery] int days = 30)
         {
@@ -71,6 +80,9 @@ namespace sobee_API.Controllers
             return Ok(data);
         }
 
+        /// <summary>
+        /// Admin-only list of products with low stock.
+        /// </summary>
         [HttpGet("low-stock")]
         public async Task<IActionResult> GetLowStock([FromQuery] int threshold = 5)
         {
@@ -91,6 +103,9 @@ namespace sobee_API.Controllers
             return Ok(products);
         }
 
+        /// <summary>
+        /// Admin-only list of top-selling products.
+        /// </summary>
         [HttpGet("top-products")]
         public async Task<IActionResult> GetTopProducts([FromQuery] int limit = 5)
         {
