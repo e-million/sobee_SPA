@@ -1,22 +1,34 @@
 ﻿@baseUrl = https://localhost:7058
-@token = CfDJ8FE_QEmxr_5Gl8E9uQQwwd0CM6P3wytAZJgcyz8Q4HmlZDuvWprq4XyPMgpPllpy96sXqgIALP7C9m1zB5Z7CLWM9Wuuix70CC6gOVXdcJvRnJGI9RxZefmT9uL327cg3x76EkdiJRelOfbJStvVJthEIJGYfo0yIUYkyX1NQw6AllsPUO_dXMKhAAAMP4tFSr3Xm1tUpWJcg4gHcb5uYPAULl1wgIvx_l8xvud_g93-6TePctISSFqQ62GpX6Mw6UGLznjf8IijdtGMbeqM-gN_mK0svxoI8pA3UVHFyxoURCjF8l_GciHHhwFSrJ-NG3a3UeOSpdyuvWWPdrsTizIDT1MsoaEdpnYOLRg6qLdPBgj9MHA_sQwEvBGl4UdDBuUiwcxuvv4rt4ybS0i9iikyFGz6IwNMO2yw20kUf8DfMg1DVcRdHLWPm2rMDBJZ1DrrUsVJJ1_qSshMs8UrwufwbGfxoMTfjhrsC27Sgbhp3dCBJoeMU2hE48aTESfPR5HftP0RdbJsvLHL2UXd9fz5K35GUHn8RQZrBps8sl4R_6p4PtgGPnE-wHukI2Qjqtmdzj0trTeDrxkp2wH6aK8X6w9lkCT8m4px1i1HbLGMPOgQB1kBqxYGG3dwO_nlZG8dsg3rfFB_qkbopQQyafJdYilLa3R9aDFStZwy-A8TmwsFJp6-doIV8qy3v7MfnfVOMn0s7TYIfv-H4rgEtOA
+@token = CfDJ8FE_QEmxr_5Gl8E9uQQwwd17LeYV-H2iS7kAJL0XcFIhVqSQtqyBzKyf_xp5voV1SZ23OUHDFgMfwSS80PiCR0fgEJ_24uV0iBvgwQDmoY8pIWvCpT0H3YeOOGgQgJMt4K9kK_apxiwXFe87fI8gRwJqKDU3GR5zGMrJ704pUUhtnjWeBgK4PBP5SjLYiwxB1t3ldjXYOTTdjjBUuFUehZFgD4swCN-050nNQuwsteuxOhCog2BuBU5ovrmxoAsJwmN9KhU8b2ytvkHbae9l1fuwJy-rolVtxcDF4dt8QnegwOjVpJ4WG5GkjkSWwgS1qP0jgtl2UWt6U_ELlIo9TW5hvb1Wlizm16fTT7Ig_fJlqoxx4U7Sy3jQqCM4EIl-5MNsVJy7IK_kLBNUxU85yjaBNe4D8Q_JdXpQiUKES_61LYIrl3t1onJRVPiRszt6MijVo84TJl4PQnZyF_PVvZsEyjo3tFA6zYcLMpARJmJp4VPEdJQH5Q9o6bn2sP6ww7xEEivUujC-Xw2yEddxkIzsfdi_q3K2votZpQ9p0sHy4k5OeK-axFVsFkkxFP18VPPczhC2ZA5Nkbn_6SwhYzR1EgLfiDQgO3kGFuTFmY4QewAnWjKrrrT9AYGYdVdB9oyLMSvRxlRidjqvZwpfKcAMfTa_nf0cmqxj7qnsRUwJhgW2-0hEotKYzi5nD8SmUlrdhkj3FpGTToyTSl56PTA
 
-### Ping
-GET {{baseUrl}}/api/admin/ping
+### 1) List payment methods (auth required)
+GET {{baseUrl}}/api/paymentmethods
+Accept: application/json
 Authorization: Bearer {{token}}
 
-### Summary
-GET {{baseUrl}}/api/admin/summary
+### 2) Checkout (create an order) - adjust body as needed
+POST {{baseUrl}}/api/orders/checkout
+Content-Type: application/json
+Accept: application/json
 Authorization: Bearer {{token}}
 
-### Orders per day
-GET {{baseUrl}}/api/admin/orders-per-day?days=30
+{
+  "shippingAddress": "123 Test St, Test City, OH",
+  "paymentMethodId": 1
+}
+
+### 3) Pay order (set orderId from checkout response)
+POST {{baseUrl}}/api/orders/1003/pay
+Content-Type: application/json
+Accept: application/json
 Authorization: Bearer {{token}}
 
-### Low stock
-GET {{baseUrl}}/api/admin/low-stock?threshold=5
-Authorization: Bearer {{token}}
+{
+  "paymentMethodId": 1
+}
 
-### Top products
-GET {{baseUrl}}/api/admin/top-products?limit=5
-Authorization: Bearer {{token}}
+### Expected:
+### - 200 OK
+### - orderStatus becomes "Paid"
+### - order.IntPaymentMethodId set
+### - a row inserted into TPayments

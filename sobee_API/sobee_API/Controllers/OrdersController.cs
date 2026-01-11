@@ -33,6 +33,11 @@ namespace sobee_API.Controllers
             public int? PaymentMethodId { get; set; }
         }
 
+        public sealed class PayOrderRequest
+        {
+            public int PaymentMethodId { get; set; }
+        }
+
         private sealed class OrderResponse
         {
             public int OrderId { get; set; }
@@ -450,6 +455,97 @@ namespace sobee_API.Controllers
 
             return Ok(ToOrderResponse(order));
         }
+
+
+        /// <summary>
+        /// Owner-only (authenticated user or guest session): marks an order as Paid (placeholder payment).
+        /// Creates a TPayment row and updates the order's status.
+        /// </summary>
+        [HttpPost("{orderId:int}/pay")]
+        public async Task<IActionResult> PayOrder(int orderId, [FromBody] PayOrderRequest request)
+        {
+            if (request == null)
+                return BadRequest(new { error = "Request body is required." });
+
+            if (request.PaymentMethodId <= 0)
+                return BadRequest(new { error = "PaymentMethodId must be a positive integer." });
+
+            var owner = ResolveOwner();
+            if (owner.UserId == null && owner.GuestSessionId == null)
+                return Forbid();
+
+            // Load order for this owner
+            var query = _db.Torders.AsQueryable();
+
+            if (owner.UserId != null)
+                query = query.Where(o => o.UserId == owner.UserId);
+            else
+                query = query.Where(o => o.SessionId == owner.GuestSessionId);
+
+            var order = await query.FirstOrDefaultAsync(o => o.IntOrderId == orderId);
+            if (order == null)
+                return NotFound(new { error = "Order not found." });
+
+            // Validate payment method exists
+            var paymentMethod = await _db.TpaymentMethods
+                .AsNoTracking()
+                .FirstOrDefaultAsync(pm => pm.IntPaymentMethodId == request.PaymentMethodId);
+
+            if (paymentMethod == null)
+                return NotFound(new { error = $"Payment method {request.PaymentMethodId} not found." });
+
+            var currentStatus = string.IsNullOrWhiteSpace(order.StrOrderStatus)
+                ? OrderStatuses.Pending
+                : OrderStatuses.Normalize(order.StrOrderStatus);
+
+            var targetStatus = OrderStatuses.Paid;
+
+            if (!OrderStatuses.CanTransition(currentStatus, targetStatus))
+            {
+                return Conflict(new
+                {
+                    error = "Invalid status transition.",
+                    from = currentStatus,
+                    to = targetStatus,
+                    allowedNext = OrderStatuses.All.Where(s => OrderStatuses.CanTransition(currentStatus, s)).ToArray()
+                });
+            }
+
+            using var tx = await _db.Database.BeginTransactionAsync();
+
+            try
+            {
+                // Create payment record (placeholder)
+                var payment = new Sobee.Domain.Entities.Payments.Tpayment
+                {
+                    IntPaymentMethodId = paymentMethod.IntPaymentMethodId,
+                    StrBillingAddress = paymentMethod.StrBillingAddress
+                };
+
+                _db.Tpayments.Add(payment);
+
+                // Update order
+                order.IntPaymentMethodId = paymentMethod.IntPaymentMethodId;
+                order.StrOrderStatus = targetStatus;
+
+                await _db.SaveChangesAsync();
+                await tx.CommitAsync();
+
+                // Return updated order
+                var updated = await _db.Torders
+                    .Include(o => o.TorderItems)
+                    .ThenInclude(oi => oi.IntProduct)
+                    .FirstAsync(o => o.IntOrderId == order.IntOrderId);
+
+                return Ok(ToOrderResponse(updated));
+            }
+            catch
+            {
+                await tx.RollbackAsync();
+                return StatusCode(500, new { error = "Payment failed." });
+            }
+        }
+
 
         // ---------------------------------------------------------------------
         // Helpers
