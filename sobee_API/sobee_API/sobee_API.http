@@ -31,6 +31,19 @@ Accept: application/json
   "shippingAddress": "string"
 }
 
+### 1.1.1 Register user missing email (BAD REQUEST ApiErrorResponse)
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+Accept: application/json
+
+{
+  "password": "Admin123!",
+  "firstName": "Bob",
+  "lastName": "Bobertson",
+  "billingAddress": "string",
+  "shippingAddress": "string"
+}
+
 ### 1.2 Login user -> copy token into @userToken
 POST {{baseUrl}}/login
 Content-Type: application/json
@@ -215,6 +228,13 @@ X-Session-Secret: {{sessionSecret}}
   "quantity": 1
 }
 
+### 5.4 Add item with missing body (BAD REQUEST ApiErrorResponse)
+POST {{baseUrl}}/api/cart/items
+Content-Type: application/json
+Accept: application/json
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
+
 
 ### ============================================================
 ### 6) CHECKOUT (GUEST) + ORDER
@@ -279,6 +299,16 @@ Authorization: Bearer {{adminToken}}
 
 {
   "status": "Shipped"
+}
+
+### 7.4 Update status invalid value (BAD REQUEST ApiErrorResponse)
+PATCH {{baseUrl}}/api/orders/{{existingOrderId}}/status
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "status": "InvalidStatus"
 }
 
 

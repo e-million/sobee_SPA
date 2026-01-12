@@ -1,10 +1,14 @@
 
+using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using Sobee.Domain.Data;
 using Sobee.Domain.Identity;
+using sobee_API.DTOs.Common;
 using sobee_API.Services;
+using System.Text.Json;
 
 namespace sobee_API
 {
@@ -114,6 +118,82 @@ namespace sobee_API
             // 3. API & SWAGGER CONFIGURATION
             // ==========================================
             builder.Services.AddControllers();
+            builder.Services.AddFluentValidationAutoValidation();
+            builder.Services.AddValidatorsFromAssemblyContaining<Program>();
+            builder.Services.Configure<ApiBehaviorOptions>(options =>
+            {
+                options.InvalidModelStateResponseFactory = context =>
+                {
+                    var namingPolicy = JsonNamingPolicy.CamelCase;
+                    var parameterNames = context.ActionDescriptor.Parameters
+                        .Select(p => p.Name)
+                        .Where(name => !string.IsNullOrWhiteSpace(name))
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                    string NormalizeKey(string key)
+                    {
+                        if (string.IsNullOrWhiteSpace(key) || key == "$")
+                            return "body";
+
+                        if (parameterNames.Contains(key))
+                            return "body";
+
+                        foreach (var parameterName in parameterNames)
+                        {
+                            var prefix = $"{parameterName}.";
+                            if (key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                            {
+                                key = key.Substring(prefix.Length);
+                                break;
+                            }
+                        }
+
+                        if (string.IsNullOrWhiteSpace(key))
+                            return "body";
+
+                        var parts = key.Split('.');
+                        for (var i = 0; i < parts.Length; i++)
+                        {
+                            var part = parts[i];
+                            if (string.IsNullOrWhiteSpace(part))
+                                continue;
+
+                            var bracketIndex = part.IndexOf('[');
+                            var namePart = bracketIndex >= 0 ? part[..bracketIndex] : part;
+                            var suffix = bracketIndex >= 0 ? part[bracketIndex..] : string.Empty;
+                            var camelName = string.IsNullOrWhiteSpace(namePart) ? namePart : namingPolicy.ConvertName(namePart);
+                            parts[i] = $"{camelName}{suffix}";
+                        }
+
+                        return string.Join('.', parts);
+                    }
+
+                    var errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
+
+                    foreach (var entry in context.ModelState)
+                    {
+                        if (entry.Value == null || entry.Value.Errors.Count == 0)
+                            continue;
+
+                        var key = NormalizeKey(entry.Key);
+                        var messages = entry.Value.Errors
+                            .Select(e => string.IsNullOrWhiteSpace(e.ErrorMessage) ? "Validation failed." : e.ErrorMessage)
+                            .ToArray();
+
+                        if (errors.TryGetValue(key, out var existing))
+                            errors[key] = existing.Concat(messages).ToArray();
+                        else
+                            errors[key] = messages;
+                    }
+
+                    var response = new ApiErrorResponse("Validation failed.", "VALIDATION_ERROR", new
+                    {
+                        errors
+                    });
+
+                    return new BadRequestObjectResult(response);
+                };
+            });
             builder.Services.AddEndpointsApiExplorer();
 
             // Customize Swagger to support JWT Bearer Authentication

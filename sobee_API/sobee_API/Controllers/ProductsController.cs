@@ -141,18 +141,6 @@ namespace sobee_API.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateProduct([FromBody] CreateProductRequest request)
         {
-            if (request == null)
-                return BadRequest(new { error = "Missing request body." });
-
-            if (string.IsNullOrWhiteSpace(request.Name))
-                return BadRequest(new { error = "Name is required." });
-
-            if (request.Price < 0)
-                return BadRequest(new { error = "Price cannot be negative." });
-
-            if (request.StockAmount < 0)
-                return BadRequest(new { error = "StockAmount cannot be negative." });
-
             var product = new Tproduct
             {
                 StrName = request.Name.Trim(),
@@ -188,9 +176,6 @@ namespace sobee_API.Controllers
         [HttpPost("{id:int}/images")]
         public async Task<IActionResult> AddProductImage(int id, [FromBody] AddProductImageRequest request)
         {
-            if (request == null || string.IsNullOrWhiteSpace(request.Url))
-                return BadRequest(new { error = "Missing required field: url" });
-
             var productExists = await _db.Tproducts.AnyAsync(p => p.IntProductId == id);
             if (!productExists)
                 return NotFound(new { error = "Product not found." });
@@ -219,18 +204,12 @@ namespace sobee_API.Controllers
         [HttpPut("{id:int}")]
         public async Task<IActionResult> UpdateProduct(int id, [FromBody] UpdateProductRequest request)
         {
-            if (request == null)
-                return BadRequest(new { error = "Missing request body." });
-
             var product = await _db.Tproducts.FirstOrDefaultAsync(p => p.IntProductId == id);
             if (product == null)
                 return NotFound(new { error = "Product not found." });
 
             if (request.Name != null)
             {
-                if (string.IsNullOrWhiteSpace(request.Name))
-                    return BadRequest(new { error = "Name cannot be empty." });
-
                 product.StrName = request.Name.Trim();
             }
 
@@ -241,17 +220,11 @@ namespace sobee_API.Controllers
 
             if (request.Price.HasValue)
             {
-                if (request.Price.Value < 0)
-                    return BadRequest(new { error = "Price cannot be negative." });
-
                 product.DecPrice = request.Price.Value;
             }
 
             if (request.StockAmount.HasValue)
             {
-                if (request.StockAmount.Value < 0)
-                    return BadRequest(new { error = "StockAmount cannot be negative." });
-
                 product.IntStockAmount = request.StockAmount.Value;
             }
 
