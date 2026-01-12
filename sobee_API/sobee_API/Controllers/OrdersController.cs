@@ -5,12 +5,13 @@ using Microsoft.EntityFrameworkCore;
 using Sobee.Domain.Data;
 using Sobee.Domain.Entities.Cart;
 using Sobee.Domain.Entities.Orders;
+using sobee_API.DTOs.Common;
+using sobee_API.DTOs.Orders;
+using sobee_API.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
-using sobee_API.DTOs.Orders;
-using sobee_API.Services;
 
 
 namespace sobee_API.Controllers
@@ -604,5 +605,23 @@ namespace sobee_API.Controllers
 
             return resp;
         }
+
+        private BadRequestObjectResult BadRequestError(string message, string? code = null)
+    => BadRequest(new ApiErrorResponse(message, code));
+
+        private NotFoundObjectResult NotFoundError(string message, string? code = null)
+            => NotFound(new ApiErrorResponse(message, code));
+
+        private ConflictObjectResult ConflictError(string message, string? code = null)
+            => Conflict(new ApiErrorResponse(message, code));
+
+        private UnauthorizedObjectResult UnauthorizedError(string message, string? code = null)
+            => Unauthorized(new ApiErrorResponse(message, code));
+
+        private ObjectResult ForbiddenError(string message, string? code = null)
+            => StatusCode(StatusCodes.Status403Forbidden, new ApiErrorResponse(message, code));
+
+
+
     }
 }

@@ -19,16 +19,23 @@ namespace sobee_API
             // ==========================================
             builder.Services.AddCors(options =>
             {
-                options.AddDefaultPolicy(policy =>
+                options.AddPolicy("AngularClient", policy =>
                 {
-                    policy.WithOrigins("http://localhost:4200")
-                          .AllowAnyMethod()
-                          .AllowAnyHeader()
-                          // Let Angular read these response headers when a new guest session is issued
-                          .WithExposedHeaders(GuestSessionService.SessionIdHeaderName,
-                                              GuestSessionService.SessionSecretHeaderName);
+                    policy
+                        .WithOrigins(
+                            "http://localhost:4200",
+                            "https://localhost:4200")
+                        .AllowAnyMethod()
+                        .AllowAnyHeader()
+                        .AllowCredentials()
+                        // Critical: allow Angular to read your session headers
+                        .WithExposedHeaders(
+                            GuestSessionService.SessionIdHeaderName,
+                            GuestSessionService.SessionSecretHeaderName);
                 });
             });
+
+
 
 
 
@@ -161,7 +168,8 @@ namespace sobee_API
 
             app.UseHttpsRedirection();
 
-            app.UseCors();
+            app.UseCors("AngularClient");
+
 
             //  IMPORTANT: These must be in this order (AuthN before AuthZ)
             app.UseAuthentication(); // "Who are you?"
