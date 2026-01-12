@@ -6,10 +6,11 @@ namespace sobee_API.DTOs.Common
     {
         public ApiErrorResponse() { }
 
-        public ApiErrorResponse(string error, string? code = null)
+        public ApiErrorResponse(string error, string? code = null, object? details = null)
         {
             Error = error;
             Code = code;
+            Details = details;
         }
 
         [JsonPropertyName("error")]
@@ -18,5 +19,9 @@ namespace sobee_API.DTOs.Common
         [JsonPropertyName("code")]
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public string? Code { get; init; }
+
+        [JsonPropertyName("details")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public object? Details { get; init; }
     }
 }

@@ -56,7 +56,7 @@ namespace sobee_API.Controllers
 
             var order = await query.FirstOrDefaultAsync(o => o.IntOrderId == orderId);
             if (order == null)
-                return NotFound(new { error = "Order not found." });
+                return NotFoundError("Order not found.", "NotFound", new { orderId });
 
             return Ok(ToOrderResponse(order));
         }
@@ -72,7 +72,7 @@ namespace sobee_API.Controllers
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
             if (string.IsNullOrWhiteSpace(userId))
-                return Unauthorized(new { error = "Missing NameIdentifier claim." });
+                return UnauthorizedError("Missing NameIdentifier claim.", "Unauthorized");
 
             var orders = await _db.Torders
                 .Include(o => o.TorderItems)
@@ -92,10 +92,10 @@ namespace sobee_API.Controllers
         public async Task<IActionResult> Checkout([FromBody] CheckoutRequest request)
         {
             if (request == null)
-                return BadRequest(new { error = "Request body is required." });
+                return BadRequestError("Request body is required.", "ValidationError");
 
             if (string.IsNullOrWhiteSpace(request.ShippingAddress))
-                return BadRequest(new { error = "ShippingAddress is required." });
+                return BadRequestError("ShippingAddress is required.", "ValidationError");
 
             // Require an existing validated guest session if not authenticated
             var (identity, errorResult) = await ResolveIdentityAsync(allowCreateGuestSession: false);
@@ -115,10 +115,10 @@ namespace sobee_API.Controllers
                         .FirstOrDefaultAsync(c => c.SessionId == identity.GuestSessionId);
 
             if (cart == null)
-                return BadRequest(new { error = "No cart found for this owner." });
+                return BadRequestError("No cart found for this owner.", "ValidationError");
 
             if (cart.TcartItems == null || cart.TcartItems.Count == 0)
-                return BadRequest(new { error = "Cart is empty." });
+                return BadRequestError("Cart is empty.", "ValidationError");
 
             // Compute totals (also validates items exist)
             decimal subtotal = 0m;
@@ -128,10 +128,16 @@ namespace sobee_API.Controllers
                 var qty = item.IntQuantity ?? 0;
 
                 if (qty <= 0)
-                    return BadRequest(new { error = "Cart has an item with invalid quantity.", cartItemId = item.IntCartItemId });
+                    return BadRequestError(
+                        "Cart has an item with invalid quantity.",
+                        "ValidationError",
+                        new { cartItemId = item.IntCartItemId });
 
                 if (item.IntProduct == null)
-                    return BadRequest(new { error = "Cart contains an item with missing product reference.", cartItemId = item.IntCartItemId });
+                    return BadRequestError(
+                        "Cart contains an item with missing product reference.",
+                        "ValidationError",
+                        new { cartItemId = item.IntCartItemId });
 
                 subtotal += qty * item.IntProduct.DecPrice;
             }
@@ -173,14 +179,16 @@ namespace sobee_API.Controllers
 
                     if (product.IntStockAmount < qty)
                     {
-                        return Conflict(new
-                        {
-                            error = "Insufficient stock.",
-                            productId = product.IntProductId,
-                            productName = product.StrName,
-                            requested = qty,
-                            available = product.IntStockAmount
-                        });
+                        return ConflictError(
+                            "Insufficient stock.",
+                            "InsufficientStock",
+                            new
+                            {
+                                productId = product.IntProductId,
+                                productName = product.StrName,
+                                requested = qty,
+                                available = product.IntStockAmount
+                            });
                     }
 
                     product.IntStockAmount -= qty;
@@ -254,7 +262,7 @@ namespace sobee_API.Controllers
             catch
             {
                 await tx.RollbackAsync();
-                return StatusCode(500, new { error = "Checkout failed." });
+                return ServerError("Checkout failed.");
             }
         }
 
@@ -280,7 +288,7 @@ namespace sobee_API.Controllers
 
             var order = await query.FirstOrDefaultAsync(o => o.IntOrderId == orderId);
             if (order == null)
-                return NotFound(new { error = "Order not found." });
+                return NotFoundError("Order not found.", "NotFound", new { orderId });
 
             var currentStatus = string.IsNullOrWhiteSpace(order.StrOrderStatus)
                 ? OrderStatuses.Pending
@@ -288,11 +296,10 @@ namespace sobee_API.Controllers
 
             if (!OrderStatuses.IsCancellable(currentStatus))
             {
-                return Conflict(new
-                {
-                    error = "Order cannot be cancelled in its current status.",
-                    status = currentStatus
-                });
+                return ConflictError(
+                    "Order cannot be cancelled in its current status.",
+                    "InvalidStatusTransition",
+                    new { status = currentStatus });
             }
 
             order.StrOrderStatus = OrderStatuses.Cancelled;
@@ -310,10 +317,10 @@ namespace sobee_API.Controllers
         public async Task<IActionResult> PayOrder(int orderId, [FromBody] PayOrderRequest request)
         {
             if (request == null)
-                return BadRequest(new { error = "Request body is required." });
+                return BadRequestError("Request body is required.", "ValidationError");
 
             if (request.PaymentMethodId <= 0)
-                return BadRequest(new { error = "PaymentMethodId must be a positive integer." });
+                return BadRequestError("PaymentMethodId must be a positive integer.", "ValidationError");
 
             var (identity, errorResult) = await ResolveIdentityAsync(allowCreateGuestSession: false);
             if (errorResult != null)
@@ -328,14 +335,17 @@ namespace sobee_API.Controllers
 
             var order = await query.FirstOrDefaultAsync(o => o.IntOrderId == orderId);
             if (order == null)
-                return NotFound(new { error = "Order not found." });
+                return NotFoundError("Order not found.", "NotFound", new { orderId });
 
             var paymentMethod = await _db.TpaymentMethods
                 .AsNoTracking()
                 .FirstOrDefaultAsync(pm => pm.IntPaymentMethodId == request.PaymentMethodId);
 
             if (paymentMethod == null)
-                return NotFound(new { error = $"Payment method {request.PaymentMethodId} not found." });
+                return NotFoundError(
+                    $"Payment method {request.PaymentMethodId} not found.",
+                    "NotFound",
+                    new { paymentMethodId = request.PaymentMethodId });
 
             var currentStatus = string.IsNullOrWhiteSpace(order.StrOrderStatus)
                 ? OrderStatuses.Pending
@@ -345,13 +355,15 @@ namespace sobee_API.Controllers
 
             if (!OrderStatuses.CanTransition(currentStatus, targetStatus))
             {
-                return Conflict(new
-                {
-                    error = "Invalid status transition.",
-                    from = currentStatus,
-                    to = targetStatus,
-                    allowedNext = OrderStatuses.All.Where(s => OrderStatuses.CanTransition(currentStatus, s)).ToArray()
-                });
+                return ConflictError(
+                    "Invalid status transition.",
+                    "InvalidStatusTransition",
+                    new
+                    {
+                        from = currentStatus,
+                        to = targetStatus,
+                        allowedNext = OrderStatuses.All.Where(s => OrderStatuses.CanTransition(currentStatus, s)).ToArray()
+                    });
             }
 
             using var tx = await _db.Database.BeginTransactionAsync();
@@ -382,7 +394,7 @@ namespace sobee_API.Controllers
             catch
             {
                 await tx.RollbackAsync();
-                return StatusCode(500, new { error = "Payment failed." });
+                return ServerError("Payment failed.");
             }
         }
 
@@ -398,12 +410,15 @@ namespace sobee_API.Controllers
         public async Task<IActionResult> UpdateOrderStatus(int orderId, [FromBody] UpdateOrderStatusRequest request)
         {
             if (request?.Status == null || string.IsNullOrWhiteSpace(request.Status))
-                return BadRequest(new { error = "Missing required field: status" });
+                return BadRequestError("Missing required field: status", "ValidationError");
 
             var newStatus = OrderStatuses.Normalize(request.Status);
 
             if (!OrderStatuses.IsKnown(newStatus))
-                return BadRequest(new { error = "Invalid status value.", allowed = OrderStatuses.All });
+                return BadRequestError(
+                    "Invalid status value.",
+                    "ValidationError",
+                    new { allowed = OrderStatuses.All });
 
             var order = await _db.Torders
                 .Include(o => o.TorderItems)
@@ -411,7 +426,7 @@ namespace sobee_API.Controllers
                 .FirstOrDefaultAsync(o => o.IntOrderId == orderId);
 
             if (order == null)
-                return NotFound(new { error = "Order not found." });
+                return NotFoundError("Order not found.", "NotFound", new { orderId });
 
             var currentStatus = string.IsNullOrWhiteSpace(order.StrOrderStatus)
                 ? OrderStatuses.Pending
@@ -419,13 +434,15 @@ namespace sobee_API.Controllers
 
             if (!OrderStatuses.CanTransition(currentStatus, newStatus))
             {
-                return Conflict(new
-                {
-                    error = "Invalid status transition.",
-                    from = currentStatus,
-                    to = newStatus,
-                    allowedNext = OrderStatuses.All.Where(s => OrderStatuses.CanTransition(currentStatus, s)).ToArray()
-                });
+                return ConflictError(
+                    "Invalid status transition.",
+                    "InvalidStatusTransition",
+                    new
+                    {
+                        from = currentStatus,
+                        to = newStatus,
+                        allowedNext = OrderStatuses.All.Where(s => OrderStatuses.CanTransition(currentStatus, s)).ToArray()
+                    });
             }
 
             // Status change only. Stock already decremented at checkout.
@@ -524,15 +541,15 @@ namespace sobee_API.Controllers
             if (identity.HasError)
             {
                 if (identity.ErrorCode == "MissingNameIdentifier")
-                    return (null, Unauthorized(new { error = identity.ErrorMessage, code = identity.ErrorCode }));
+                    return (null, UnauthorizedError(identity.ErrorMessage, "Unauthorized"));
 
-                return (null, BadRequest(new { error = identity.ErrorMessage, code = identity.ErrorCode }));
+                return (null, BadRequestError(identity.ErrorMessage, "ValidationError"));
             }
 
             // For anonymous requests we require validated guest session (unless allowCreateGuestSession=true)
             if (!identity.IsAuthenticated && !identity.GuestSessionValidated)
             {
-                return (null, BadRequest(new { error = "Missing or invalid guest session headers.", code = "MissingOrInvalidGuestSession" }));
+                return (null, BadRequestError("Missing or invalid guest session headers.", "Unauthorized"));
             }
 
             return (identity, null);
@@ -606,21 +623,23 @@ namespace sobee_API.Controllers
             return resp;
         }
 
-        private BadRequestObjectResult BadRequestError(string message, string? code = null)
-    => BadRequest(new ApiErrorResponse(message, code));
+        private BadRequestObjectResult BadRequestError(string message, string? code = null, object? details = null)
+            => BadRequest(new ApiErrorResponse(message, code, details));
 
-        private NotFoundObjectResult NotFoundError(string message, string? code = null)
-            => NotFound(new ApiErrorResponse(message, code));
+        private NotFoundObjectResult NotFoundError(string message, string? code = null, object? details = null)
+            => NotFound(new ApiErrorResponse(message, code, details));
 
-        private ConflictObjectResult ConflictError(string message, string? code = null)
-            => Conflict(new ApiErrorResponse(message, code));
+        private ConflictObjectResult ConflictError(string message, string? code = null, object? details = null)
+            => Conflict(new ApiErrorResponse(message, code, details));
 
-        private UnauthorizedObjectResult UnauthorizedError(string message, string? code = null)
-            => Unauthorized(new ApiErrorResponse(message, code));
+        private UnauthorizedObjectResult UnauthorizedError(string message, string? code = null, object? details = null)
+            => Unauthorized(new ApiErrorResponse(message, code, details));
 
-        private ObjectResult ForbiddenError(string message, string? code = null)
-            => StatusCode(StatusCodes.Status403Forbidden, new ApiErrorResponse(message, code));
+        private ObjectResult ForbiddenError(string message, string? code = null, object? details = null)
+            => StatusCode(StatusCodes.Status403Forbidden, new ApiErrorResponse(message, code, details));
 
+        private ObjectResult ServerError(string message = "An unexpected error occurred.", string? code = "ServerError", object? details = null)
+            => StatusCode(StatusCodes.Status500InternalServerError, new ApiErrorResponse(message, code, details));
 
 
     }
