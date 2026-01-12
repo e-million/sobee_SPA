@@ -22,25 +22,6 @@ namespace sobee_API.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterWithProfileRequest req)
         {
-            // Hard requirements (since you want these not-null and you’ll use them later)
-            if (string.IsNullOrWhiteSpace(req.Email))
-                return BadRequest(new { error = "Email is required." });
-
-            if (string.IsNullOrWhiteSpace(req.Password))
-                return BadRequest(new { error = "Password is required." });
-
-            if (string.IsNullOrWhiteSpace(req.FirstName))
-                return BadRequest(new { error = "FirstName is required." });
-
-            if (string.IsNullOrWhiteSpace(req.LastName))
-                return BadRequest(new { error = "LastName is required." });
-
-            if (string.IsNullOrWhiteSpace(req.BillingAddress))
-                return BadRequest(new { error = "BillingAddress is required." });
-
-            if (string.IsNullOrWhiteSpace(req.ShippingAddress))
-                return BadRequest(new { error = "ShippingAddress is required." });
-
             var email = req.Email.Trim();
 
             var existing = await _userManager.FindByEmailAsync(email);
