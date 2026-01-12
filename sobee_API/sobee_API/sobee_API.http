@@ -1,132 +1,23 @@
 ﻿@baseUrl = https://localhost:7058
-@adminEmail = admin2@local.com
-@adminPassword = Admin123!
-@userEmail = million2@local.com
-@userPassword = Admin123!
 
 ### ============================================================
-### 0) HEALTH / BASELINE
+### SETUP (assumes you already have a guest session)
 ### ============================================================
 
-### 0.1 Ping home
-GET {{baseUrl}}/api/home/ping
-Accept: application/json
+@sessionId = da8509a7-0bac-4a34-99e4-fdf0aeb10c3a
+@sessionSecret = N+DdP2+uZFSuUTsjQPbPRubwQx1QgzngmGpkU9SdqUA=
 
 
 ### ============================================================
-### 1) AUTH (USER + ADMIN)
+### 1) BODY VALIDATION (should map to body / field name)
 ### ============================================================
 
-### 1.1 Register user (if already exists, should return ApiErrorResponse)
-POST {{baseUrl}}/api/auth/register
-Content-Type: application/json
-Accept: application/json
-
-{
-  "email": "bob3@local.com",
-  "password": "Admin123!",
-  "firstName": "Bob",
-  "lastName": "Bobertson",
-  "billingAddress": "string",
-  "shippingAddress": "string"
-}
-
-### 1.1.1 Register user missing email (BAD REQUEST ApiErrorResponse)
-POST {{baseUrl}}/api/auth/register
-Content-Type: application/json
-Accept: application/json
-
-{
-  "password": "Admin123!",
-  "firstName": "Bob",
-  "lastName": "Bobertson",
-  "billingAddress": "string",
-  "shippingAddress": "string"
-}
-
-### 1.2 Login user -> copy token into @userToken
-POST {{baseUrl}}/login
-Content-Type: application/json
-Accept: application/json
-
-{
-  "email": "admin2@local.com",
-  "password": "Admin123!"
-}
-###
-@userToken = CfDJ8FE_QEmxr_5Gl8E9uQQwwd2lK8VY9EDX3UbG2hBFA58eAvF5T3clswqCXOr4F5k9eOf7LtK6BKvAXlvDccYqnCOI7OdIb-FPzZk90fyz2hpr0iNYO3ZYc3QyMbRhYcu4xRT1InWYTNYBlBFa4OYUu6_2xwJ4W1mYUKU_gIbz1BVSPc18-iuK8eGVpvz4FzyI2y5lSl13DPYVS_J_rmWxlLkqJsjF8nwEwzv7doS5mSzXeW-q9mkuEStKJsLPeX91wjmFS8qCsbY17cpLVXqD5JP-qr-v1LXAPK_dZN0Q4dMMtj18MN3pQqwFECE1YIsfuc3XDVhrSCaqu3uJkD6FZJGdYmHrorSuLaBDTQHGqXgpqwBMj-xPc1fsXIF8cwLXIbAQf5JOGj4F72SxhPiKqTS95OHHN8jQR0CpoaaisleuCVZGYZIBn1lUwiGX9lJDE603NbSqde6_-JCwomBDnMn8J9TynSGWsyVvU-pwyHONZD59mflYBa-JYBYKGvpHo-2CEHtJQb47OFN-BtUWyxweG9aOPwVLEWStp-HSg68cAOm9h8XogiUW4bMkQyWP7FZOLgirCep8YaEvrjXBS7RumGpxek7N7ogSSGZpOH0xxdI6TakE4uJy4Ge0JoENZG7JWM41wVT4Md8NiKQadjcDZDhYdgOwL0hqDJRUGm4io2HSgyH2TAwRD3wl7L7zSXTuqZuKWuPql9dyySPK_W26jqpm7BmguDnlnWDIA_gjhsgOXDo-TQfVS2CuB1saZW8-_oTGwN3H-D1Tv4Ex5emSPf9BeltSWcr_mIbZNKkb
-
-### 1.3 Login admin -> copy token into @adminToken
-POST {{baseUrl}}/login
-Content-Type: application/json
-Accept: application/json
-
-{
-  "email": "{{adminEmail}}",
-  "password": "{{adminPassword}}"
-}
-###
-@adminToken = CfDJ8FE_QEmxr_5Gl8E9uQQwwd1znnxohENo937b41L8ojdztxSlwS71arVc4Nb1URyA5JuWNuk11pLzyWKdoe2cpJnLjmB-DpunS5IzXBjRVt6KS1gHKh_kwj3WJ8FBqGNpiUcNhukXjZQxcW6msaRbzTedGOCRse1zYk4urQ-Cj85iV14sqdyL5OFjvR6hRG2rPqZta5GfHS-HJU1Jq9_6xlYlQLjKclGJgpl6V1GQeCMrYizFjljSivOLaD5hUKBvnnuAGeM4K071VtR-XVML3GTJLo--yKftBr5OfFLFeKiZb5vTsUUFTMGRVbdoi9yfbzDJmDLq22LzrIS9PsmgIhL7FqyNpEgb63lahJK2aLKjvsgs2Zv8fcGczc9BARyAbrwPyTcA8-d-F7q8iRwntyxGVFTHjXtuXVXRFpPAC4HDUWKV_Jw48T_jJblWSaXm-0gcRcEp_0mNbpsHK_6U3IwaqtHtB2j-5BJKv3qIC5w2EZGJjUgH5jFk0HlV-Y5bwULiSFg8WBxNgITnGfBKVR92fy2iKsSl4f6zUbemiWWEgg_RuezvrLEPuknFNtohvjBsSlwCYmfHCDLOcFff281J7adrRiQwqyU2qajSltBUXSNlUJRZHqgwIH76PBLwizUbAH43WoQGQtS2C0JIjh-NXmCt8v7Jhdsg8oYc0OurdJqezcUkSyvNX20DLeAEqa6hhUVOkWsh7IXDyrq-tDCcnNIdhgXrGIjUd3AMUjYwIQFG7em2Yfy8J4S7wEDlSq4K9JVLs1f-f3s_FB2jCXOeHFcgad6prWfZqucQiOVQ
-
-
-### ============================================================
-### 2) PRODUCTS (FIND A PRODUCT TO USE FOR CART)
-### ============================================================
-
-### 2.1 Get products (pick a productId with stock)
-GET {{baseUrl}}/api/products
-Accept: application/json
-
-###
-@productId = 1003
-
-
-### ============================================================
-### 3) CART (GUEST SESSION FLOW)
-### ============================================================
-
-### 3.1 Add item to cart as GUEST
+### 1.1 Invalid quantity (Quantity must be > 0)
 ### EXPECT:
-### - 200 OK cart response
-### - Response headers should include X-Session-Id and X-Session-Secret
-POST {{baseUrl}}/api/cart/items
-Content-Type: application/json
-Accept: application/json
-
-{
-  "productId": {{productId}},
-  "quantity": 1
-}
-
-### 3.2 Paste session values from step 3.1 response headers
-@sessionId = e67a4371-30f7-48a5-a076-22b0b077bf6a
-@sessionSecret = f6gkDozWkeDn8vjCbsu0hyJKEd54bmKV62RnhvJGyms=
-
-### 3.3 Get cart as GUEST (should persist and return CartResponseDto)
-GET {{baseUrl}}/api/cart
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-### 3.4 Update cart item quantity (set @cartItemId from step 3.3 response)
-@cartItemId = 3
-PUT {{baseUrl}}/api/cart/items/{{cartItemId}}
-Content-Type: application/json
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-{
-  "quantity": 2
-}
-
-### 3.5 Remove cart item (should return updated cart)
-DELETE {{baseUrl}}/api/cart/items/{{cartItemId}}
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-### 3.6 Add item again (needed for promo + checkout)
+### 400
+### error: "Validation failed."
+### code: "VALIDATION_ERROR"
+### details.errors.quantity
 POST {{baseUrl}}/api/cart/items
 Content-Type: application/json
 Accept: application/json
@@ -134,91 +25,17 @@ X-Session-Id: {{sessionId}}
 X-Session-Secret: {{sessionSecret}}
 
 {
-  "productId": {{productId}},
-  "quantity": 1
-}
-
-### ============================================================
-### 4) PROMO (SUCCESS DTO + ERROR DTO)
-### ============================================================
-
-### 4.1 Apply promo (SUCCESS)
-### EXPECT:
-### - 200 OK PromoAppliedResponseDto
-### - Fields: message, promoCode, discountPercentage
-POST {{baseUrl}}/api/cart/promo/apply
-Content-Type: application/json
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-{
-  "promoCode": "SUMMER10"
-}
-
-### 4.2 Apply same promo again (CONFLICT ApiErrorResponse)
-### EXPECT:
-### - 409 Conflict
-### - { error, code, details: { promoCode } }
-POST {{baseUrl}}/api/cart/promo/apply
-Content-Type: application/json
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-{
-  "promoCode": "SUMMER10"
-}
-
-### 4.3 Remove promo (SUCCESS MessageResponseDto)
-### EXPECT:
-### - 200 OK
-### - { message }
-DELETE {{baseUrl}}/api/cart/promo
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-### 4.4 Remove promo again (should be OK or error depending on your behavior)
-DELETE {{baseUrl}}/api/cart/promo
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-
-### ============================================================
-### 5) CART ERROR SHAPE TESTS (ApiErrorResponse + details)
-### ============================================================
-
-### 5.1 Add item with invalid quantity (BAD REQUEST ApiErrorResponse)
-### EXPECT:
-### - 400
-### - { error, code, details? }
-POST {{baseUrl}}/api/cart/items
-Content-Type: application/json
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-{
-  "productId": {{productId}},
+  "productId": 1003,
   "quantity": 0
 }
 
-### 5.2 Add item with nonexistent product (NOT FOUND ApiErrorResponse + details.productId)
-POST {{baseUrl}}/api/cart/items
-Content-Type: application/json
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
 
-{
-  "productId": 9999999,
-  "quantity": 1
-}
+### ============================================================
+### 2) ROUTE PARAM BINDING ERROR (MUST NOT MAP TO body)
+### ============================================================
 
-### 5.3 Update nonexistent cart item (NOT FOUND ApiErrorResponse + details.cartItemId)
-PUT {{baseUrl}}/api/cart/items/9999999
+### 2.1 Route binding error (int overflow) -> should be 400, NOT 404
+PUT {{baseUrl}}/api/cart/items/999999999999999999999
 Content-Type: application/json
 Accept: application/json
 X-Session-Id: {{sessionId}}
@@ -228,22 +45,47 @@ X-Session-Secret: {{sessionSecret}}
   "quantity": 1
 }
 
-### 5.4 Add item with missing body (BAD REQUEST ApiErrorResponse)
-POST {{baseUrl}}/api/cart/items
-Content-Type: application/json
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
 
 
 ### ============================================================
-### 6) CHECKOUT (GUEST) + ORDER
+### 3) QUERY PARAM VALIDATION (MUST NOT MAP TO body)
 ### ============================================================
 
-### 6.1 Checkout as guest (SUCCESS)
+### 3.1 Invalid query param (page expects int)
 ### EXPECT:
-### - 200 OK order response
-### - Promo should be snapshotted on order and cleared from cart after checkout
+### 400
+### details.errors.page
+GET {{baseUrl}}/api/products?page=abc&pageSize=10
+Accept: application/json
+
+
+### ============================================================
+### 4) BINDER ERROR (INVALID JSON → body)
+### ============================================================
+
+### 4.1 Malformed JSON
+### EXPECT:
+### 400
+### details.errors.body
+POST {{baseUrl}}/api/cart/items
+Content-Type: application/json
+Accept: application/json
+X-Session-Id: {{sessionId}}
+X-Session-Secret: {{sessionSecret}}
+
+{
+  "productId": 1003,
+  "quantity": 1
+@@@
+
+
+### ============================================================
+### 5) ARRAY / INDEX NORMALIZATION
+### ============================================================
+
+### 5.1 Indexed path normalization
+### EXPECT:
+### details.errors.items[0].productId (camelCase preserved)
 POST {{baseUrl}}/api/orders/checkout
 Content-Type: application/json
 Accept: application/json
@@ -251,88 +93,6 @@ X-Session-Id: {{sessionId}}
 X-Session-Secret: {{sessionSecret}}
 
 {
-  "shippingAddress": "123 Test St, Cincinnati, OH",
-  "paymentMethodId": 1
+  "shippingAddress": "",
+  "paymentMethodId": 0
 }
-
-### 6.2 Get cart after checkout (should be empty, promo should not show)
-GET {{baseUrl}}/api/cart
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-### 6.3 Get my orders as guest (if your API supports guest orders listing by session)
-GET {{baseUrl}}/api/orders/my
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-
-### ============================================================
-### 7) ORDERS ERROR SHAPE TESTS
-### ============================================================
-
-### 7.1 Get nonexistent order (NOT FOUND ApiErrorResponse + details.orderId)
-GET {{baseUrl}}/api/orders/9999999
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-### 7.2 Pay nonexistent order (NOT FOUND ApiErrorResponse)
-POST {{baseUrl}}/api/orders/9999999/pay
-Content-Type: application/json
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-{
-  "paymentMethodId": 1
-}
-
-### 7.3 Update status invalid transition (CONFLICT ApiErrorResponse + details)
-### NOTE: set @existingOrderId from the checkout response
-@existingOrderId = 2
-PATCH {{baseUrl}}/api/orders/{{existingOrderId}}/status
-Content-Type: application/json
-Accept: application/json
-Authorization: Bearer {{adminToken}}
-
-{
-  "status": "Shipped"
-}
-
-### 7.4 Update status invalid value (BAD REQUEST ApiErrorResponse)
-PATCH {{baseUrl}}/api/orders/{{existingOrderId}}/status
-Content-Type: application/json
-Accept: application/json
-Authorization: Bearer {{adminToken}}
-
-{
-  "status": "InvalidStatus"
-}
-
-
-### ============================================================
-### 8) AUTHENTICATED CART (USER TOKEN) QUICK SMOKE
-### ============================================================
-
-### 8.1 Add item to cart as USER (should use user ownership, no guest headers)
-POST {{baseUrl}}/api/cart/items
-Content-Type: application/json
-Accept: application/json
-Authorization: Bearer {{userToken}}
-
-{
-  "productId": {{productId}},
-  "quantity": 1
-}
-
-### 8.2 Get cart as USER
-GET {{baseUrl}}/api/cart
-Accept: application/json
-Authorization: Bearer {{userToken}}
-
-### 8.3 Clear cart as USER
-DELETE {{baseUrl}}/api/cart
-Accept: application/json
-Authorization: Bearer {{userToken}}

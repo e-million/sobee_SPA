@@ -1,7 +1,9 @@
 
+using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
@@ -9,6 +11,7 @@ using Sobee.Domain.Data;
 using Sobee.Domain.Identity;
 using sobee_API.DTOs.Common;
 using sobee_API.Services;
+using System.Linq;
 using System.Text.Json;
 
 namespace sobee_API
@@ -126,23 +129,34 @@ namespace sobee_API
                 options.InvalidModelStateResponseFactory = context =>
                 {
                     var namingPolicy = JsonNamingPolicy.CamelCase;
-                    var bodyParameterNames = context.ActionDescriptor.Parameters
-                        .Where(p => p.BindingInfo?.BindingSource == BindingSource.Body)
+
+                    static bool IsBodyBound(ParameterDescriptor p)
+                    {
+                        // Only treat [FromBody] (or inferred body for complex types) as "body".
+                        // If BindingSource is null, we do NOT assume body.
+                        return p.BindingInfo?.BindingSource == BindingSource.Body;
+                    }
+
+                    var bodyParamNames = context.ActionDescriptor.Parameters
+                        .Where(IsBodyBound)
                         .Select(p => p.Name)
                         .Where(name => !string.IsNullOrWhiteSpace(name))
                         .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
                     string NormalizeKey(string key)
                     {
+                        // Binder-level errors often come through as "" or "$"
                         if (string.IsNullOrWhiteSpace(key) || key == "$")
                             return "body";
 
-                        if (bodyParameterNames.Contains(key))
+                        // If the key is exactly the name of a BODY parameter, map to "body"
+                        if (bodyParamNames.Contains(key))
                             return "body";
 
-                        foreach (var parameterName in bodyParameterNames)
+                        // Strip "request." prefix ONLY for BODY-bound params
+                        foreach (var bodyParam in bodyParamNames)
                         {
-                            var prefix = $"{parameterName}.";
+                            var prefix = $"{bodyParam}.";
                             if (key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                             {
                                 key = key.Substring(prefix.Length);
@@ -153,6 +167,7 @@ namespace sobee_API
                         if (string.IsNullOrWhiteSpace(key))
                             return "body";
 
+                        // Convert dotted segments to camelCase but preserve bracket indexes: Items[0].ProductId -> items[0].productId
                         var parts = key.Split('.');
                         for (var i = 0; i < parts.Length; i++)
                         {
@@ -163,7 +178,11 @@ namespace sobee_API
                             var bracketIndex = part.IndexOf('[');
                             var namePart = bracketIndex >= 0 ? part[..bracketIndex] : part;
                             var suffix = bracketIndex >= 0 ? part[bracketIndex..] : string.Empty;
-                            var camelName = string.IsNullOrWhiteSpace(namePart) ? namePart : namingPolicy.ConvertName(namePart);
+
+                            var camelName = string.IsNullOrWhiteSpace(namePart)
+                                ? namePart
+                                : namingPolicy.ConvertName(namePart);
+
                             parts[i] = $"{camelName}{suffix}";
                         }
 
@@ -177,26 +196,27 @@ namespace sobee_API
                         if (entry.Value == null || entry.Value.Errors.Count == 0)
                             continue;
 
-                        var key = NormalizeKey(entry.Key);
+                        var normalizedKey = NormalizeKey(entry.Key);
+
                         var messages = entry.Value.Errors
                             .Select(e => string.IsNullOrWhiteSpace(e.ErrorMessage) ? "Validation failed." : e.ErrorMessage)
                             .ToArray();
 
-                        if (errors.TryGetValue(key, out var existing))
-                            errors[key] = existing.Concat(messages).ToArray();
+                        if (errors.TryGetValue(normalizedKey, out var existing))
+                            errors[normalizedKey] = existing.Concat(messages).ToArray();
                         else
-                            errors[key] = messages;
+                            errors[normalizedKey] = messages;
                     }
 
-                    var response = new ApiErrorResponse("Validation failed.", "VALIDATION_ERROR", new
-                    {
-                        errors
-                    });
+                    var response = new ApiErrorResponse(
+                        "Validation failed.",
+                        "VALIDATION_ERROR",
+                        new { errors }
+                    );
 
                     return new BadRequestObjectResult(response);
                 };
-            });
-            builder.Services.AddEndpointsApiExplorer();
+            }); builder.Services.AddEndpointsApiExplorer();
 
             // Customize Swagger to support JWT Bearer Authentication
             builder.Services.AddSwaggerGen(c =>
