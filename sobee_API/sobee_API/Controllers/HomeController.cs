@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Sobee.Domain.Data; 
+using sobee_API.DTOs.Home;
 
 namespace sobee_API.Controllers
 {
@@ -21,7 +22,7 @@ namespace sobee_API.Controllers
         [HttpGet("ping")]
         public IActionResult Ping() {
             var canConnect = _db.Database.CanConnect();
-            return Ok(new { status = "ok", db = canConnect });
+            return Ok(new HomePingResponseDto { Status = "ok", Db = canConnect });
         
         }
 

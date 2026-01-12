@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Sobee.Domain.Data;
 using Sobee.Domain.Entities.Cart; // if needed by your project; safe to remove if unused
 using Sobee.Domain.Entities.Products;
+using sobee_API.DTOs.Favorites;
 using sobee_API.Services;
 using System.Security.Claims;
 
@@ -44,19 +45,19 @@ namespace sobee_API.Controllers
             var favorites = await _db.Tfavorites
                 .Where(f => f.UserId == owner.UserId)
                 .OrderByDescending(f => f.DtmDateAdded)
-                .Select(f => new
+                .Select(f => new FavoriteListItemDto
                 {
-                    favoriteId = f.IntFavoriteId,
-                    productId = f.IntProductId,
-                    added = f.DtmDateAdded
+                    FavoriteId = f.IntFavoriteId,
+                    ProductId = f.IntProductId,
+                    Added = f.DtmDateAdded
                 })
                 .ToListAsync();
 
-            return Ok(new
+            return Ok(new FavoritesListResponseDto
             {
-                userId = owner.UserId,
-                count = favorites.Count,
-                favorites
+                UserId = owner.UserId,
+                Count = favorites.Count,
+                Favorites = favorites
             });
         }
 
@@ -86,7 +87,7 @@ namespace sobee_API.Controllers
             // Prevent duplicates
             var already = await _db.Tfavorites.AnyAsync(f => f.UserId == owner.UserId && f.IntProductId == productId);
             if (already)
-                return Ok(new { message = "Already favorited.", productId });
+                return Ok(new FavoriteStatusResponseDto { Message = "Already favorited.", ProductId = productId });
 
             var fav = new Sobee.Domain.Entities.Reviews.Tfavorite
             {
@@ -98,13 +99,15 @@ namespace sobee_API.Controllers
             _db.Tfavorites.Add(fav);
             await _db.SaveChangesAsync();
 
-            return Ok(new
+            var response = new FavoriteAddedResponseDto
             {
-                message = "Favorited.",
-                favoriteId = fav.IntFavoriteId,
-                productId = fav.IntProductId,
-                added = fav.DtmDateAdded
-            });
+                Message = "Favorited.",
+                FavoriteId = fav.IntFavoriteId,
+                ProductId = fav.IntProductId,
+                Added = fav.DtmDateAdded
+            };
+
+            return StatusCode(StatusCodes.Status201Created, response);
         }
 
         /// <summary>
@@ -134,7 +137,7 @@ namespace sobee_API.Controllers
             _db.Tfavorites.Remove(fav);
             await _db.SaveChangesAsync();
 
-            return Ok(new { message = "Unfavorited.", productId });
+            return Ok(new FavoriteStatusResponseDto { Message = "Unfavorited.", ProductId = productId });
         }
     }
 }

@@ -11,6 +11,7 @@ using Sobee.Domain.Data;
 using Sobee.Domain.Identity;
 using sobee_API.DTOs.Common;
 using sobee_API.Services;
+using sobee_API.Constants;
 using System.Linq;
 using System.Text.Json;
 
@@ -210,7 +211,7 @@ namespace sobee_API
 
                     var response = new ApiErrorResponse(
                         "Validation failed.",
-                        "VALIDATION_ERROR",
+                        ErrorCodes.Validation,
                         new { errors }
                     );
 

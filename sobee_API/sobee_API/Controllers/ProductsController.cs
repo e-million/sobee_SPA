@@ -81,12 +81,12 @@ namespace sobee_API.Controllers
                 StockAmount = admin ? p.IntStockAmount : null
             }).ToList();
 
-            return Ok(new
+            return Ok(new ProductsListResponseDto
             {
-                page,
-                pageSize,
-                totalCount,
-                items
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+                Items = items
             });
         }
 
@@ -107,22 +107,20 @@ namespace sobee_API.Controllers
             if (product == null)
                 return NotFound(new { error = "Product not found." });
 
-            var response = new
+            var response = new ProductDetailResponseDto
             {
-                id = product.IntProductId,
-                name = product.StrName,
-                description = product.strDescription,
-                price = product.DecPrice,
-
-                inStock = product.IntStockAmount > 0,
-                stockAmount = admin ? product.IntStockAmount : (int?)null,
-
-                images = (product.TproductImages ?? new List<TproductImage>())
+                Id = product.IntProductId,
+                Name = product.StrName,
+                Description = product.strDescription,
+                Price = product.DecPrice,
+                InStock = product.IntStockAmount > 0,
+                StockAmount = admin ? product.IntStockAmount : (int?)null,
+                Images = (product.TproductImages ?? new List<TproductImage>())
                     .OrderBy(i => i.IntProductImageId)
-                    .Select(i => new
+                    .Select(i => new ProductDetailImageDto
                     {
-                        id = i.IntProductImageId,
-                        url = i.StrProductImageUrl
+                        Id = i.IntProductImageId,
+                        Url = i.StrProductImageUrl
                     })
                     .ToList()
             };
@@ -152,13 +150,13 @@ namespace sobee_API.Controllers
             _db.Tproducts.Add(product);
             await _db.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetProduct), new { id = product.IntProductId }, new
+            return CreatedAtAction(nameof(GetProduct), new { id = product.IntProductId }, new ProductAdminResponseDto
             {
-                id = product.IntProductId,
-                name = product.StrName,
-                description = product.strDescription,
-                price = product.DecPrice,
-                stockAmount = product.IntStockAmount
+                Id = product.IntProductId,
+                Name = product.StrName,
+                Description = product.strDescription,
+                Price = product.DecPrice,
+                StockAmount = product.IntStockAmount
             });
         }
 
@@ -189,12 +187,14 @@ namespace sobee_API.Controllers
             _db.TproductImages.Add(image);
             await _db.SaveChangesAsync();
 
-            return Ok(new
+            var response = new ProductImageResponseDto
             {
-                id = image.IntProductImageId,
-                productId = image.IntProductId,
-                url = image.StrProductImageUrl
-            });
+                Id = image.IntProductImageId,
+                ProductId = image.IntProductId,
+                Url = image.StrProductImageUrl
+            };
+
+            return CreatedAtAction(nameof(GetProduct), new { id }, response);
         }
 
         /// <summary>
@@ -230,13 +230,13 @@ namespace sobee_API.Controllers
 
             await _db.SaveChangesAsync();
 
-            return Ok(new
+            return Ok(new ProductAdminResponseDto
             {
-                id = product.IntProductId,
-                name = product.StrName,
-                description = product.strDescription,
-                price = product.DecPrice,
-                stockAmount = product.IntStockAmount
+                Id = product.IntProductId,
+                Name = product.StrName,
+                Description = product.strDescription,
+                Price = product.DecPrice,
+                StockAmount = product.IntStockAmount
             });
         }
 
@@ -260,7 +260,7 @@ namespace sobee_API.Controllers
             _db.Tproducts.Remove(product);
             await _db.SaveChangesAsync();
 
-            return Ok(new { message = "Product deleted." });
+            return Ok(new ProductMessageResponseDto { Message = "Product deleted." });
         }
 
         /// <summary>
@@ -279,7 +279,7 @@ namespace sobee_API.Controllers
             _db.TproductImages.Remove(image);
             await _db.SaveChangesAsync();
 
-            return Ok(new { message = "Image deleted." });
+            return Ok(new ProductMessageResponseDto { Message = "Image deleted." });
         }
 
         // ----------------------------
