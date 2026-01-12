@@ -53,15 +53,6 @@ namespace sobee_API.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> AddItem([FromBody] AddCartItemRequest request)
         {
-            if (request == null)
-                return BadRequestError("Request body is required.", "ValidationError");
-
-            if (request.ProductId <= 0)
-                return BadRequestError("ProductId must be a positive integer.", "ValidationError");
-
-            if (request.Quantity <= 0)
-                return BadRequestError("Quantity must be greater than 0.", "ValidationError");
-
             var (identity, errorResult) = await ResolveIdentityAsync(allowCreateGuestSession: true);
             if (errorResult != null)
                 return errorResult;
@@ -128,9 +119,6 @@ namespace sobee_API.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> ApplyPromo([FromBody] ApplyPromoRequest request)
         {
-            if (request == null || string.IsNullOrWhiteSpace(request.PromoCode))
-                return BadRequestError("PromoCode is required.", "ValidationError");
-
             var (identity, errorResult) = await ResolveIdentityAsync(allowCreateGuestSession: true);
             if (errorResult != null)
                 return errorResult;
@@ -179,12 +167,6 @@ namespace sobee_API.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> UpdateItem(int cartItemId, [FromBody] UpdateCartItemRequest request)
         {
-            if (request == null)
-                return BadRequestError("Request body is required.", "ValidationError");
-
-            if (request.Quantity < 0)
-                return BadRequestError("Quantity cannot be negative.", "ValidationError");
-
             var (identity, errorResult) = await ResolveIdentityAsync(allowCreateGuestSession: true);
             if (errorResult != null)
                 return errorResult;

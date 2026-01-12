@@ -76,15 +76,6 @@ namespace sobee_API.Controllers
         [HttpPost("product/{productId:int}")]
         public async Task<IActionResult> Create(int productId, [FromBody] CreateReviewRequest request)
         {
-            if (request == null)
-                return BadRequest(new { error = "Missing request body." });
-
-            if (string.IsNullOrWhiteSpace(request.ReviewText))
-                return BadRequest(new { error = "Missing required field: reviewText" });
-
-            if (request.Rating < 1 || request.Rating > 5)
-                return BadRequest(new { error = "Rating must be between 1 and 5." });
-
             // Do not auto-create guest sessions here (prevents GuestSessions table abuse).
             var owner = await _identity.ResolveAsync(
                 User,
@@ -138,9 +129,6 @@ namespace sobee_API.Controllers
         [Authorize]
         public async Task<IActionResult> Reply(int reviewId, [FromBody] CreateReplyRequest request)
         {
-            if (request == null || string.IsNullOrWhiteSpace(request.Content))
-                return BadRequest(new { error = "Missing required field: content" });
-
             var owner = await _identity.ResolveAsync(
                 User,
                 Request,
