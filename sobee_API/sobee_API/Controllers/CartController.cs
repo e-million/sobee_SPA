@@ -71,7 +71,11 @@ namespace sobee_API.Controllers
                 .FirstOrDefaultAsync(p => p.IntProductId == request.ProductId);
 
             if (product == null)
-                return NotFoundError($"Product {request.ProductId} not found.", "NotFound", new { productId = request.ProductId });
+                return NotFoundError(
+                    $"Product {request.ProductId} not found.",
+                    "NotFound",
+                    new { productId = request.ProductId }
+                );
 
             var cart = await GetOrCreateCartAsync(
                 identity!.UserId,
@@ -87,10 +91,7 @@ namespace sobee_API.Controllers
             {
                 // Stock check for new item
                 if (request.Quantity > product.IntStockAmount)
-                    return ConflictError(
-                        "Insufficient stock.",
-                        "InsufficientStock",
-                        new { productId = product.IntProductId, availableStock = product.IntStockAmount, requested = request.Quantity });
+                    return StockConflict(product.IntProductId, product.IntStockAmount, request.Quantity);
 
                 var newItem = new TcartItem
                 {
@@ -108,10 +109,7 @@ namespace sobee_API.Controllers
 
                 // Stock check for increment
                 if (newQuantity > product.IntStockAmount)
-                    return ConflictError(
-                        "Insufficient stock.",
-                        "InsufficientStock",
-                        new { productId = product.IntProductId, availableStock = product.IntStockAmount, requested = newQuantity });
+                    return StockConflict(product.IntProductId, product.IntStockAmount, newQuantity);
 
                 existingItem.IntQuantity = newQuantity;
             }
@@ -200,7 +198,11 @@ namespace sobee_API.Controllers
                 i.IntShoppingCartId == cart.IntShoppingCartId);
 
             if (item == null)
-                return NotFoundError($"Cart item {cartItemId} not found.", "NotFound", new { cartItemId });
+                return NotFoundError(
+                    $"Cart item {cartItemId} not found.",
+                    "NotFound",
+                    new { cartItemId }
+                );
 
             if (request.Quantity == 0)
             {
@@ -213,13 +215,14 @@ namespace sobee_API.Controllers
                     .FirstOrDefaultAsync(p => p.IntProductId == item.IntProductId);
 
                 if (product == null)
-                    return NotFoundError($"Product {item.IntProductId} not found.", "NotFound", new { productId = item.IntProductId });
+                    return NotFoundError(
+                        $"Product {item.IntProductId} not found.",
+                        "NotFound",
+                        new { productId = item.IntProductId }
+                    );
 
                 if (request.Quantity > product.IntStockAmount)
-                    return ConflictError(
-                        "Insufficient stock.",
-                        "InsufficientStock",
-                        new { productId = product.IntProductId, availableStock = product.IntStockAmount, requested = request.Quantity });
+                    return StockConflict(product.IntProductId, product.IntStockAmount, request.Quantity);
 
                 item.IntQuantity = request.Quantity;
             }
@@ -553,12 +556,13 @@ namespace sobee_API.Controllers
             return (promo.StrPromoCode, promo.DecDiscountPercentage);
         }
 
-        private IActionResult StockConflict(int productId, int available)
+        private IActionResult StockConflict(int productId, int availableStock, int requested)
         {
             return ConflictError(
                 "Insufficient stock.",
                 "InsufficientStock",
-                new { productId, availableStock = available });
+                new { productId, availableStock, requested }
+            );
         }
 
         private BadRequestObjectResult BadRequestError(string message, string? code = null, object? details = null)

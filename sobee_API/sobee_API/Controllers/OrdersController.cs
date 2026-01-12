@@ -187,7 +187,7 @@ namespace sobee_API.Controllers
                                 productId = product.IntProductId,
                                 productName = product.StrName,
                                 requested = qty,
-                                available = product.IntStockAmount
+                                availableStock = product.IntStockAmount
                             });
                     }
 
@@ -345,7 +345,8 @@ namespace sobee_API.Controllers
                 return NotFoundError(
                     $"Payment method {request.PaymentMethodId} not found.",
                     "NotFound",
-                    new { paymentMethodId = request.PaymentMethodId });
+                    new { paymentMethodId = request.PaymentMethodId }
+                );
 
             var currentStatus = string.IsNullOrWhiteSpace(order.StrOrderStatus)
                 ? OrderStatuses.Pending
@@ -360,10 +361,11 @@ namespace sobee_API.Controllers
                     "InvalidStatusTransition",
                     new
                     {
-                        from = currentStatus,
-                        to = targetStatus,
-                        allowedNext = OrderStatuses.All.Where(s => OrderStatuses.CanTransition(currentStatus, s)).ToArray()
-                    });
+                        orderId,
+                        fromStatus = order.StrOrderStatus,
+                        toStatus = targetStatus
+                    }
+                );
             }
 
             using var tx = await _db.Database.BeginTransactionAsync();
@@ -439,10 +441,11 @@ namespace sobee_API.Controllers
                     "InvalidStatusTransition",
                     new
                     {
-                        from = currentStatus,
-                        to = newStatus,
-                        allowedNext = OrderStatuses.All.Where(s => OrderStatuses.CanTransition(currentStatus, s)).ToArray()
-                    });
+                        orderId,
+                        fromStatus = order.StrOrderStatus,
+                        toStatus = request.Status
+                    }
+                );
             }
 
             // Status change only. Stock already decremented at checkout.
