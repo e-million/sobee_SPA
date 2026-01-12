@@ -9,6 +9,9 @@ namespace sobee_API.Controllers
     [Authorize]
     public class MeController : ControllerBase
     {
+        /// <summary>
+        /// Get the authenticated user's profile claims and roles.
+        /// </summary>
         [HttpGet]
         public IActionResult Get()
         {

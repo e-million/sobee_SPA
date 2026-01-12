@@ -16,6 +16,9 @@ public class AuthTestController : ControllerBase
         _users = users;
     }
 
+    /// <summary>
+    /// Get the current authenticated user's basic identity details.
+    /// </summary>
     [HttpGet("me")]
     [Authorize]
     public async Task<IActionResult> Me()
@@ -34,6 +37,9 @@ public class AuthTestController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// Admin-only auth test endpoint.
+    /// </summary>
     [HttpGet("admin-only")]
     [Authorize(Roles = "Admin")]
     public IActionResult AdminOnly()

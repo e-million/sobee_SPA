@@ -19,27 +19,6 @@ namespace sobee_API.Controllers
         }
 
         // ----------------------------
-        // Helpers
-        // ----------------------------
-
-        private bool IsAdmin()
-        {
-            return User?.Identity?.IsAuthenticated == true && User.IsInRole("Admin");
-        }
-
-        private static string? GetPrimaryImageUrl(Tproduct product)
-        {
-            if (product.TproductImages == null || product.TproductImages.Count == 0)
-                return null;
-
-            // Deterministic rule: lowest image ID
-            return product.TproductImages
-                .OrderBy(i => i.IntProductImageId)
-                .Select(i => i.StrProductImageUrl)
-                .FirstOrDefault();
-        }
-
-        // ----------------------------
         // Public Endpoints
         // ----------------------------
 
@@ -155,6 +134,9 @@ namespace sobee_API.Controllers
         // Admin Product CRUD
         // ----------------------------
 
+        /// <summary>
+        /// Admin-only: create a new product.
+        /// </summary>
         [Authorize(Roles = "Admin")]
         [HttpPost]
         public async Task<IActionResult> CreateProduct([FromBody] CreateProductRequest request)
@@ -192,6 +174,47 @@ namespace sobee_API.Controllers
             });
         }
 
+        /// <summary>
+        /// Admin-only: update an existing product.
+        /// </summary>
+        // ----------------------------
+        // Admin Product Images
+        // ----------------------------
+
+        /// <summary>
+        /// Admin-only: add an image to a product.
+        /// </summary>
+        [Authorize(Roles = "Admin")]
+        [HttpPost("{id:int}/images")]
+        public async Task<IActionResult> AddProductImage(int id, [FromBody] AddProductImageRequest request)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.Url))
+                return BadRequest(new { error = "Missing required field: url" });
+
+            var productExists = await _db.Tproducts.AnyAsync(p => p.IntProductId == id);
+            if (!productExists)
+                return NotFound(new { error = "Product not found." });
+
+            var image = new TproductImage
+            {
+                IntProductId = id,
+                StrProductImageUrl = request.Url.Trim()
+            };
+
+            _db.TproductImages.Add(image);
+            await _db.SaveChangesAsync();
+
+            return Ok(new
+            {
+                id = image.IntProductImageId,
+                productId = image.IntProductId,
+                url = image.StrProductImageUrl
+            });
+        }
+
+        /// <summary>
+        /// Admin-only: update an existing product.
+        /// </summary>
         [Authorize(Roles = "Admin")]
         [HttpPut("{id:int}")]
         public async Task<IActionResult> UpdateProduct(int id, [FromBody] UpdateProductRequest request)
@@ -244,6 +267,9 @@ namespace sobee_API.Controllers
             });
         }
 
+        /// <summary>
+        /// Admin-only: delete a product and its images.
+        /// </summary>
         [Authorize(Roles = "Admin")]
         [HttpDelete("{id:int}")]
         public async Task<IActionResult> DeleteProduct(int id)
@@ -264,38 +290,9 @@ namespace sobee_API.Controllers
             return Ok(new { message = "Product deleted." });
         }
 
-        // ----------------------------
-        // Admin Product Images
-        // ----------------------------
-
-        [Authorize(Roles = "Admin")]
-        [HttpPost("{id:int}/images")]
-        public async Task<IActionResult> AddProductImage(int id, [FromBody] AddProductImageRequest request)
-        {
-            if (request == null || string.IsNullOrWhiteSpace(request.Url))
-                return BadRequest(new { error = "Missing required field: url" });
-
-            var productExists = await _db.Tproducts.AnyAsync(p => p.IntProductId == id);
-            if (!productExists)
-                return NotFound(new { error = "Product not found." });
-
-            var image = new TproductImage
-            {
-                IntProductId = id,
-                StrProductImageUrl = request.Url.Trim()
-            };
-
-            _db.TproductImages.Add(image);
-            await _db.SaveChangesAsync();
-
-            return Ok(new
-            {
-                id = image.IntProductImageId,
-                productId = image.IntProductId,
-                url = image.StrProductImageUrl
-            });
-        }
-
+        /// <summary>
+        /// Admin-only: delete a product image.
+        /// </summary>
         [Authorize(Roles = "Admin")]
         [HttpDelete("{productId:int}/images/{imageId:int}")]
         public async Task<IActionResult> DeleteProductImage(int productId, int imageId)
@@ -313,28 +310,24 @@ namespace sobee_API.Controllers
         }
 
         // ----------------------------
-        // Request Models
+        // Helpers
         // ----------------------------
 
-        public class CreateProductRequest
+        private bool IsAdmin()
         {
-            public string Name { get; set; } = "";
-            public string? Description { get; set; }
-            public decimal Price { get; set; }
-            public int StockAmount { get; set; }
+            return User?.Identity?.IsAuthenticated == true && User.IsInRole("Admin");
         }
 
-        public class UpdateProductRequest
+        private static string? GetPrimaryImageUrl(Tproduct product)
         {
-            public string? Name { get; set; }
-            public string? Description { get; set; }
-            public decimal? Price { get; set; }
-            public int? StockAmount { get; set; }
-        }
+            if (product.TproductImages == null || product.TproductImages.Count == 0)
+                return null;
 
-        public class AddProductImageRequest
-        {
-            public string Url { get; set; } = "";
+            // Deterministic rule: lowest image ID
+            return product.TproductImages
+                .OrderBy(i => i.IntProductImageId)
+                .Select(i => i.StrProductImageUrl)
+                .FirstOrDefault();
         }
     }
 }

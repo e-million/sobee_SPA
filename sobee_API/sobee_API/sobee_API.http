@@ -198,5 +198,197 @@ X-Session-Secret: INVALID_SECRET
 ### ------------------------------------------------------------
 DELETE {{baseUrl}}/api/cart/promo
 Accept: application/json
+
+
+### ============================================================
+### AUTH + USER PROFILE SMOKE CHECKS
+### ============================================================
+
+### ------------------------------------------------------------
+### A1) Register a new user (no token issuance)
+### ------------------------------------------------------------
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "test.user@example.com",
+  "password": "P@ssw0rd123!",
+  "firstName": "Test",
+  "lastName": "User",
+  "billingAddress": "123 Billing St",
+  "shippingAddress": "456 Shipping Ave"
+}
+
+### ------------------------------------------------------------
+### A2) Set auth tokens (paste from your auth system)
+### ------------------------------------------------------------
+@authToken = REPLACE_WITH_AUTH_TOKEN
+@adminToken = REPLACE_WITH_ADMIN_TOKEN
+
+### ------------------------------------------------------------
+### A3) Get current user profile
+### ------------------------------------------------------------
+GET {{baseUrl}}/api/me
+Accept: application/json
+Authorization: Bearer {{authToken}}
+
+### ------------------------------------------------------------
+### A4) Auth test (authenticated)
+### ------------------------------------------------------------
+GET {{baseUrl}}/api/authtest/me
+Accept: application/json
+Authorization: Bearer {{authToken}}
+
+### ------------------------------------------------------------
+### A5) Auth test (admin-only)
+### ------------------------------------------------------------
+GET {{baseUrl}}/api/authtest/admin-only
+Accept: application/json
+Authorization: Bearer {{adminToken}}
+
+
+### ============================================================
+### ADMIN METRICS SMOKE CHECKS
+### ============================================================
+
+### ------------------------------------------------------------
+### B1) Admin ping
+### ------------------------------------------------------------
+GET {{baseUrl}}/api/admin/ping
+Accept: application/json
+Authorization: Bearer {{adminToken}}
+
+### ------------------------------------------------------------
+### B2) Admin summary
+### ------------------------------------------------------------
+GET {{baseUrl}}/api/admin/summary
+Accept: application/json
+Authorization: Bearer {{adminToken}}
+
+### ------------------------------------------------------------
+### B3) Orders per day
+### ------------------------------------------------------------
+GET {{baseUrl}}/api/admin/orders-per-day?days=30
+Accept: application/json
+Authorization: Bearer {{adminToken}}
+
+### ------------------------------------------------------------
+### B4) Low stock
+### ------------------------------------------------------------
+GET {{baseUrl}}/api/admin/low-stock?threshold=5
+Accept: application/json
+Authorization: Bearer {{adminToken}}
+
+### ------------------------------------------------------------
+### B5) Top products
+### ------------------------------------------------------------
+GET {{baseUrl}}/api/admin/top-products?limit=5
+Accept: application/json
+Authorization: Bearer {{adminToken}}
+
+
+### ============================================================
+### PRODUCT + REVIEWS SMOKE CHECKS
+### ============================================================
+
+### ------------------------------------------------------------
+### C1) Admin create product
+### ------------------------------------------------------------
+POST {{baseUrl}}/api/products
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "name": "Test Product",
+  "description": "Test product description",
+  "price": 9.99,
+  "stockAmount": 10
+}
+
+### ------------------------------------------------------------
+### C2) Admin update product (replace {id})
+### ------------------------------------------------------------
+PUT {{baseUrl}}/api/products/1000
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "name": "Test Product Updated",
+  "price": 12.99
+}
+
+### ------------------------------------------------------------
+### C3) Admin add product image (replace {id})
+### ------------------------------------------------------------
+POST {{baseUrl}}/api/products/1000/images
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "url": "https://example.com/test-image.jpg"
+}
+
+### ------------------------------------------------------------
+### C4) Admin delete product image (replace {productId}/{imageId})
+### ------------------------------------------------------------
+DELETE {{baseUrl}}/api/products/1000/images/2000
+Accept: application/json
+Authorization: Bearer {{adminToken}}
+
+### ------------------------------------------------------------
+### C5) Admin delete product (replace {id})
+### ------------------------------------------------------------
+DELETE {{baseUrl}}/api/products/1000
+Accept: application/json
+Authorization: Bearer {{adminToken}}
+
+### ------------------------------------------------------------
+### D1) Get reviews for a product (replace {productId})
+### ------------------------------------------------------------
+GET {{baseUrl}}/api/reviews/product/1000
+Accept: application/json
+
+### ------------------------------------------------------------
+### D2) Create review for a product (auth or valid guest session)
+### ------------------------------------------------------------
+POST {{baseUrl}}/api/reviews/product/1000
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "reviewText": "Great product!",
+  "rating": 5
+}
+
+### ------------------------------------------------------------
+### D3) Reply to a review (replace {reviewId})
+### ------------------------------------------------------------
+POST {{baseUrl}}/api/reviews/1000/reply
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "content": "Thanks for the feedback!"
+}
+
+### ------------------------------------------------------------
+### D4) Delete a review (replace {reviewId})
+### ------------------------------------------------------------
+DELETE {{baseUrl}}/api/reviews/1000
+Accept: application/json
+Authorization: Bearer {{authToken}}
+
+### ------------------------------------------------------------
+### D5) Delete a reply (replace {replyId})
+### ------------------------------------------------------------
+DELETE {{baseUrl}}/api/reviews/replies/1000
+Accept: application/json
+Authorization: Bearer {{authToken}}
 X-Session-Id: {{sessionId}}
 X-Session-Secret: {{sessionSecret}}
