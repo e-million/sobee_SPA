@@ -2,6 +2,7 @@
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using Sobee.Domain.Data;
@@ -125,7 +126,8 @@ namespace sobee_API
                 options.InvalidModelStateResponseFactory = context =>
                 {
                     var namingPolicy = JsonNamingPolicy.CamelCase;
-                    var parameterNames = context.ActionDescriptor.Parameters
+                    var bodyParameterNames = context.ActionDescriptor.Parameters
+                        .Where(p => p.BindingInfo?.BindingSource == BindingSource.Body)
                         .Select(p => p.Name)
                         .Where(name => !string.IsNullOrWhiteSpace(name))
                         .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -135,10 +137,10 @@ namespace sobee_API
                         if (string.IsNullOrWhiteSpace(key) || key == "$")
                             return "body";
 
-                        if (parameterNames.Contains(key))
+                        if (bodyParameterNames.Contains(key))
                             return "body";
 
-                        foreach (var parameterName in parameterNames)
+                        foreach (var parameterName in bodyParameterNames)
                         {
                             var prefix = $"{parameterName}.";
                             if (key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
