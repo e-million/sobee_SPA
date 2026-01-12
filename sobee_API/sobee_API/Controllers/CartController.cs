@@ -166,11 +166,11 @@ namespace sobee_API.Controllers
 
             await _db.SaveChangesAsync();
 
-            return Ok(new
+            return Ok(new PromoAppliedResponseDto
             {
-                message = "Promo code applied.",
-                promoCode,
-                discountPercentage = promo.DecDiscountPercentage
+                Message = "Promo code applied.",
+                PromoCode = promoCode,
+                DiscountPercentage = promo.DecDiscountPercentage
             });
         }
 
@@ -318,7 +318,10 @@ namespace sobee_API.Controllers
             _db.TpromoCodeUsageHistories.RemoveRange(promos);
             await _db.SaveChangesAsync();
 
-            return Ok(new { message = "Promo code removed." });
+            return Ok(new MessageResponseDto
+            {
+                Message = "Promo code removed."
+            });
         }
 
 
