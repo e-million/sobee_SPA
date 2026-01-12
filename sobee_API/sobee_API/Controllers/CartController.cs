@@ -54,13 +54,13 @@ namespace sobee_API.Controllers
         public async Task<IActionResult> AddItem([FromBody] AddCartItemRequest request)
         {
             if (request == null)
-                return BadRequest(new { error = "Request body is required." });
+                return BadRequestError("Request body is required.", "ValidationError");
 
             if (request.ProductId <= 0)
-                return BadRequest(new { error = "ProductId must be a positive integer." });
+                return BadRequestError("ProductId must be a positive integer.", "ValidationError");
 
             if (request.Quantity <= 0)
-                return BadRequest(new { error = "Quantity must be greater than 0." });
+                return BadRequestError("Quantity must be greater than 0.", "ValidationError");
 
             var (identity, errorResult) = await ResolveIdentityAsync(allowCreateGuestSession: true);
             if (errorResult != null)
@@ -71,7 +71,7 @@ namespace sobee_API.Controllers
                 .FirstOrDefaultAsync(p => p.IntProductId == request.ProductId);
 
             if (product == null)
-                return NotFound(new { error = $"Product {request.ProductId} not found." });
+                return NotFoundError($"Product {request.ProductId} not found.", "NotFound");
 
             var cart = await GetOrCreateCartAsync(
                 identity!.UserId,
@@ -87,12 +87,7 @@ namespace sobee_API.Controllers
             {
                 // Stock check for new item
                 if (request.Quantity > product.IntStockAmount)
-                    return Conflict(new
-                    {
-                        error = "Insufficient stock.",
-                        productId = product.IntProductId,
-                        availableStock = product.IntStockAmount
-                    });
+                    return ConflictError("Insufficient stock.", "Conflict");
 
                 var newItem = new TcartItem
                 {
@@ -110,12 +105,7 @@ namespace sobee_API.Controllers
 
                 // Stock check for increment
                 if (newQuantity > product.IntStockAmount)
-                    return Conflict(new
-                    {
-                        error = "Insufficient stock.",
-                        productId = product.IntProductId,
-                        availableStock = product.IntStockAmount
-                    });
+                    return ConflictError("Insufficient stock.", "Conflict");
 
                 existingItem.IntQuantity = newQuantity;
             }
@@ -135,7 +125,7 @@ namespace sobee_API.Controllers
         public async Task<IActionResult> ApplyPromo([FromBody] ApplyPromoRequest request)
         {
             if (request == null || string.IsNullOrWhiteSpace(request.PromoCode))
-                return BadRequest(new { error = "PromoCode is required." });
+                return BadRequestError("PromoCode is required.", "ValidationError");
 
             var (identity, errorResult) = await ResolveIdentityAsync(allowCreateGuestSession: true);
             if (errorResult != null)
@@ -143,7 +133,7 @@ namespace sobee_API.Controllers
 
             var cart = await FindCartAsync(identity!.UserId, identity.GuestSessionId);
             if (cart == null)
-                return NotFound(new { error = "Cart not found." });
+                return NotFoundError("Cart not found.", "NotFound");
 
             var promoCode = request.PromoCode.Trim();
 
@@ -152,14 +142,14 @@ namespace sobee_API.Controllers
                 p.DtmExpirationDate > DateTime.UtcNow);
 
             if (promo == null)
-                return BadRequest(new { error = "Invalid or expired promo code." });
+                return BadRequestError("Invalid or expired promo code.", "InvalidPromo");
 
             var alreadyApplied = await _db.TpromoCodeUsageHistories.AnyAsync(p =>
                 p.IntShoppingCartId == cart.IntShoppingCartId &&
                 p.PromoCode == promoCode);
 
             if (alreadyApplied)
-                return Conflict(new { error = "Promo code already applied to this cart." });
+                return ConflictError("Promo code already applied to this cart.", "Conflict");
 
             _db.TpromoCodeUsageHistories.Add(new TpromoCodeUsageHistory
             {
@@ -186,10 +176,10 @@ namespace sobee_API.Controllers
         public async Task<IActionResult> UpdateItem(int cartItemId, [FromBody] UpdateCartItemRequest request)
         {
             if (request == null)
-                return BadRequest(new { error = "Request body is required." });
+                return BadRequestError("Request body is required.", "ValidationError");
 
             if (request.Quantity < 0)
-                return BadRequest(new { error = "Quantity cannot be negative." });
+                return BadRequestError("Quantity cannot be negative.", "ValidationError");
 
             var (identity, errorResult) = await ResolveIdentityAsync(allowCreateGuestSession: true);
             if (errorResult != null)
@@ -197,14 +187,14 @@ namespace sobee_API.Controllers
 
             var cart = await FindCartAsync(identity!.UserId, identity.GuestSessionId);
             if (cart == null)
-                return NotFound(new { error = "Cart not found." });
+                return NotFoundError("Cart not found.", "NotFound");
 
             var item = await _db.TcartItems.FirstOrDefaultAsync(i =>
                 i.IntCartItemId == cartItemId &&
                 i.IntShoppingCartId == cart.IntShoppingCartId);
 
             if (item == null)
-                return NotFound(new { error = $"Cart item {cartItemId} not found." });
+                return NotFoundError($"Cart item {cartItemId} not found.", "NotFound");
 
             if (request.Quantity == 0)
             {
@@ -217,15 +207,10 @@ namespace sobee_API.Controllers
                     .FirstOrDefaultAsync(p => p.IntProductId == item.IntProductId);
 
                 if (product == null)
-                    return NotFound(new { error = $"Product {item.IntProductId} not found." });
+                    return NotFoundError($"Product {item.IntProductId} not found.", "NotFound");
 
                 if (request.Quantity > product.IntStockAmount)
-                    return Conflict(new
-                    {
-                        error = "Insufficient stock.",
-                        productId = product.IntProductId,
-                        availableStock = product.IntStockAmount
-                    });
+                    return ConflictError("Insufficient stock.", "Conflict");
 
                 item.IntQuantity = request.Quantity;
             }
@@ -252,14 +237,14 @@ namespace sobee_API.Controllers
 
             var cart = await FindCartAsync(identity!.UserId, identity.GuestSessionId);
             if (cart == null)
-                return NotFound(new { error = "Cart not found." });
+                return NotFoundError("Cart not found.", "NotFound");
 
             var item = await _db.TcartItems.FirstOrDefaultAsync(i =>
                 i.IntCartItemId == cartItemId &&
                 i.IntShoppingCartId == cart.IntShoppingCartId);
 
             if (item == null)
-                return NotFound(new { error = $"Cart item {cartItemId} not found." });
+                return NotFoundError($"Cart item {cartItemId} not found.", "NotFound");
 
             _db.TcartItems.Remove(item);
             cart.DtmDateLastUpdated = DateTime.UtcNow;
@@ -285,7 +270,7 @@ namespace sobee_API.Controllers
 
             var cart = await FindCartAsync(identity!.UserId, identity.GuestSessionId);
             if (cart == null)
-                return NotFound(new { error = "Cart not found." });
+                return NotFoundError("Cart not found.", "NotFound");
 
             var items = await _db.TcartItems
                 .Where(i => i.IntShoppingCartId == cart.IntShoppingCartId)
@@ -312,14 +297,14 @@ namespace sobee_API.Controllers
 
             var cart = await FindCartAsync(identity!.UserId, identity.GuestSessionId);
             if (cart == null)
-                return NotFound(new { error = "Cart not found." });
+                return NotFoundError("Cart not found.", "NotFound");
 
             var promos = await _db.TpromoCodeUsageHistories
                 .Where(p => p.IntShoppingCartId == cart.IntShoppingCartId)
                 .ToListAsync();
 
             if (promos.Count == 0)
-                return BadRequest(new { error = "No promo code applied to cart." });
+                return BadRequestError("No promo code applied to cart.", "ValidationError");
 
             _db.TpromoCodeUsageHistories.RemoveRange(promos);
             await _db.SaveChangesAsync();
@@ -349,10 +334,10 @@ namespace sobee_API.Controllers
             {
                 if (identity.ErrorCode == "MissingNameIdentifier")
                 {
-                    return (null, Unauthorized(new { error = identity.ErrorMessage }));
+                    return (null, UnauthorizedError(identity.ErrorMessage, "Unauthorized"));
                 }
 
-                return (null, BadRequest(new { error = identity.ErrorMessage }));
+                return (null, BadRequestError(identity.ErrorMessage, "ValidationError"));
             }
 
             return (identity, null);
@@ -558,16 +543,11 @@ namespace sobee_API.Controllers
 
         private IActionResult StockConflict(int productId, int available)
         {
-            return Conflict(new
-            {
-                error = "Insufficient stock.",
-                productId,
-                availableStock = available
-            });
+            return ConflictError("Insufficient stock.", "Conflict");
         }
 
         private BadRequestObjectResult BadRequestError(string message, string? code = null)
-    => BadRequest(new ApiErrorResponse(message, code));
+            => BadRequest(new ApiErrorResponse(message, code));
 
         private NotFoundObjectResult NotFoundError(string message, string? code = null)
             => NotFound(new ApiErrorResponse(message, code));
@@ -581,7 +561,8 @@ namespace sobee_API.Controllers
         private ObjectResult ForbiddenError(string message, string? code = null)
             => StatusCode(StatusCodes.Status403Forbidden, new ApiErrorResponse(message, code));
 
-
+        private ObjectResult ServerError(string message = "An unexpected error occurred.", string? code = "ServerError")
+            => StatusCode(StatusCodes.Status500InternalServerError, new ApiErrorResponse(message, code));
 
 
     }
