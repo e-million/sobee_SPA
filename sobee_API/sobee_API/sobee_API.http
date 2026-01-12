@@ -16,7 +16,7 @@
 ### EXPECT:
 ### 400
 ### error: "Validation failed."
-### code: "VALIDATION_ERROR"
+### code: VALIDATION_ERROR
 ### details.errors.quantity
 POST {{baseUrl}}/api/cart/items
 Content-Type: application/json

@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Sobee.Domain.Data;
+using sobee_API.DTOs.Admin;
 
 namespace sobee_API.Controllers
 {
@@ -21,7 +22,7 @@ namespace sobee_API.Controllers
         /// Admin-only health check for the admin area.
         /// </summary>
         [HttpGet("ping")]
-        public IActionResult Ping() => Ok(new { status = "ok", area = "admin" });
+        public IActionResult Ping() => Ok(new AdminPingResponseDto { Status = "ok", Area = "admin" });
 
 
         /// <summary>
@@ -44,12 +45,12 @@ namespace sobee_API.Controllers
                 ? 0m
                 : totalRevenue / totalOrders;
 
-            return Ok(new
+            return Ok(new AdminSummaryResponseDto
             {
-                totalOrders,
-                totalRevenue,
-                totalDiscounts,
-                averageOrderValue
+                TotalOrders = totalOrders,
+                TotalRevenue = totalRevenue,
+                TotalDiscounts = totalDiscounts,
+                AverageOrderValue = averageOrderValue
             });
         }
 
@@ -68,13 +69,13 @@ namespace sobee_API.Controllers
             var data = await _db.Torders
                 .Where(o => o.DtmOrderDate >= fromDate)
                 .GroupBy(o => o.DtmOrderDate)
-                .Select(g => new
+                .Select(g => new AdminOrdersPerDayItemDto
                 {
-                    date = g.Key,
-                    count = g.Count(),
-                    revenue = g.Sum(o => o.DecTotalAmount) ?? 0m
+                    Date = g.Key,
+                    Count = g.Count(),
+                    Revenue = g.Sum(o => o.DecTotalAmount) ?? 0m
                 })
-                .OrderBy(x => x.date)
+                .OrderBy(x => x.Date)
                 .ToListAsync();
 
             return Ok(data);
@@ -92,11 +93,11 @@ namespace sobee_API.Controllers
             var products = await _db.Tproducts
                 .Where(p => p.IntStockAmount <= threshold)
                 .OrderBy(p => p.IntStockAmount)
-                .Select(p => new
+                .Select(p => new AdminLowStockItemDto
                 {
-                    productId = p.IntProductId,
-                    name = p.StrName,
-                    stockAmount = p.IntStockAmount
+                    ProductId = p.IntProductId,
+                    Name = p.StrName,
+                    StockAmount = p.IntStockAmount
                 })
                 .ToListAsync();
 
@@ -118,14 +119,14 @@ namespace sobee_API.Controllers
                     i.IntProductId,
                     i.IntProduct.StrName
                 })
-                .Select(g => new
+                .Select(g => new AdminTopProductItemDto
                 {
-                    productId = g.Key.IntProductId,
-                    name = g.Key.StrName,
-                    quantitySold = g.Sum(x => x.IntQuantity ?? 0),
-                    revenue = g.Sum(x => (x.IntQuantity ?? 0) * (x.MonPricePerUnit ?? 0m))
+                    ProductId = g.Key.IntProductId,
+                    Name = g.Key.StrName,
+                    QuantitySold = g.Sum(x => x.IntQuantity ?? 0),
+                    Revenue = g.Sum(x => (x.IntQuantity ?? 0) * (x.MonPricePerUnit ?? 0m))
                 })
-                .OrderByDescending(x => x.quantitySold)
+                .OrderByDescending(x => x.QuantitySold)
                 .Take(limit)
                 .ToListAsync();
 

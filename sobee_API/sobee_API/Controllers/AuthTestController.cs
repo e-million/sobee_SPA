@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Sobee.Domain.Identity;
+using sobee_API.DTOs.Auth;
 
 namespace sobee_API.Controllers;
 
@@ -28,12 +29,12 @@ public class AuthTestController : ControllerBase
 
         var roles = await _users.GetRolesAsync(user);
 
-        return Ok(new
+        return Ok(new AuthTestMeResponseDto
         {
-            user.Id,
-            user.Email,
-            user.UserName,
-            roles
+            Id = user.Id,
+            Email = user.Email,
+            UserName = user.UserName,
+            Roles = roles
         });
     }
 
@@ -44,6 +45,6 @@ public class AuthTestController : ControllerBase
     [Authorize(Roles = "Admin")]
     public IActionResult AdminOnly()
     {
-        return Ok(new { ok = true, message = "You are Admin." });
+        return Ok(new AuthTestAdminOnlyResponseDto { Ok = true, Message = "You are Admin." });
     }
 }

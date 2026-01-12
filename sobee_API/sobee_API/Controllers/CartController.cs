@@ -7,6 +7,7 @@ using Sobee.Domain.Entities.Promotions;
 using sobee_API.DTOs;
 using sobee_API.DTOs.Cart;
 using sobee_API.DTOs.Common;
+using sobee_API.Constants;
 using sobee_API.Services;
 
 namespace sobee_API.Controllers
@@ -542,7 +543,7 @@ namespace sobee_API.Controllers
         {
             return ConflictError(
                 "Insufficient stock.",
-                "InsufficientStock",
+                ErrorCodes.InsufficientStock,
                 new { productId, availableStock, requested }
             );
         }
@@ -562,7 +563,7 @@ namespace sobee_API.Controllers
         private ObjectResult ForbiddenError(string message, string? code = null, object? details = null)
             => StatusCode(StatusCodes.Status403Forbidden, new ApiErrorResponse(message, code, details));
 
-        private ObjectResult ServerError(string message = "An unexpected error occurred.", string? code = "ServerError", object? details = null)
+        private ObjectResult ServerError(string message = "An unexpected error occurred.", string? code = ErrorCodes.ServerError, object? details = null)
             => StatusCode(StatusCodes.Status500InternalServerError, new ApiErrorResponse(message, code, details));
 
 

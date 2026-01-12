@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using sobee_API.DTOs.Auth;
 using System.Security.Claims;
 
 namespace sobee_API.Controllers
@@ -24,12 +25,12 @@ namespace sobee_API.Controllers
                 .Distinct()
                 .ToArray();
 
-            return Ok(new
+            return Ok(new MeResponseDto
             {
-                name,
-                email,
-                roles,
-                claims = User.Claims.Select(c => new { c.Type, c.Value }).ToArray()
+                Name = name,
+                Email = email,
+                Roles = roles,
+                Claims = User.Claims.Select(c => new MeClaimDto { Type = c.Type, Value = c.Value }).ToArray()
             });
         }
     }

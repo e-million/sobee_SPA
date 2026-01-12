@@ -38,35 +38,35 @@ namespace sobee_API.Controllers
             var reviews = await _db.Treviews
                 .Where(r => r.IntProductId == productId)
                 .OrderByDescending(r => r.DtmReviewDate)
-                .Select(r => new
+                .Select(r => new ReviewListItemDto
                 {
-                    reviewId = r.IntReviewId,
-                    productId = r.IntProductId,
-                    rating = r.IntRating,
-                    reviewText = r.StrReviewText,
-                    created = r.DtmReviewDate,
-                    userId = r.UserId,
-                    sessionId = r.SessionId,
-                    replies = _db.TReviewReplies
+                    ReviewId = r.IntReviewId,
+                    ProductId = r.IntProductId,
+                    Rating = r.IntRating,
+                    ReviewText = r.StrReviewText,
+                    Created = r.DtmReviewDate,
+                    UserId = r.UserId,
+                    SessionId = r.SessionId,
+                    Replies = _db.TReviewReplies
                         .Where(rr => rr.IntReviewId == r.IntReviewId)
                         .OrderBy(rr => rr.created_at)
-                        .Select(rr => new
+                        .Select(rr => new ReviewReplyDto
                         {
-                            replyId = rr.IntReviewReplyID,
-                            reviewId = rr.IntReviewId,
-                            content = rr.content,
-                            created = rr.created_at,
-                            userId = rr.UserId
+                            ReplyId = rr.IntReviewReplyID,
+                            ReviewId = rr.IntReviewId,
+                            Content = rr.content,
+                            Created = rr.created_at,
+                            UserId = rr.UserId
                         })
                         .ToList()
                 })
                 .ToListAsync();
 
-            return Ok(new
+            return Ok(new ProductReviewsResponseDto
             {
-                productId,
-                count = reviews.Count,
-                reviews
+                ProductId = productId,
+                Count = reviews.Count,
+                Reviews = reviews
             });
         }
 
@@ -109,17 +109,19 @@ namespace sobee_API.Controllers
             _db.Treviews.Add(review);
             await _db.SaveChangesAsync();
 
-            return Ok(new
+            var response = new ReviewCreatedResponseDto
             {
-                message = "Review created.",
-                reviewId = review.IntReviewId,
-                productId = review.IntProductId,
-                rating = review.IntRating,
-                reviewText = review.StrReviewText,
-                created = review.DtmReviewDate,
-                userId = review.UserId,
-                sessionId = review.SessionId
-            });
+                Message = "Review created.",
+                ReviewId = review.IntReviewId,
+                ProductId = review.IntProductId,
+                Rating = review.IntRating,
+                ReviewText = review.StrReviewText,
+                Created = review.DtmReviewDate,
+                UserId = review.UserId,
+                SessionId = review.SessionId
+            };
+
+            return CreatedAtAction(nameof(GetByProduct), new { productId }, response);
         }
 
         /// <summary>
@@ -155,15 +157,17 @@ namespace sobee_API.Controllers
             _db.TReviewReplies.Add(reply);
             await _db.SaveChangesAsync();
 
-            return Ok(new
+            var response = new ReviewReplyCreatedResponseDto
             {
-                message = "Reply created.",
-                replyId = reply.IntReviewReplyID,
-                reviewId = reply.IntReviewId,
-                content = reply.content,
-                created = reply.created_at,
-                userId = reply.UserId
-            });
+                Message = "Reply created.",
+                ReplyId = reply.IntReviewReplyID,
+                ReviewId = reply.IntReviewId,
+                Content = reply.content,
+                Created = reply.created_at,
+                UserId = reply.UserId
+            };
+
+            return CreatedAtAction(nameof(GetByProduct), new { productId = review.IntProductId }, response);
         }
 
         /// <summary>
@@ -203,7 +207,7 @@ namespace sobee_API.Controllers
             _db.Treviews.Remove(review);
             await _db.SaveChangesAsync();
 
-            return Ok(new { message = "Review deleted.", reviewId });
+            return Ok(new ReviewDeletedResponseDto { Message = "Review deleted.", ReviewId = reviewId });
         }
 
         /// <summary>
@@ -237,7 +241,7 @@ namespace sobee_API.Controllers
             _db.TReviewReplies.Remove(reply);
             await _db.SaveChangesAsync();
 
-            return Ok(new { message = "Reply deleted.", replyId });
+            return Ok(new ReviewReplyDeletedResponseDto { Message = "Reply deleted.", ReplyId = replyId });
         }
     }
 }
