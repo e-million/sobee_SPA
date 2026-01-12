@@ -121,7 +121,7 @@ namespace sobee_API.Controllers
                 SessionId = review.SessionId
             };
 
-            return CreatedAtAction(nameof(GetByProduct), new { productId }, response);
+            return StatusCode(StatusCodes.Status201Created, response);
         }
 
         /// <summary>
@@ -167,7 +167,7 @@ namespace sobee_API.Controllers
                 UserId = reply.UserId
             };
 
-            return CreatedAtAction(nameof(GetByProduct), new { productId = review.IntProductId }, response);
+            return StatusCode(StatusCodes.Status201Created, response);
         }
 
         /// <summary>

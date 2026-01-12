@@ -107,7 +107,7 @@ namespace sobee_API.Controllers
                 Added = fav.DtmDateAdded
             };
 
-            return CreatedAtAction(nameof(GetMyFavorites), new { }, response);
+            return StatusCode(StatusCodes.Status201Created, response);
         }
 
         /// <summary>
