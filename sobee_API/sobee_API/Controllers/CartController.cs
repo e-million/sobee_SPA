@@ -5,6 +5,7 @@ using Sobee.Domain.Data;
 using Sobee.Domain.Entities.Cart;
 using Sobee.Domain.Entities.Promotions;
 using sobee_API.DTOs;
+using sobee_API.DTOs.Cart;
 using sobee_API.Services;
 
 namespace sobee_API.Controllers
@@ -27,26 +28,9 @@ namespace sobee_API.Controllers
             _identityResolver = identityResolver;
         }
 
-        // ---------------------------------------------
-        // DTOs (request models)
-        // ---------------------------------------------
-        public class AddCartItemRequest
-        {
-            public int ProductId { get; set; }
-            public int Quantity { get; set; } = 1;
-        }
-
-        public class UpdateCartItemRequest
-        {
-            public int Quantity { get; set; }
-        }
-
-        // ---------------------------------------------
-        // GET: /api/cart
-        // - If authenticated: uses UserId
-        // - If guest: uses X-Session-Id + X-Session-Secret (generates both if missing/invalid)
-        // - If authenticated AND validated guest session exists: merges guest cart -> user cart
-        // ---------------------------------------------
+        /// <summary>
+        /// Get the current cart for the authenticated user or guest session (creates/merges when needed).
+        /// </summary>
         [HttpGet]
         [AllowAnonymous]
         public async Task<IActionResult> GetCart()
@@ -61,12 +45,9 @@ namespace sobee_API.Controllers
             return Ok(await ProjectCartAsync(cart, identity.UserId, identity.GuestSessionId));
         }
 
-        // ---------------------------------------------
-        // POST: /api/cart/items
-        // Body: { productId, quantity }
-        // - Adds new item or increments existing
-        // - Guest uses X-Session-Id + X-Session-Secret headers (new session issued if missing/invalid)
-        // ---------------------------------------------
+        /// <summary>
+        /// Add an item to the cart (increments quantity if already present).
+        /// </summary>
         [HttpPost("items")]
         [AllowAnonymous]
         public async Task<IActionResult> AddItem([FromBody] AddCartItemRequest request)
@@ -145,12 +126,60 @@ namespace sobee_API.Controllers
             return Ok(await ProjectCartAsync(cart, identity.UserId, identity.GuestSessionId));
         }
 
-        // ---------------------------------------------
-        // PUT: /api/cart/items/{cartItemId}
-        // Body: { quantity }
-        // - Sets quantity (0 => delete item)
-        // - Guest uses X-Session-Id + X-Session-Secret headers
-        // ---------------------------------------------
+        /// <summary>
+        /// Apply a promo code to the current cart.
+        /// </summary>
+        [HttpPost("promo/apply")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ApplyPromo([FromBody] ApplyPromoRequest request)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.PromoCode))
+                return BadRequest(new { error = "PromoCode is required." });
+
+            var (identity, errorResult) = await ResolveIdentityAsync(allowCreateGuestSession: true);
+            if (errorResult != null)
+                return errorResult;
+
+            var cart = await FindCartAsync(identity!.UserId, identity.GuestSessionId);
+            if (cart == null)
+                return NotFound(new { error = "Cart not found." });
+
+            var promoCode = request.PromoCode.Trim();
+
+            var promo = await _db.Tpromotions.FirstOrDefaultAsync(p =>
+                p.StrPromoCode == promoCode &&
+                p.DtmExpirationDate > DateTime.UtcNow);
+
+            if (promo == null)
+                return BadRequest(new { error = "Invalid or expired promo code." });
+
+            var alreadyApplied = await _db.TpromoCodeUsageHistories.AnyAsync(p =>
+                p.IntShoppingCartId == cart.IntShoppingCartId &&
+                p.PromoCode == promoCode);
+
+            if (alreadyApplied)
+                return Conflict(new { error = "Promo code already applied to this cart." });
+
+            _db.TpromoCodeUsageHistories.Add(new TpromoCodeUsageHistory
+            {
+                IntShoppingCartId = cart.IntShoppingCartId,
+                PromoCode = promoCode,
+                UsedDateTime = DateTime.UtcNow
+            });
+
+            await _db.SaveChangesAsync();
+
+            return Ok(new
+            {
+                message = "Promo code applied.",
+                promoCode,
+                discountPercentage = promo.DecDiscountPercentage
+            });
+        }
+
+        /// <summary>
+        /// Update a cart item's quantity (0 removes the item).
+        /// </summary>
         [HttpPut("items/{cartItemId:int}")]
         [AllowAnonymous]
         public async Task<IActionResult> UpdateItem(int cartItemId, [FromBody] UpdateCartItemRequest request)
@@ -207,11 +236,9 @@ namespace sobee_API.Controllers
             return Ok(await ProjectCartAsync(cart, identity.UserId, identity.GuestSessionId));
         }
 
-        // ---------------------------------------------
-        // DELETE: /api/cart/items/{cartItemId}
-        // - Removes one item
-        // - Guest uses X-Session-Id + X-Session-Secret headers
-        // ---------------------------------------------
+        /// <summary>
+        /// Remove a cart item from the current cart.
+        /// </summary>
         [HttpDelete("items/{cartItemId:int}")]
         [AllowAnonymous]
         public async Task<IActionResult> RemoveItem(int cartItemId)
@@ -242,11 +269,9 @@ namespace sobee_API.Controllers
             return Ok(await ProjectCartAsync(cart, identity.UserId, identity.GuestSessionId));
         }
 
-        // ---------------------------------------------
-        // DELETE: /api/cart
-        // - Clears all items from cart (does NOT delete the cart row)
-        // - Guest uses X-Session-Id + X-Session-Secret headers
-        // ---------------------------------------------
+        /// <summary>
+        /// Clear all items from the current cart.
+        /// </summary>
         [HttpDelete]
         [AllowAnonymous]
         public async Task<IActionResult> ClearCart()
@@ -273,60 +298,9 @@ namespace sobee_API.Controllers
             cart = await LoadCartWithItemsAsync(cart.IntShoppingCartId);
             return Ok(await ProjectCartAsync(cart, identity.UserId, identity.GuestSessionId));
         }
-
-
-
-
-        // Promos
-        [HttpPost("promo/apply")]
-        [AllowAnonymous]
-        public async Task<IActionResult> ApplyPromo([FromBody] ApplyPromoRequest request)
-        {
-            if (request == null || string.IsNullOrWhiteSpace(request.PromoCode))
-                return BadRequest(new { error = "PromoCode is required." });
-
-            var (identity, errorResult) = await ResolveIdentityAsync(allowCreateGuestSession: true);
-            if (errorResult != null)
-                return errorResult;
-
-            var cart = await FindCartAsync(identity!.UserId, identity.GuestSessionId);
-            if (cart == null)
-                return NotFound(new { error = "Cart not found." });
-
-            var promoCode = request.PromoCode.Trim();
-
-            var promo = await _db.Tpromotions.FirstOrDefaultAsync(p =>
-                p.StrPromoCode == promoCode &&
-                p.DtmExpirationDate > DateTime.UtcNow);
-
-            if (promo == null)
-                return BadRequest(new { error = "Invalid or expired promo code." });
-
-            var alreadyApplied = await _db.TpromoCodeUsageHistories.AnyAsync(p =>
-                p.IntShoppingCartId == cart.IntShoppingCartId &&
-                p.PromoCode == promoCode);
-
-            if (alreadyApplied)
-                return Conflict(new { error = "Promo code already applied to this cart." });
-
-            _db.TpromoCodeUsageHistories.Add(new TpromoCodeUsageHistory
-            {
-                IntShoppingCartId = cart.IntShoppingCartId,
-                PromoCode = promoCode,
-                UsedDateTime = DateTime.UtcNow
-            });
-
-            await _db.SaveChangesAsync();
-
-            return Ok(new
-            {
-                message = "Promo code applied.",
-                promoCode,
-                discountPercentage = promo.DecDiscountPercentage
-            });
-        }
-
-
+        /// <summary>
+        /// Remove the promo code applied to the current cart.
+        /// </summary>
         [HttpDelete("promo")]
         [AllowAnonymous]
         public async Task<IActionResult> RemovePromo()
@@ -506,25 +480,25 @@ namespace sobee_API.Controllers
                 .FirstAsync(c => c.IntShoppingCartId == cartId);
         }
 
-        private async Task<object> ProjectCartAsync(TshoppingCart cart, string? userId, string? sessionId)
+        private async Task<CartResponseDto> ProjectCartAsync(TshoppingCart cart, string? userId, string? sessionId)
         {
-            var items = cart.TcartItems.Select(i => new
+            var items = cart.TcartItems.Select(i => new CartItemResponseDto
             {
-                cartItemId = i.IntCartItemId,
-                productId = i.IntProductId,
-                quantity = i.IntQuantity,
-                added = i.DtmDateAdded,
-                product = i.IntProduct == null ? null : new
+                CartItemId = i.IntCartItemId,
+                ProductId = i.IntProductId,
+                Quantity = i.IntQuantity,
+                Added = i.DtmDateAdded,
+                Product = i.IntProduct == null ? null : new CartProductDto
                 {
-                    id = i.IntProduct.IntProductId,
-                    name = i.IntProduct.StrName,
-                    description = i.IntProduct.strDescription,
-                    price = i.IntProduct.DecPrice
+                    Id = i.IntProduct.IntProductId,
+                    Name = i.IntProduct.StrName,
+                    Description = i.IntProduct.strDescription,
+                    Price = i.IntProduct.DecPrice
                 },
-                lineTotal = (i.IntQuantity ?? 0) * (i.IntProduct?.DecPrice ?? 0m)
+                LineTotal = (i.IntQuantity ?? 0) * (i.IntProduct?.DecPrice ?? 0m)
             }).ToList();
 
-            var subtotal = items.Sum(x => (decimal)x.lineTotal);
+            var subtotal = items.Sum(x => x.LineTotal);
 
             // -------------------------------------------------
             // Promo (cart-scoped, most recently applied)
@@ -541,25 +515,23 @@ namespace sobee_API.Controllers
             if (total < 0)
                 total = 0;
 
-            return new
+            return new CartResponseDto
             {
-                cartId = cart.IntShoppingCartId,
-                owner = userId != null ? "user" : "guest",
-                userId,
-                sessionId,
-                created = cart.DtmDateCreated,
-                updated = cart.DtmDateLastUpdated,
-                items,
-
-                promo = promo.Code == null ? null : new
+                CartId = cart.IntShoppingCartId,
+                Owner = userId != null ? "user" : "guest",
+                UserId = userId,
+                SessionId = sessionId,
+                Created = cart.DtmDateCreated,
+                Updated = cart.DtmDateLastUpdated,
+                Items = items,
+                Promo = promo.Code == null ? null : new CartPromoDto
                 {
-                    code = promo.Code,
-                    discountPercentage = promo.DiscountPercentage
+                    Code = promo.Code,
+                    DiscountPercentage = promo.DiscountPercentage
                 },
-
-                subtotal,
-                discount = discountAmount,
-                total
+                Subtotal = subtotal,
+                Discount = discountAmount,
+                Total = total
             };
         }
 

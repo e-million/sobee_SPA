@@ -15,6 +15,9 @@ namespace sobee_API.Controllers
             _db = db;
         }
 
+        /// <summary>
+        /// Health check for API and database connectivity.
+        /// </summary>
         [HttpGet("ping")]
         public IActionResult Ping() {
             var canConnect = _db.Database.CanConnect();
