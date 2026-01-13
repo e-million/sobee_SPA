@@ -7,17 +7,26 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.OpenApi.Models;
+using OpenTelemetry.Metrics;
+using Serilog;
+using Serilog.Events;
+using Serilog.Formatting.Compact;
 using Sobee.Domain.Data;
 using Sobee.Domain.Identity;
 using sobee_API.DTOs.Common;
 using sobee_API.Middleware;
+using sobee_API.Observability;
 using sobee_API.Services;
 using System.Linq;
 using System.Security.Claims;
 using System.Text.Json;
 using System.Threading.RateLimiting;
+using System.Diagnostics.Metrics;
 
 namespace sobee_API
 {
@@ -26,6 +35,18 @@ namespace sobee_API
         public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+
+            builder.Host.UseSerilog((context, _, loggerConfiguration) =>
+            {
+                loggerConfiguration
+                    .MinimumLevel.Information()
+                    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+                    .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
+                    .Enrich.FromLogContext()
+                    .Enrich.WithProperty("Application", "sobee_API")
+                    .Enrich.WithProperty("Environment", context.HostingEnvironment.EnvironmentName)
+                    .WriteTo.Console(new RenderedCompactJsonFormatter());
+            });
 
             // ==========================================
             // 0. CORS (allow Angular dev client)
@@ -85,6 +106,27 @@ namespace sobee_API
 
             builder.Services.AddScoped<GuestSessionService>();
             builder.Services.AddScoped<RequestIdentityResolver>();
+
+            var rateLimitMeter = new Meter(RateLimitMetrics.MeterName);
+            builder.Services.AddSingleton(rateLimitMeter);
+            builder.Services.AddSingleton<RateLimitMetrics>();
+
+            builder.Services.AddOpenTelemetry()
+                .WithMetrics(metrics =>
+                {
+                    metrics.AddAspNetCoreInstrumentation();
+                    metrics.AddMeter(RateLimitMetrics.MeterName);
+                    metrics.AddPrometheusExporter();
+                });
+
+            builder.Services.AddHealthChecks()
+                .AddCheck("self", () => HealthCheckResult.Healthy(), tags: new[] { "live" })
+                .AddDbContextCheck<ApplicationDbContext>(
+                    "identity_db",
+                    tags: new[] { "ready" })
+                .AddDbContextCheck<SobeecoredbContext>(
+                    "core_db",
+                    tags: new[] { "ready" });
 
 
             // ==========================================
@@ -184,6 +226,58 @@ namespace sobee_API
                 }
 
                 return "GlobalPolicy";
+            }
+
+            static string ResolvePrincipalKey(HttpContext context)
+            {
+                if (context.User.Identity?.IsAuthenticated == true)
+                {
+                    var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                        ?? context.User.FindFirstValue("sub")
+                        ?? context.User.Identity?.Name;
+
+                    if (!string.IsNullOrWhiteSpace(userId))
+                    {
+                        return $"user:{userId}";
+                    }
+                }
+
+                var sessionId = context.Request.Headers[GuestSessionService.SessionIdHeaderName].ToString();
+                if (!string.IsNullOrWhiteSpace(sessionId))
+                {
+                    return $"guest:{sessionId}";
+                }
+
+                var remoteIp = context.Connection.RemoteIpAddress?.ToString();
+                return string.IsNullOrWhiteSpace(remoteIp) ? "ip:unknown" : $"ip:{remoteIp}";
+            }
+
+            static string? ResolveCorrelationId(HttpContext context)
+            {
+                if (context.Items.TryGetValue(CorrelationIdMiddleware.ItemKey, out var value))
+                {
+                    return value?.ToString();
+                }
+
+                return string.IsNullOrWhiteSpace(context.TraceIdentifier) ? null : context.TraceIdentifier;
+            }
+
+            static Task WriteHealthResponse(HttpContext context, HealthReport report)
+            {
+                context.Response.ContentType = "application/json";
+
+                var payload = new
+                {
+                    status = report.Status.ToString(),
+                    checks = report.Entries.Select(entry => new
+                    {
+                        name = entry.Key,
+                        status = entry.Value.Status.ToString()
+                    }),
+                    timestampUtc = DateTime.UtcNow
+                };
+
+                return context.Response.WriteAsync(JsonSerializer.Serialize(payload));
             }
 
             builder.Services.AddRateLimiter(options =>
@@ -439,7 +533,57 @@ namespace sobee_API
 
             app.UseRouting();
 
+            app.UseSerilogRequestLogging(options =>
+            {
+                options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
+                options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+                {
+                    var endpoint = httpContext.GetEndpoint();
+                    var routePattern = (endpoint as RouteEndpoint)?.RoutePattern.RawText;
+
+                    diagnosticContext.Set("CorrelationId", ResolveCorrelationId(httpContext) ?? "unknown");
+                    diagnosticContext.Set("RouteTemplate", routePattern ?? string.Empty);
+                    diagnosticContext.Set("PrincipalKey", ResolvePrincipalKey(httpContext));
+
+                    if (httpContext.User.Identity?.IsAuthenticated == true)
+                    {
+                        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                            ?? httpContext.User.FindFirstValue("sub");
+                        var userName = httpContext.User.Identity?.Name;
+
+                        if (!string.IsNullOrWhiteSpace(userId))
+                        {
+                            diagnosticContext.Set("UserId", userId);
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(userName))
+                        {
+                            diagnosticContext.Set("UserName", userName);
+                        }
+                    }
+                    else
+                    {
+                        var sessionId = httpContext.Request.Headers[GuestSessionService.SessionIdHeaderName].ToString();
+                        if (!string.IsNullOrWhiteSpace(sessionId))
+                        {
+                            diagnosticContext.Set("GuestSessionId", sessionId);
+                        }
+                    }
+                };
+            });
+
             app.UseCors("AngularClient");
+
+            app.Use(async (context, next) =>
+            {
+                await next();
+
+                if (context.Response.StatusCode == StatusCodes.Status429TooManyRequests)
+                {
+                    var metrics = context.RequestServices.GetRequiredService<RateLimitMetrics>();
+                    metrics.RecordRejection(context);
+                }
+            });
 
             app.UseRateLimiter();
 
@@ -463,6 +607,23 @@ namespace sobee_API
 
             // Map standard controllers
             app.MapControllers();
+
+            app.MapHealthChecks("/health/live", new HealthCheckOptions
+            {
+                Predicate = check => check.Tags.Contains("live"),
+                ResponseWriter = WriteHealthResponse
+            })
+            .DisableRateLimiting();
+
+            app.MapHealthChecks("/health/ready", new HealthCheckOptions
+            {
+                Predicate = check => check.Tags.Contains("ready"),
+                ResponseWriter = WriteHealthResponse
+            })
+            .DisableRateLimiting();
+
+            app.MapPrometheusScrapingEndpoint("/metrics")
+                .DisableRateLimiting();
 
             app.Run();
         }
