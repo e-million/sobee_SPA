@@ -2,17 +2,22 @@
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using Sobee.Domain.Data;
 using Sobee.Domain.Identity;
 using sobee_API.DTOs.Common;
+using sobee_API.Middleware;
 using sobee_API.Services;
 using System.Linq;
+using System.Security.Claims;
 using System.Text.Json;
+using System.Threading.RateLimiting;
 
 namespace sobee_API
 {
@@ -116,6 +121,124 @@ namespace sobee_API
                 .AddBearerToken(IdentityConstants.BearerScheme);
 
             builder.Services.AddAuthorization();
+
+            static string ResolvePartitionKey(HttpContext context)
+            {
+                var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                    ?? context.User.FindFirstValue("sub");
+
+                if (!string.IsNullOrWhiteSpace(userId))
+                {
+                    return $"user:{userId}";
+                }
+
+                var remoteIp = context.Connection.RemoteIpAddress?.ToString();
+                return string.IsNullOrWhiteSpace(remoteIp) ? "ip:unknown" : $"ip:{remoteIp}";
+            }
+
+            static FixedWindowRateLimiterOptions CreateAuthLimiterOptions()
+                => new()
+                {
+                    PermitLimit = 10,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                    AutoReplenishment = true
+                };
+
+            static FixedWindowRateLimiterOptions CreateWriteLimiterOptions()
+                => new()
+                {
+                    PermitLimit = 30,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                    AutoReplenishment = true
+                };
+
+            static FixedWindowRateLimiterOptions CreateGlobalLimiterOptions()
+                => new()
+                {
+                    PermitLimit = 120,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                    AutoReplenishment = true
+                };
+
+            static bool IsWriteMethod(string method)
+                => HttpMethods.IsPost(method) || HttpMethods.IsPut(method) || HttpMethods.IsPatch(method) || HttpMethods.IsDelete(method);
+
+            static string ResolvePolicyName(HttpContext context)
+            {
+                var path = context.Request.Path;
+                if (path.StartsWithSegments("/api/auth") || path.StartsWithSegments("/login"))
+                {
+                    return "AuthPolicy";
+                }
+
+                if ((path.StartsWithSegments("/api/cart") || path.StartsWithSegments("/api/orders"))
+                    && IsWriteMethod(context.Request.Method))
+                {
+                    return "WritePolicy";
+                }
+
+                return "GlobalPolicy";
+            }
+
+            builder.Services.AddRateLimiter(options =>
+            {
+                options.AddPolicy("AuthPolicy", context =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        ResolvePartitionKey(context),
+                        _ => CreateAuthLimiterOptions()));
+
+                options.AddPolicy("WritePolicy", context =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        ResolvePartitionKey(context),
+                        _ => CreateWriteLimiterOptions()));
+
+                options.AddPolicy("GlobalPolicy", context =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        ResolvePartitionKey(context),
+                        _ => CreateGlobalLimiterOptions()));
+
+                options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+                {
+                    return ResolvePolicyName(context) switch
+                    {
+                        "AuthPolicy" => RateLimitPartition.GetFixedWindowLimiter(
+                            ResolvePartitionKey(context),
+                            _ => CreateAuthLimiterOptions()),
+                        "WritePolicy" => RateLimitPartition.GetFixedWindowLimiter(
+                            ResolvePartitionKey(context),
+                            _ => CreateWriteLimiterOptions()),
+                        _ => RateLimitPartition.GetFixedWindowLimiter(
+                            ResolvePartitionKey(context),
+                            _ => CreateGlobalLimiterOptions())
+                    };
+                });
+
+                options.OnRejected = async (context, _) =>
+                {
+                    var httpContext = context.HttpContext;
+                    if (httpContext.Response.HasStarted)
+                    {
+                        return;
+                    }
+
+                    httpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+                    httpContext.Response.ContentType = "application/json";
+
+                    var payload = JsonSerializer.Serialize(new
+                    {
+                        error = "Too many requests.",
+                        code = "RATE_LIMITED"
+                    });
+
+                    await httpContext.Response.WriteAsync(payload);
+                };
+            });
 
 
             // ==========================================
@@ -264,14 +387,61 @@ namespace sobee_API
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
+                app.UseDeveloperExceptionPage();
                 app.UseSwagger();
                 app.UseSwaggerUI();
             }
+            else
+            {
+                app.UseExceptionHandler(handler =>
+                {
+                    handler.Run(async context =>
+                    {
+                        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+                        var feature = context.Features.Get<IExceptionHandlerFeature>();
+                        var correlationId = context.Items.TryGetValue(CorrelationIdMiddleware.ItemKey, out var value)
+                            ? value?.ToString()
+                            : null;
+
+                        if (feature?.Error != null)
+                        {
+                            logger.LogError(
+                                feature.Error,
+                                "Unhandled exception {ExceptionType}: {Message}. CorrelationId: {CorrelationId}",
+                                feature.Error.GetType().FullName,
+                                feature.Error.Message,
+                                correlationId ?? "unknown");
+                        }
+
+                        if (context.Response.HasStarted)
+                        {
+                            return;
+                        }
+
+                        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                        context.Response.ContentType = "application/json";
+
+                        var payload = JsonSerializer.Serialize(new
+                        {
+                            error = "An unexpected error occurred.",
+                            code = "SERVER_ERROR"
+                        });
+
+                        await context.Response.WriteAsync(payload);
+                    });
+                });
+            }
+
+            app.UseMiddleware<CorrelationIdMiddleware>();
+            app.UseMiddleware<SecurityHeadersMiddleware>();
 
             app.UseHttpsRedirection();
 
+            app.UseRouting();
+
             app.UseCors("AngularClient");
 
+            app.UseRateLimiter();
 
             //  IMPORTANT: These must be in this order (AuthN before AuthZ)
             app.UseAuthentication(); // "Who are you?"
