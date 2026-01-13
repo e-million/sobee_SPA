@@ -71,3 +71,26 @@ Authorization: Bearer {{userToken}}
   "productId": 1003,
   "quantity": 1
 }
+
+### ============================================================
+### 5) J7 Observability
+### Notes:
+### - Run locally with: dotnet run --project sobee_API/sobee_API
+### - Logs appear in the console as JSON (Serilog)
+### - Responses should include X-Correlation-Id
+
+### 5.1 Liveness (no DB dependency)
+GET {{baseUrl}}/health/live
+Accept: application/json
+
+### 5.2 Readiness (checks DB connectivity)
+GET {{baseUrl}}/health/ready
+Accept: application/json
+
+### 5.3 Metrics (Prometheus scrape)
+GET {{baseUrl}}/metrics
+Accept: text/plain
+
+### 5.4 Normal API call (confirm X-Correlation-Id + request logging)
+GET {{baseUrl}}/api/home/ping
+Accept: application/json
