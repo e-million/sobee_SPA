@@ -10,6 +10,27 @@ GET {{baseUrl}}/api/home/ping
 Accept: application/json
 
 ### ============================================================
+### J7 Observability
+### Notes:
+### - Run locally: dotnet run --project sobee_API/sobee_API
+### - Logs: structured JSON output is written to the console.
+### - Expect X-Correlation-Id response header on requests.
+GET {{baseUrl}}/health/live
+Accept: application/json
+
+###
+GET {{baseUrl}}/health/ready
+Accept: application/json
+
+###
+GET {{baseUrl}}/metrics
+Accept: text/plain
+
+### Normal API call to observe correlation id + request logging
+GET {{baseUrl}}/api/home/ping
+Accept: application/json
+
+### ============================================================
 ### 1) AuthPolicy rate limit test (10/min per IP for anonymous)
 ### Run this request ~11 times quickly (send repeatedly).
 ### EXPECT:
