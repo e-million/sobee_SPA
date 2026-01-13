@@ -281,20 +281,33 @@ namespace sobee_API
                     };
                 });
 
-                options.OnRejected = async (context, _) =>
+                options.OnRejected = async (context, cancellationToken) =>
                 {
                     var httpContext = context.HttpContext;
+
+                    // OnRejectedContext does not expose PolicyName in this target.
+                    // Since GlobalLimiter selects by path/method, compute it consistently here.
+                    var policy = ResolvePolicyName(httpContext);
+
                     rateLimitCounter.Add(
                         1,
-                        new KeyValuePair<string, object?>("policy", context.PolicyName ?? "global"),
+                        new KeyValuePair<string, object?>("policy", policy),
                         new KeyValuePair<string, object?>("method", httpContext.Request.Method));
+
                     if (httpContext.Response.HasStarted)
-                    {
                         return;
-                    }
 
                     httpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
                     httpContext.Response.ContentType = "application/json";
+
+                    // Optional (nice-to-have): emit Retry-After if available
+                    // (metadata presence depends on limiter implementation)
+                    if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+                    {
+                        var seconds = (int)Math.Ceiling(retryAfter.TotalSeconds);
+                        if (seconds > 0)
+                            httpContext.Response.Headers.RetryAfter = seconds.ToString();
+                    }
 
                     var payload = JsonSerializer.Serialize(new
                     {
@@ -302,8 +315,9 @@ namespace sobee_API
                         code = "RATE_LIMITED"
                     });
 
-                    await httpContext.Response.WriteAsync(payload);
+                    await httpContext.Response.WriteAsync(payload, cancellationToken);
                 };
+
             });
 
 
