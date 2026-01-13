@@ -1,255 +1,73 @@
-﻿@baseUrl = https://localhost:7058
-
-# Set these as needed
-@adminEmail = admin2@local.com
-@adminPassword = Admin123!
-@userEmail = million2@local.com
-@userPassword = Admin123!
-
-# Paste tokens after login
-@adminToken = CfDJ8FE_QEmxr_5Gl8E9uQQwwd354Kaef5lciLYHIJh4MxoOV_jvITOqtXgyWQ5DouPPNVMyywe7oD2kcScknAqaNfXVdJG2zAaaM0EDPlrKZaDyYX6w9hUENFbCbBIuWDa47udTltWS_tXslyBgSVhymL7KIQM07sirVu3cWRS-UTSIPZj4IRbfE53tO13tgnVeE6XDdlT63g9nbQKKm6-rkKQeui1A2K6MZ2JCMrUOIn6kmqzuTGr-LLpgS0MKNGCem3b_6kkYEWwpyGEOTGrWxv6othLXXnbbxhZHjzcF67ITel9rk45IOfXBO69yPY-5fKWxDCXdrJXnivrbFnA39uPmII8jEZsgMXFqLBIaMZ5Se6AjIi2m5ry0-9ktPzSkge_YFRHJJS4_D2oh-oVg_8rmkyzA2MA9t1HqU4qW4wESgOUTYbBJtRF7ROH8ylqTQGVxvijGQWfrKWiatqgpUYgCU1N8TSOSzvX6KbC0_FDN5rSQx-Mk8TW6rlGDoX7vIL-qRNDiiuPJTcTZ218uujIvvN1M87Ipsok6eV86YYveIKhr27mADtFrBjj_ROoqV2hNPFGukl0pgdCfO5EpPbQ6TVDGFwVFFhI28RWSI5zl-oTMWjj6sWD9DQwm0pGHFaxoigQE-sN3YaGO7dIoTuIwiMuT2YZB_62BxWVRpXCOCN20dNSy1U5U-Bfiy-zqyvsrAOcnwK5CpxjyAlXXmVNgpHV1lD_3AscyE_heUwR8QZMy8o_mKthfGsQG0elzBH33wtYnPrJNc89s7nmpA8rJYc8awFK41qzztv4152Fb
-@userToken = CfDJ8FE_QEmxr_5Gl8E9uQQwwd2Gt4yX5Rs8FWjS9dlVodgo4DDY9VvWAVvTBGDiqb8M8wGLIz4tsiRupsDYJYZv64mOSHDGv_conzH72poEJaLyFfb_xyDXTCrzmHlgi9rPQWoMCrgyLgZOtmVTK8Q6UjAVDTfsk7plnFppQHeQamifgWfBQYLFusBGwaydc74Bt7TcBpY96p7P8cCa1lZuZFdmfbVLpgh9PFOZnPzRo3W5hi-tZbiK-JmqlaKpIZe2-E2szAZ9m8TQMsZXmrBN3HaOOrHlHtzMHZivWj23ZEhIlS6sbvM0HY-JuHZXGUZKMgjWljzUwHTxLglawOOLbe5BL9te-a9rA6YxnGXuWlMk4iWGlNB0P_4p7tPDqYA2stmC25_VaSysKtNNONiXiLlO-Txh0U877bgL6aYrOBe-xcbwsKhIZB9BCvadY24OJkpSUQuKk1jy-drP0Gk4VBTUY0fjpn8759XnRT59xpGF6OntnlIPW_8E-wR27HmWJPOsjd__BNA3uS3Y7Zv539Icrvw1Yxz1ovOVnBruqTDXvu-EkyDGGEUo-5iW-R10YE0VE8AOColRdv7425w569e6lAyl0Bud6jahd-9lnX8jnMdBd7vj9-WXnxm7HClg7muJf2hpKiD1e5xghiBgmOJn5rsuvPQ64fe-TNYYrFDgZeraWisH6rguhpV6L8g-WBWwlAw6-6NGygIsSH9yuQA
-
-# For guest flows
-@sessionId = becfe4ab-6fa2-46a7-aec0-112e4e72b7ea
-@sessionSecret = /OjqZZmVdw/Kg2I2pf/fcvXLrrbL5tKkJR0BYJdYRgA=
-
-# Pick IDs based on your DB
-@productId = 1003
-@reviewId = 1001
+﻿# For VS "HTTP file" / Rest Client
+@baseUrl = https://localhost:7058
 
 ### ============================================================
-### 0) HEALTH / BASELINE
-### ============================================================
-
-### 0.1 Home ping (DTO response shape)
+### 0) Sanity check: correlation id + security headers exist
+### EXPECT:
+### - Response header includes X-Correlation-Id
+### - Response headers include X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy
 GET {{baseUrl}}/api/home/ping
 Accept: application/json
 
-
 ### ============================================================
-### 1) AUTH (Custom register + MapIdentityApi login)
-### NOTE: /api/auth/register is custom; /login is MapIdentityApi
-### ============================================================
-
-### 1.1 Register user (custom controller)
-POST {{baseUrl}}/api/auth/register
-Content-Type: application/json
-Accept: application/json
-
-{
-  "email": "bob4@local.com",
-  "password": "Admin123!",
-  "firstName": "Bob",
-  "lastName": "Bobertson",
-  "billingAddress": "123 Billing St",
-  "shippingAddress": "123 Shipping St"
-}
-
-### 1.2 Login (MapIdentityApi) - NOTE endpoint is /login (not /api/auth/login)
-### IMPORTANT: No @vars after JSON. Keep request body pure JSON.
+### 1) AuthPolicy rate limit test (10/min per IP for anonymous)
+### Run this request ~11 times quickly (send repeatedly).
+### EXPECT:
+### - First ~10: 200/400 depending on credentials
+### - Then: 429 with {"error":"Too many requests.","code":"RATE_LIMITED"}
 POST {{baseUrl}}/login
 Content-Type: application/json
 Accept: application/json
 
 {
-  "email": "{{userEmail}}",
-  "password": "{{userPassword}}"
+  "email": "million2@local.com",
+  "password": "Admin123!"
 }
 
-### 1.2a Rate limit smoke (repeat quickly ~12x to trigger 429)
-POST {{baseUrl}}/login
-Content-Type: application/json
-Accept: application/json
-
-{
-  "email": "{{userEmail}}",
-  "password": "{{userPassword}}"
-}
-
-### 1.3 Me (custom controller) - requires JWT
-GET {{baseUrl}}/api/me
-Accept: application/json
-Authorization: Bearer {{adminToken}}
-
-
 ### ============================================================
-### 2) PRODUCTS (DTO list + DTO detail)
-### ============================================================
-
-### 2.1 Products list (DTO response: { page,pageSize,totalCount,items })
+### 2) GlobalPolicy rate limit test (120/min per IP)
+### This is harder to hit manually. If you want to validate quickly,
+### repeatedly send this request many times in a short window.
 GET {{baseUrl}}/api/products
 Accept: application/json
 
-### 2.2 Product detail (DTO response includes images list)
-GET {{baseUrl}}/api/products/{{productId}}
-Accept: application/json
-
-
 ### ============================================================
-### 3) ADMIN (DTO responses) - requires Admin JWT
-### ============================================================
-
-### 3.1 Admin ping
-GET {{baseUrl}}/api/admin/ping
-Accept: application/json
-Authorization: Bearer {{adminToken}}
-
-### 3.2 Admin summary
-GET {{baseUrl}}/api/admin/summary
-Accept: application/json
-Authorization: Bearer {{adminToken}}
-
-### 3.3 Orders per day (analytics list DTO)
-GET {{baseUrl}}/api/admin/orders-per-day
-Accept: application/json
-Authorization: Bearer {{adminToken}}
-
-### 3.4 Low stock (list DTO)
-GET {{baseUrl}}/api/admin/low-stock
-Accept: application/json
-Authorization: Bearer {{adminToken}}
-
-### 3.5 Top products (list DTO)
-GET {{baseUrl}}/api/admin/top-products
-Accept: application/json
-Authorization: Bearer {{adminToken}}
-
-
-### ============================================================
-### 4) FAVORITES (DTO + 201 Created behavior)
-### NOTE: requires USER JWT
-### ============================================================
-
-### 4.1 Get my favorites (DTO response)
-GET {{baseUrl}}/api/favorites
-Accept: application/json
-Authorization: Bearer {{userToken}}
-
-### 4.2 Add favorite (should be 201 Created)
-POST {{baseUrl}}/api/favorites/{{productId}}
-Accept: application/json
-Authorization: Bearer {{userToken}}
-
-### 4.3 Remove favorite (DTO response)
-DELETE {{baseUrl}}/api/favorites/{{productId}}
-Accept: application/json
-Authorization: Bearer {{userToken}}
-
-
-### ============================================================
-### 5) REVIEWS (DTO responses + 201 Created on create/reply)
-### ============================================================
-
-### 5.1 Get reviews by product (DTO: { productId,count,reviews })
-GET {{baseUrl}}/api/reviews/product/{{productId}}
-Accept: application/json
-
-### 5.2 Create review (should be 201 Created)
-POST {{baseUrl}}/api/reviews/product/{{productId}}
-Content-Type: application/json
-Accept: application/json
-Authorization: Bearer {{userToken}}
-
-{
-  "rating": 5,
-  "reviewText": "Great product - HTTP smoke test."
-}
-
-### 5.3 Reply to review (should be 201 Created)
-### Set @reviewId from the create review response if needed
-POST {{baseUrl}}/api/reviews/{{reviewId}}/reply
-Content-Type: application/json
-Accept: application/json
-Authorization: Bearer {{userToken}}
-
-{
-  "content": "Reply test."
-}
-
-### 5.4 Delete review (DTO response)
-DELETE {{baseUrl}}/api/reviews/{{reviewId}}
-Accept: application/json
-Authorization: Bearer {{userToken}}
-
-
-### ============================================================
-### 6) CART PROMO SUCCESS DTOs (guest flow)
-### Goal: confirm no anonymous success payloads remain for promo apply/remove
-### ============================================================
-
-### 6.0 Cart write smoke (expect normal 200/201; no rate limit under normal use)
-POST {{baseUrl}}/api/cart/items
-Content-Type: application/json
-Accept: application/json
-
-{
-  "productId": {{productId}},
-  "quantity": 1
-}
-
-### 6.1 Add item to cart as guest (expect X-Session-Id / X-Session-Secret in response headers)
-POST {{baseUrl}}/api/cart/items
-Content-Type: application/json
-Accept: application/json
-
-{
-  "productId": {{productId}},
-  "quantity": 1
-}
-
-### 6.2 Get cart as guest (DTO cart response)
+### 3) WritePolicy rate limit test (30/min per IP for guest)
+### Prereq: you need a guest session id/secret from your cart endpoint.
+### Step 3.1: get cart to receive X-Session-Id and X-Session-Secret headers.
 GET {{baseUrl}}/api/cart
 Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
 
-### 6.3 Apply promo (expect PromoAppliedResponseDto: { message, promoCode, discountPercentage })
-POST {{baseUrl}}/api/cart/promo/apply
+### Step 3.2: paste these after running 3.1
+@sessionId = e0b4be3f-c93e-4308-90bc-87334144e977
+@sessionSecret = 9uYJyBaMKKFdso7NeChkEIsz3FD6zExSLfn+FEBUCLo=
+
+### Step 3.3: run this POST ~31 times quickly
+### EXPECT:
+### - First ~30: 200/409 depending on stock
+### - Then: 429 RATE_LIMITED
+POST {{baseUrl}}/api/cart/items
 Content-Type: application/json
 Accept: application/json
 X-Session-Id: {{sessionId}}
 X-Session-Secret: {{sessionSecret}}
 
 {
-  "promoCode": "SUMMER10"
+  "productId": 1003,
+  "quantity": 1
 }
 
-### 6.4 Remove promo (expect MessageResponseDto: { message })
-DELETE {{baseUrl}}/api/cart/promo
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-
 ### ============================================================
-### 7) AUTH TEST (DTO responses) - requires JWT
-### ============================================================
+### 4) Verify rate limit partitioning by user (authenticated traffic gets its own bucket)
+### If you have a user token, set it here and spam as authenticated.
+@userToken = CfDJ8FE_QEmxr_5Gl8E9uQQwwd1_IADvFEzMRI4plMSIRCTrQzc8rKw0Y5VVnlWfd26JNtNlZBtaLsvLWmzRR23HyqXd9tApu_N7xF4JwsSelzgfPF2rwojN59u_IH9R1_YqgoD-9jJb91gweLW818YzACwiLs6AuJ2y0Lm-68bmNi1UtU2tLB2IajEu-J9f_hqW5cELb3TxyG-JKdVrWDrP3FiamvZUUgBdp0hAp0vB9O0QiX52qZRkxYMkaITh29A2aQuZkqa0T81OFILMU-YdK6ZwJ282VTUBv6bWRrrJIU1RY3KHsmGZ2dXc797v6KRAE52tIHNHN8gmEP9bK4WjUjConTce8phpYAXxPNcOCy5fPaTdVHm2O74HFZ6RgUGlKAhbdN41zTvodTC81uR62NW83NuYKG6phP-PdVMVejJIiUVJya7T36NpQ6g3APOdGcKtHgzF3_uhSYZUdH9LMCVdWFlt9-OVXehx0VfxSuje8U1fo2X4hr3h2bsGH0d4si0S18xa8gogQhgDCcb9Loki3GBbH5nx-_zM2GbBg8ZCHF7Ab6lcGaaRLSzT3E6CSmJ1BNrGlxM-plu9Jn9euq2MchxRQIlLz6K_EYrRoTZLrRnZmN0kAJQBpvkiawiB3DkHkMwnZ2TmV3Y7YmJ_pdLy9Vd-iVmm0J7hRzxieEvtiMaepj40dZFsDOKoOQ2ynSRQzuHziB03nue4PjVthww
 
-### 7.1 AuthTest me (DTO response)
-GET {{baseUrl}}/api/authtest/me
+POST {{baseUrl}}/api/cart/items
+Content-Type: application/json
 Accept: application/json
 Authorization: Bearer {{userToken}}
 
-### 7.2 AuthTest admin-only (DTO response; requires admin role)
-GET {{baseUrl}}/api/authtest/admin-only
-Accept: application/json
-Authorization: Bearer {{adminToken}}
-
-
-### ============================================================
-### 8) JSON CASING / CONTRACT QUICK CHECKS
-### These are not special endpoints; they remind you what to verify:
-### - keys are camelCase
-### - field names match your previous contract
-### ============================================================
-
-### 8.1 Re-run product detail and confirm keys like: inStock, stockAmount, images[0].url, etc.
-GET {{baseUrl}}/api/products/{{productId}}
-Accept: application/json
-Authorization: Bearer {{adminToken}}
-
-### 8.2 Re-run admin summary and confirm keys like: totalOrders, totalRevenue, totalDiscounts, averageOrderValue
-GET {{baseUrl}}/api/admin/summary
-Accept: application/json
-Authorization: Bearer {{adminToken}}
+{
+  "productId": 1003,
+  "quantity": 1
+}

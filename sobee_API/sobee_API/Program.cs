@@ -203,7 +203,7 @@ namespace sobee_API
                         ResolvePartitionKey(context),
                         _ => CreateGlobalLimiterOptions()));
 
-                options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext>(context =>
+                options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
                 {
                     return ResolvePolicyName(context) switch
                     {
