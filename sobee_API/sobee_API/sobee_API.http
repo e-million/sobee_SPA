@@ -57,6 +57,16 @@ Accept: application/json
   "password": "{{userPassword}}"
 }
 
+### 1.2a Rate limit smoke (repeat quickly ~12x to trigger 429)
+POST {{baseUrl}}/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{userEmail}}",
+  "password": "{{userPassword}}"
+}
+
 ### 1.3 Me (custom controller) - requires JWT
 GET {{baseUrl}}/api/me
 Accept: application/json
@@ -167,6 +177,16 @@ Authorization: Bearer {{userToken}}
 ### 6) CART PROMO SUCCESS DTOs (guest flow)
 ### Goal: confirm no anonymous success payloads remain for promo apply/remove
 ### ============================================================
+
+### 6.0 Cart write smoke (expect normal 200/201; no rate limit under normal use)
+POST {{baseUrl}}/api/cart/items
+Content-Type: application/json
+Accept: application/json
+
+{
+  "productId": {{productId}},
+  "quantity": 1
+}
 
 ### 6.1 Add item to cart as guest (expect X-Session-Id / X-Session-Secret in response headers)
 POST {{baseUrl}}/api/cart/items
