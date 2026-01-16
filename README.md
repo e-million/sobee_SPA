@@ -73,6 +73,49 @@ Key backend folders:
 5. **Base URLs (dev)**
    - `https://localhost:7058` (HTTPS) or `http://localhost:5029` (HTTP).【F:sobee_API/sobee_API/Properties/launchSettings.json†L11-L27】
 
+## 4.1) Running the API + SQL Server with Docker
+This repo ships a `docker-compose.yml` that runs SQL Server and the ASP.NET Core API together. The API still supports the local `https://localhost:7058` workflow while running in Docker.
+
+### One-time HTTPS dev cert setup (host)
+```bash
+mkdir -p .aspnet/https
+dotnet dev-certs https -ep .aspnet/https/aspnetapp.pfx -p "<your-password>"
+dotnet dev-certs https --trust
+```
+
+### Configure environment variables
+Create a local `.env` file from the example (do **not** commit it):
+```bash
+cp .env.example .env
+```
+Set values for:
+- `SA_PASSWORD`
+- `HTTPS_CERT_PASSWORD`
+- `SOBEE_DB_NAME` (optional; defaults to `sobee`)
+
+### Build + run containers
+```bash
+docker compose build
+docker compose up -d
+```
+
+### Verify API
+```bash
+curl -k https://localhost:7058/api/home/ping
+curl -k https://localhost:7058/health/ready
+```
+
+### Database migrations (manual, if needed)
+If the database is empty, apply EF Core migrations from your host machine:
+```bash
+dotnet ef database update --project sobee_API/Sobee.Domain --startup-project sobee_API/sobee_API
+```
+
+### Troubleshooting
+- **SQL not ready**: wait for the SQL Server container healthcheck to pass, then retry the API.
+- **TLS/cert errors**: ensure `.aspnet/https/aspnetapp.pfx` exists and that `HTTPS_CERT_PASSWORD` matches.
+- **Port conflicts**: stop any local app using `7058`, `5029`, or `1433`.
+
 ## 5) Authentication Model
 ### 5.1 Identity endpoints (Minimal APIs)
 `MapIdentityApi<ApplicationUser>()` exposes the ASP.NET Core Identity minimal API endpoints (rooted at `/`) including:
