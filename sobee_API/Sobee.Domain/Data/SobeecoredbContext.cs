@@ -113,8 +113,8 @@ public partial class SobeecoredbContext : DbContext {
 				 .HasDatabaseName("IX_TCartItems_cart_product");
         });
 
-		modelBuilder.Entity<GuestSession>(entity => {
-			entity.HasKey(e => e.SessionId).HasName("GuestSessions_PK");
+			modelBuilder.Entity<GuestSession>(entity => {
+				entity.HasKey(e => e.SessionId).HasName("GuestSessions_PK");
 
 			entity.ToTable("GuestSessions");
 
@@ -126,18 +126,15 @@ public partial class SobeecoredbContext : DbContext {
 				.HasMaxLength(200)
 				.HasColumnName("secret");
 
-			entity.Property(e => e.CreatedAtUtc)
-				.HasColumnType("datetime2")
-				.HasColumnName("created_at_utc");
+				entity.Property(e => e.CreatedAtUtc)
+					.HasColumnName("created_at_utc");
 
-			entity.Property(e => e.LastSeenAtUtc)
-				.HasColumnType("datetime2")
-				.HasColumnName("last_seen_at_utc");
+				entity.Property(e => e.LastSeenAtUtc)
+					.HasColumnName("last_seen_at_utc");
 
-			entity.Property(e => e.ExpiresAtUtc)
-				.HasColumnType("datetime2")
-				.HasColumnName("expires_at_utc");
-		});
+				entity.Property(e => e.ExpiresAtUtc)
+					.HasColumnName("expires_at_utc");
+			});
 		
 
 		modelBuilder.Entity<TdrinkCategory>(entity => {
@@ -281,8 +278,8 @@ public partial class SobeecoredbContext : DbContext {
 
         });
 
-		modelBuilder.Entity<TorderItem>(entity => {
-			entity.HasKey(e => e.IntOrderItemId).HasName("TOrderItems_PK");
+			modelBuilder.Entity<TorderItem>(entity => {
+				entity.HasKey(e => e.IntOrderItemId).HasName("TOrderItems_PK");
 
 			entity.ToTable("TOrderItems");
 
@@ -290,9 +287,8 @@ public partial class SobeecoredbContext : DbContext {
 			entity.Property(e => e.IntOrderId).HasColumnName("intOrderID");
 			entity.Property(e => e.IntProductId).HasColumnName("intProductID");
 			entity.Property(e => e.IntQuantity).HasColumnName("intQuantity");
-			entity.Property(e => e.MonPricePerUnit)
-				.HasColumnType("money")
-				.HasColumnName("monPricePerUnit");
+				entity.Property(e => e.MonPricePerUnit)
+					.HasColumnName("monPricePerUnit");
 
 			entity.HasOne(d => d.IntOrder).WithMany(p => p.TorderItems)
 				.HasForeignKey(d => d.IntOrderId)
@@ -492,9 +488,8 @@ public partial class SobeecoredbContext : DbContext {
 				.HasMaxLength(450)
 				.HasColumnName("user_id");
 
-			entity.Property(e => e.content)
-				.HasColumnName("content")
-				.HasColumnType("nvarchar(max)");
+				entity.Property(e => e.content)
+					.HasColumnName("content");
 
 			entity.Property(e => e.created_at)
 				.HasColumnType("datetime")
@@ -587,8 +582,34 @@ public partial class SobeecoredbContext : DbContext {
 
 
 
-		OnModelCreatingPartial(modelBuilder);
-	}
+			if (IsSqlServerProvider())
+			{
+				modelBuilder.Entity<GuestSession>()
+					.Property(e => e.CreatedAtUtc)
+					.HasColumnType("datetime2");
 
-	partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
-}
+				modelBuilder.Entity<GuestSession>()
+					.Property(e => e.LastSeenAtUtc)
+					.HasColumnType("datetime2");
+
+				modelBuilder.Entity<GuestSession>()
+					.Property(e => e.ExpiresAtUtc)
+					.HasColumnType("datetime2");
+
+				modelBuilder.Entity<TorderItem>()
+					.Property(e => e.MonPricePerUnit)
+					.HasColumnType("money");
+
+				modelBuilder.Entity<TReviewReplies>()
+					.Property(e => e.content)
+					.HasColumnType("nvarchar(max)");
+			}
+
+			OnModelCreatingPartial(modelBuilder);
+		}
+
+		private bool IsSqlServerProvider()
+			=> Database.ProviderName?.Contains("SqlServer", StringComparison.OrdinalIgnoreCase) ?? false;
+
+		partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
+	}

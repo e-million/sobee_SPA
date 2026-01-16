@@ -2,17 +2,31 @@
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.OpenApi.Models;
+using OpenTelemetry.Metrics;
+using Serilog;
+using Serilog.Context;
+using Serilog.Events;
+using Serilog.Formatting.Compact;
 using Sobee.Domain.Data;
 using Sobee.Domain.Identity;
 using sobee_API.DTOs.Common;
+using sobee_API.Middleware;
 using sobee_API.Services;
+using System.Diagnostics.Metrics;
 using System.Linq;
+using System.Security.Claims;
 using System.Text.Json;
+using System.Threading.RateLimiting;
 
 namespace sobee_API
 {
@@ -21,6 +35,16 @@ namespace sobee_API
         public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+
+            builder.Host.UseSerilog((context, services, configuration) =>
+            {
+                configuration
+                    .ReadFrom.Configuration(context.Configuration)
+                    .ReadFrom.Services(services)
+                    .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
+                    .Enrich.FromLogContext()
+                    .WriteTo.Console(new RenderedCompactJsonFormatter());
+            });
 
             // ==========================================
             // 0. CORS (allow Angular dev client)
@@ -78,8 +102,22 @@ namespace sobee_API
                 options.UseSqlServer(connectionString);
             });
 
+            builder.Services.AddHealthChecks()
+                .AddCheck("self", () => HealthCheckResult.Healthy(), tags: new[] { "live" })
+                .AddDbContextCheck<ApplicationDbContext>(
+                    name: "database_identity",
+                    failureStatus: HealthStatus.Unhealthy,
+                    tags: new[] { "ready" })
+                .AddDbContextCheck<SobeecoredbContext>(
+                    name: "database_core",
+                    failureStatus: HealthStatus.Unhealthy,
+                    tags: new[] { "ready" });
+
             builder.Services.AddScoped<GuestSessionService>();
             builder.Services.AddScoped<RequestIdentityResolver>();
+
+            var rateLimitMeter = new Meter("sobee_API.RateLimiting");
+            var rateLimitCounter = rateLimitMeter.CreateCounter<long>("rate_limit_rejections");
 
 
             // ==========================================
@@ -116,6 +154,171 @@ namespace sobee_API
                 .AddBearerToken(IdentityConstants.BearerScheme);
 
             builder.Services.AddAuthorization();
+
+            static string ResolvePartitionKey(HttpContext context)
+            {
+                var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                    ?? context.User.FindFirstValue("sub");
+
+                if (!string.IsNullOrWhiteSpace(userId))
+                {
+                    return $"user:{userId}";
+                }
+
+                var remoteIp = context.Connection.RemoteIpAddress?.ToString();
+                return string.IsNullOrWhiteSpace(remoteIp) ? "ip:unknown" : $"ip:{remoteIp}";
+            }
+
+            static FixedWindowRateLimiterOptions CreateAuthLimiterOptions()
+                => new()
+                {
+                    PermitLimit = 10,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                    AutoReplenishment = true
+                };
+
+            static FixedWindowRateLimiterOptions CreateWriteLimiterOptions()
+                => new()
+                {
+                    PermitLimit = 30,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                    AutoReplenishment = true
+                };
+
+            static FixedWindowRateLimiterOptions CreateGlobalLimiterOptions()
+                => new()
+                {
+                    PermitLimit = 120,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                    AutoReplenishment = true
+                };
+
+            static bool IsWriteMethod(string method)
+                => HttpMethods.IsPost(method) || HttpMethods.IsPut(method) || HttpMethods.IsPatch(method) || HttpMethods.IsDelete(method);
+
+            static string ResolvePrincipalKey(HttpContext context)
+            {
+                var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                    ?? context.User.FindFirstValue("sub");
+
+                if (!string.IsNullOrWhiteSpace(userId))
+                {
+                    return $"user:{userId}";
+                }
+
+                var userName = context.User.Identity?.Name;
+                if (!string.IsNullOrWhiteSpace(userName))
+                {
+                    return $"user:{userName}";
+                }
+
+                if (context.Request.Headers.TryGetValue(GuestSessionService.SessionIdHeaderName, out var sessionIdValues))
+                {
+                    var sessionId = sessionIdValues.ToString();
+                    if (!string.IsNullOrWhiteSpace(sessionId))
+                    {
+                        return $"guest:{sessionId}";
+                    }
+                }
+
+                var remoteIp = context.Connection.RemoteIpAddress?.ToString();
+                return string.IsNullOrWhiteSpace(remoteIp) ? "ip:unknown" : $"ip:{remoteIp}";
+            }
+
+            static string ResolvePolicyName(HttpContext context)
+            {
+                var path = context.Request.Path;
+                if (path.StartsWithSegments("/api/auth") || path.StartsWithSegments("/login"))
+                {
+                    return "AuthPolicy";
+                }
+
+                if ((path.StartsWithSegments("/api/cart") || path.StartsWithSegments("/api/orders"))
+                    && IsWriteMethod(context.Request.Method))
+                {
+                    return "WritePolicy";
+                }
+
+                return "GlobalPolicy";
+            }
+
+            builder.Services.AddRateLimiter(options =>
+            {
+                options.AddPolicy("AuthPolicy", context =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        ResolvePartitionKey(context),
+                        _ => CreateAuthLimiterOptions()));
+
+                options.AddPolicy("WritePolicy", context =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        ResolvePartitionKey(context),
+                        _ => CreateWriteLimiterOptions()));
+
+                options.AddPolicy("GlobalPolicy", context =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        ResolvePartitionKey(context),
+                        _ => CreateGlobalLimiterOptions()));
+
+                options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+                {
+                    return ResolvePolicyName(context) switch
+                    {
+                        "AuthPolicy" => RateLimitPartition.GetFixedWindowLimiter(
+                            ResolvePartitionKey(context),
+                            _ => CreateAuthLimiterOptions()),
+                        "WritePolicy" => RateLimitPartition.GetFixedWindowLimiter(
+                            ResolvePartitionKey(context),
+                            _ => CreateWriteLimiterOptions()),
+                        _ => RateLimitPartition.GetFixedWindowLimiter(
+                            ResolvePartitionKey(context),
+                            _ => CreateGlobalLimiterOptions())
+                    };
+                });
+
+                options.OnRejected = async (context, cancellationToken) =>
+                {
+                    var httpContext = context.HttpContext;
+
+                    // OnRejectedContext does not expose PolicyName in this target.
+                    // Since GlobalLimiter selects by path/method, compute it consistently here.
+                    var policy = ResolvePolicyName(httpContext);
+
+                    rateLimitCounter.Add(
+                        1,
+                        new KeyValuePair<string, object?>("policy", policy),
+                        new KeyValuePair<string, object?>("method", httpContext.Request.Method));
+
+                    if (httpContext.Response.HasStarted)
+                        return;
+
+                    httpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+                    httpContext.Response.ContentType = "application/json";
+
+                    // Optional (nice-to-have): emit Retry-After if available
+                    // (metadata presence depends on limiter implementation)
+                    if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+                    {
+                        var seconds = (int)Math.Ceiling(retryAfter.TotalSeconds);
+                        if (seconds > 0)
+                            httpContext.Response.Headers.RetryAfter = seconds.ToString();
+                    }
+
+                    var payload = JsonSerializer.Serialize(new
+                    {
+                        error = "Too many requests.",
+                        code = "RATE_LIMITED"
+                    });
+
+                    await httpContext.Response.WriteAsync(payload, cancellationToken);
+                };
+
+            });
 
 
             // ==========================================
@@ -218,6 +421,14 @@ namespace sobee_API
                 };
             }); builder.Services.AddEndpointsApiExplorer();
 
+            builder.Services.AddOpenTelemetry()
+                .WithMetrics(metrics =>
+                {
+                    metrics.AddAspNetCoreInstrumentation();
+                    metrics.AddMeter(rateLimitMeter.Name);
+                    metrics.AddPrometheusExporter();
+                });
+
             // Customize Swagger to support JWT Bearer Authentication
             builder.Services.AddSwaggerGen(c =>
             {
@@ -264,14 +475,116 @@ namespace sobee_API
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
+                app.UseDeveloperExceptionPage();
                 app.UseSwagger();
                 app.UseSwaggerUI();
             }
+            else
+            {
+                app.UseExceptionHandler(handler =>
+                {
+                    handler.Run(async context =>
+                    {
+                        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+                        var feature = context.Features.Get<IExceptionHandlerFeature>();
+                        var correlationId = context.Items.TryGetValue(CorrelationIdMiddleware.ItemKey, out var value)
+                            ? value?.ToString()
+                            : null;
+
+                        if (feature?.Error != null)
+                        {
+                            logger.LogError(
+                                feature.Error,
+                                "Unhandled exception {ExceptionType}: {Message}. CorrelationId: {CorrelationId}",
+                                feature.Error.GetType().FullName,
+                                feature.Error.Message,
+                                correlationId ?? "unknown");
+                        }
+
+                        if (context.Response.HasStarted)
+                        {
+                            return;
+                        }
+
+                        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                        context.Response.ContentType = "application/json";
+
+                        var payload = JsonSerializer.Serialize(new
+                        {
+                            error = "An unexpected error occurred.",
+                            code = "SERVER_ERROR"
+                        });
+
+                        await context.Response.WriteAsync(payload);
+                    });
+                });
+            }
+
+            app.UseMiddleware<CorrelationIdMiddleware>();
+            app.UseMiddleware<SecurityHeadersMiddleware>();
+            app.Use(async (context, next) =>
+            {
+                var correlationId = context.Items.TryGetValue(CorrelationIdMiddleware.ItemKey, out var value)
+                    ? value?.ToString()
+                    : null;
+
+                using (LogContext.PushProperty("CorrelationId", correlationId ?? context.TraceIdentifier))
+                {
+                    await next();
+                }
+            });
 
             app.UseHttpsRedirection();
 
+            app.UseRouting();
+
+            app.UseSerilogRequestLogging(options =>
+            {
+                options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
+                options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+                {
+                    var correlationId = httpContext.Items.TryGetValue(CorrelationIdMiddleware.ItemKey, out var value)
+                        ? value?.ToString()
+                        : null;
+
+                    diagnosticContext.Set("CorrelationId", correlationId ?? httpContext.TraceIdentifier);
+                    diagnosticContext.Set("Principal", ResolvePrincipalKey(httpContext));
+                    diagnosticContext.Set("ClientIp", httpContext.Connection.RemoteIpAddress?.ToString());
+
+                    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                        ?? httpContext.User.FindFirstValue("sub");
+                    if (!string.IsNullOrWhiteSpace(userId))
+                    {
+                        diagnosticContext.Set("UserId", userId);
+                    }
+
+                    var userName = httpContext.User.Identity?.Name;
+                    if (!string.IsNullOrWhiteSpace(userName))
+                    {
+                        diagnosticContext.Set("UserName", userName);
+                    }
+
+                    if (httpContext.Request.Headers.TryGetValue(GuestSessionService.SessionIdHeaderName, out var sessionIdValues))
+                    {
+                        var sessionId = sessionIdValues.ToString();
+                        if (!string.IsNullOrWhiteSpace(sessionId))
+                        {
+                            diagnosticContext.Set("GuestSessionId", sessionId);
+                        }
+                    }
+
+                    var endpoint = httpContext.GetEndpoint();
+                    var routePattern = endpoint?.Metadata.GetMetadata<RouteEndpoint>()?.RoutePattern.RawText;
+                    if (!string.IsNullOrWhiteSpace(routePattern))
+                    {
+                        diagnosticContext.Set("RouteTemplate", routePattern);
+                    }
+                };
+            });
+
             app.UseCors("AngularClient");
 
+            app.UseRateLimiter();
 
             //  IMPORTANT: These must be in this order (AuthN before AuthZ)
             app.UseAuthentication(); // "Who are you?"
@@ -284,6 +597,24 @@ namespace sobee_API
             // Expose the Identity endpoints (/register, /login, /refresh)
             app.MapIdentityApi<ApplicationUser>();
 
+            static Task WriteHealthCheckResponse(HttpContext context, HealthReport report)
+            {
+                context.Response.ContentType = "application/json";
+
+                var payload = new
+                {
+                    status = report.Status.ToString(),
+                    checks = report.Entries.Select(entry => new
+                    {
+                        name = entry.Key,
+                        status = entry.Value.Status.ToString()
+                    }),
+                    timestampUtc = DateTime.UtcNow
+                };
+
+                return context.Response.WriteAsync(JsonSerializer.Serialize(payload));
+            }
+
             // A test endpoint to verify your token is working
             app.MapGet("/api/secure-test", (System.Security.Claims.ClaimsPrincipal user) =>
             {
@@ -293,6 +624,20 @@ namespace sobee_API
 
             // Map standard controllers
             app.MapControllers();
+
+            app.MapHealthChecks("/health/live", new HealthCheckOptions
+            {
+                Predicate = check => check.Tags.Contains("live"),
+                ResponseWriter = WriteHealthCheckResponse
+            }).DisableRateLimiting();
+
+            app.MapHealthChecks("/health/ready", new HealthCheckOptions
+            {
+                Predicate = check => check.Tags.Contains("ready"),
+                ResponseWriter = WriteHealthCheckResponse
+            }).DisableRateLimiting();
+
+            app.MapPrometheusScrapingEndpoint("/metrics").DisableRateLimiting();
 
             app.Run();
         }

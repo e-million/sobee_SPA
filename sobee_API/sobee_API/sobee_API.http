@@ -1,23 +1,72 @@
-﻿@baseUrl = https://localhost:7058
+﻿# For VS "HTTP file" / Rest Client
+@baseUrl = https://localhost:7058
 
 ### ============================================================
-### SETUP (assumes you already have a guest session)
-### ============================================================
-
-@sessionId = da8509a7-0bac-4a34-99e4-fdf0aeb10c3a
-@sessionSecret = N+DdP2+uZFSuUTsjQPbPRubwQx1QgzngmGpkU9SdqUA=
-
-
-### ============================================================
-### 1) BODY VALIDATION (should map to body / field name)
-### ============================================================
-
-### 1.1 Invalid quantity (Quantity must be > 0)
+### 0) Sanity check: correlation id + security headers exist
 ### EXPECT:
-### 400
-### error: "Validation failed."
-### code: "VALIDATION_ERROR"
-### details.errors.quantity
+### - Response header includes X-Correlation-Id
+### - Response headers include X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy
+GET {{baseUrl}}/api/home/ping
+Accept: application/json
+
+### ============================================================
+### J7 Observability
+### Notes:
+### - Run locally: dotnet run --project sobee_API/sobee_API
+### - Logs: structured JSON output is written to the console.
+### - Expect X-Correlation-Id response header on requests.
+GET {{baseUrl}}/health/live
+Accept: application/json
+
+###
+GET {{baseUrl}}/health/ready
+Accept: application/json
+
+###
+GET {{baseUrl}}/metrics
+Accept: text/plain
+
+### Normal API call to observe correlation id + request logging
+GET {{baseUrl}}/api/home/ping
+Accept: application/json
+
+### ============================================================
+### 1) AuthPolicy rate limit test (10/min per IP for anonymous)
+### Run this request ~11 times quickly (send repeatedly).
+### EXPECT:
+### - First ~10: 200/400 depending on credentials
+### - Then: 429 with {"error":"Too many requests.","code":"RATE_LIMITED"}
+POST {{baseUrl}}/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "million2@local.com",
+  "password": "Admin123!"
+}
+
+### ============================================================
+### 2) GlobalPolicy rate limit test (120/min per IP)
+### This is harder to hit manually. If you want to validate quickly,
+### repeatedly send this request many times in a short window.
+GET {{baseUrl}}/api/products
+Accept: application/json
+
+### ============================================================
+### 3) WritePolicy rate limit test (30/min per IP for guest)
+### Prereq: you need a guest session id/secret from your cart endpoint.
+### Step 3.1: get cart to receive X-Session-Id and X-Session-Secret headers.
+GET {{baseUrl}}/api/cart
+Accept: application/json
+
+### Step 3.2: paste these after running 3.1
+@sessionId = e0b4be3f-c93e-4308-90bc-87334144e977
+@sessionSecret = 9uYJyBaMKKFdso7NeChkEIsz3FD6zExSLfn+FEBUCLo=
+
+### Step 3.3: run this POST ~31 times quickly
+### EXPECT:
+### - First ~30: 200/409 depending on stock
+### - Then: 429 RATE_LIMITED
 POST {{baseUrl}}/api/cart/items
 Content-Type: application/json
 Accept: application/json
@@ -26,73 +75,20 @@ X-Session-Secret: {{sessionSecret}}
 
 {
   "productId": 1003,
-  "quantity": 0
-}
-
-
-### ============================================================
-### 2) ROUTE PARAM BINDING ERROR (MUST NOT MAP TO body)
-### ============================================================
-
-### 2.1 Route binding error (int overflow) -> should be 400, NOT 404
-PUT {{baseUrl}}/api/cart/items/999999999999999999999
-Content-Type: application/json
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-{
   "quantity": 1
 }
 
-
-
 ### ============================================================
-### 3) QUERY PARAM VALIDATION (MUST NOT MAP TO body)
-### ============================================================
+### 4) Verify rate limit partitioning by user (authenticated traffic gets its own bucket)
+### If you have a user token, set it here and spam as authenticated.
+@userToken = CfDJ8FE_QEmxr_5Gl8E9uQQwwd1_IADvFEzMRI4plMSIRCTrQzc8rKw0Y5VVnlWfd26JNtNlZBtaLsvLWmzRR23HyqXd9tApu_N7xF4JwsSelzgfPF2rwojN59u_IH9R1_YqgoD-9jJb91gweLW818YzACwiLs6AuJ2y0Lm-68bmNi1UtU2tLB2IajEu-J9f_hqW5cELb3TxyG-JKdVrWDrP3FiamvZUUgBdp0hAp0vB9O0QiX52qZRkxYMkaITh29A2aQuZkqa0T81OFILMU-YdK6ZwJ282VTUBv6bWRrrJIU1RY3KHsmGZ2dXc797v6KRAE52tIHNHN8gmEP9bK4WjUjConTce8phpYAXxPNcOCy5fPaTdVHm2O74HFZ6RgUGlKAhbdN41zTvodTC81uR62NW83NuYKG6phP-PdVMVejJIiUVJya7T36NpQ6g3APOdGcKtHgzF3_uhSYZUdH9LMCVdWFlt9-OVXehx0VfxSuje8U1fo2X4hr3h2bsGH0d4si0S18xa8gogQhgDCcb9Loki3GBbH5nx-_zM2GbBg8ZCHF7Ab6lcGaaRLSzT3E6CSmJ1BNrGlxM-plu9Jn9euq2MchxRQIlLz6K_EYrRoTZLrRnZmN0kAJQBpvkiawiB3DkHkMwnZ2TmV3Y7YmJ_pdLy9Vd-iVmm0J7hRzxieEvtiMaepj40dZFsDOKoOQ2ynSRQzuHziB03nue4PjVthww
 
-### 3.1 Invalid query param (page expects int)
-### EXPECT:
-### 400
-### details.errors.page
-GET {{baseUrl}}/api/products?page=abc&pageSize=10
-Accept: application/json
-
-
-### ============================================================
-### 4) BINDER ERROR (INVALID JSON → body)
-### ============================================================
-
-### 4.1 Malformed JSON
-### EXPECT:
-### 400
-### details.errors.body
 POST {{baseUrl}}/api/cart/items
 Content-Type: application/json
 Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
+Authorization: Bearer {{userToken}}
 
 {
   "productId": 1003,
   "quantity": 1
-@@@
-
-
-### ============================================================
-### 5) ARRAY / INDEX NORMALIZATION
-### ============================================================
-
-### 5.1 Indexed path normalization
-### EXPECT:
-### details.errors.items[0].productId (camelCase preserved)
-POST {{baseUrl}}/api/orders/checkout
-Content-Type: application/json
-Accept: application/json
-X-Session-Id: {{sessionId}}
-X-Session-Secret: {{sessionSecret}}
-
-{
-  "shippingAddress": "",
-  "paymentMethodId": 0
 }
