@@ -12,6 +12,10 @@
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
+.env
+.aspnet/https/*.pfx
+.aspnet/https/*.key
+.aspnet/https/*.crt
 
 # Mono auto generated files
 mono_crash.*
