@@ -6,6 +6,7 @@ import { routes } from './app.routes';
 import { authInterceptor } from './core/interceptors/auth.interceptor';
 import { guestSessionInterceptor } from './core/interceptors/guest-session.interceptor';
 import { errorInterceptor } from './core/interceptors/error.interceptor';
+import { tokenRefreshInterceptor } from './core/interceptors/token-refresh.interceptor';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -15,6 +16,7 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(withInterceptors([
       guestSessionInterceptor,
       authInterceptor,
+      tokenRefreshInterceptor,
       errorInterceptor
     ]))
   ]

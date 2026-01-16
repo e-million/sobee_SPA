@@ -8,10 +8,12 @@ export interface Product {
   stockAmount?: number | null;
   inStock: boolean;
   primaryImageUrl: string | null;
+  imageUrl?: string | null;
+  category?: string | null;
+  rating?: number | null;
 }
 
 export interface ProductDetails extends Product {
   images?: string[];
-  category?: string;
   // Add other detailed fields as needed
 }

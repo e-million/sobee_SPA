@@ -74,4 +74,26 @@ export class AuthService {
   getToken(): string | null {
     return localStorage.getItem('accessToken');
   }
+
+  /**
+   * Get the current refresh token
+   */
+  getRefreshToken(): string | null {
+    return localStorage.getItem('refreshToken');
+  }
+
+  /**
+   * Refresh the access token using the refresh token
+   */
+  refreshToken(): Observable<AuthResponse> {
+    const refreshToken = this.getRefreshToken();
+
+    return this.http.post<AuthResponse>(`${this.apiUrl}/refresh`, { refreshToken }).pipe(
+      tap(response => {
+        localStorage.setItem('accessToken', response.accessToken);
+        localStorage.setItem('refreshToken', response.refreshToken);
+        this.isAuthenticated.set(true);
+      })
+    );
+  }
 }

@@ -6,7 +6,11 @@
       "Bash(npm install:*)",
       "Bash(npx ng generate:*)",
       "Bash(npm run build:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(npx tailwindcss init)",
+      "Bash(node:*)",
+      "Bash(dir:*)",
+      "Bash(npm uninstall:*)"
     ]
   }
 }

@@ -1,0 +1,144 @@
+<nav class="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-slate-200">
+  <div class="container-wide">
+    <div class="flex items-center justify-between h-16">
+      <!-- Logo -->
+      <a routerLink="/" class="flex items-center gap-2" (click)="closeMobileMenu()">
+        <div class="w-10 h-10 bg-gradient-to-br from-primary-400 to-accent-500 rounded-lg flex items-center justify-center">
+          <span class="text-white font-bold text-lg">S</span>
+        </div>
+        <span class="font-display font-bold text-xl text-slate-800">SoBee</span>
+      </a>
+
+      <!-- Desktop Navigation -->
+      <div class="hidden md:flex items-center gap-8">
+        <a routerLink="/" routerLinkActive="text-primary-600" [routerLinkActiveOptions]="{exact: true}"
+           class="text-slate-600 hover:text-primary-600 font-medium transition-colors">
+          Home
+        </a>
+        <a routerLink="/shop" routerLinkActive="text-primary-600"
+           class="text-slate-600 hover:text-primary-600 font-medium transition-colors">
+          Shop
+        </a>
+        <a routerLink="/about" routerLinkActive="text-primary-600"
+           class="text-slate-600 hover:text-primary-600 font-medium transition-colors">
+          Our Story
+        </a>
+        <a routerLink="/contact" routerLinkActive="text-primary-600"
+           class="text-slate-600 hover:text-primary-600 font-medium transition-colors">
+          Contact
+        </a>
+      </div>
+
+      <!-- Desktop Right Actions -->
+      <div class="hidden md:flex items-center gap-4">
+        <!-- Cart Button -->
+        <a routerLink="/cart" class="relative p-2 text-slate-600 hover:text-primary-600 transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+          @if (cartItemCount > 0) {
+            <span class="absolute -top-1 -right-1 w-5 h-5 bg-accent-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+              {{ cartItemCount }}
+            </span>
+          }
+        </a>
+
+        <!-- Auth Buttons -->
+        @if (authService.isAuthenticated()) {
+          <div class="flex items-center gap-3">
+            <a routerLink="/account" class="text-slate-600 hover:text-primary-600 font-medium transition-colors">
+              Account
+            </a>
+            <button (click)="logout()" class="btn-outline text-sm py-1.5 px-3">
+              Logout
+            </button>
+          </div>
+        } @else {
+          <a routerLink="/login" class="text-slate-600 hover:text-primary-600 font-medium transition-colors">
+            Login
+          </a>
+          <a routerLink="/register" class="btn-primary text-sm py-1.5 px-4">
+            Sign Up
+          </a>
+        }
+      </div>
+
+      <!-- Mobile Menu Button -->
+      <div class="flex md:hidden items-center gap-3">
+        <!-- Mobile Cart -->
+        <a routerLink="/cart" class="relative p-2 text-slate-600" (click)="closeMobileMenu()">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+          @if (cartItemCount > 0) {
+            <span class="absolute -top-1 -right-1 w-5 h-5 bg-accent-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+              {{ cartItemCount }}
+            </span>
+          }
+        </a>
+
+        <!-- Hamburger Button -->
+        <button (click)="toggleMobileMenu()" class="p-2 text-slate-600 hover:text-slate-800 transition-colors">
+          @if (mobileMenuOpen()) {
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          } @else {
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile Menu -->
+  @if (mobileMenuOpen()) {
+    <div class="md:hidden bg-white border-t border-slate-200">
+      <div class="container-wide py-4 space-y-3">
+        <a routerLink="/" (click)="closeMobileMenu()"
+           class="block py-2 text-slate-600 hover:text-primary-600 font-medium">
+          Home
+        </a>
+        <a routerLink="/shop" (click)="closeMobileMenu()"
+           class="block py-2 text-slate-600 hover:text-primary-600 font-medium">
+          Shop
+        </a>
+        <a routerLink="/about" (click)="closeMobileMenu()"
+           class="block py-2 text-slate-600 hover:text-primary-600 font-medium">
+          Our Story
+        </a>
+        <a routerLink="/contact" (click)="closeMobileMenu()"
+           class="block py-2 text-slate-600 hover:text-primary-600 font-medium">
+          Contact
+        </a>
+
+        <div class="pt-3 border-t border-slate-200">
+          @if (authService.isAuthenticated()) {
+            <a routerLink="/account" (click)="closeMobileMenu()"
+               class="block py-2 text-slate-600 hover:text-primary-600 font-medium">
+              My Account
+            </a>
+            <a routerLink="/orders" (click)="closeMobileMenu()"
+               class="block py-2 text-slate-600 hover:text-primary-600 font-medium">
+              My Orders
+            </a>
+            <button (click)="logout()" class="w-full mt-2 btn-outline">
+              Logout
+            </button>
+          } @else {
+            <div class="flex gap-3">
+              <a routerLink="/login" (click)="closeMobileMenu()" class="flex-1 btn-outline text-center">
+                Login
+              </a>
+              <a routerLink="/register" (click)="closeMobileMenu()" class="flex-1 btn-primary text-center">
+                Sign Up
+              </a>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  }
+</nav>
