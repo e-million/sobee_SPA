@@ -24,15 +24,40 @@ export class ProductService {
   /**
    * Get all products with optional filtering
    */
-  getProducts(params?: { search?: string; inStockOnly?: boolean }): Observable<Product[]> {
+  getProducts(params?: { search?: string; inStockOnly?: boolean; page?: number; pageSize?: number }): Observable<Product[]>;
+  getProducts(page?: number, pageSize?: number): Observable<Product[]>;
+  getProducts(
+    paramsOrPage?: { search?: string; inStockOnly?: boolean; page?: number; pageSize?: number } | number,
+    pageSize?: number
+  ): Observable<Product[]> {
     let httpParams = new HttpParams();
+    let params: { search?: string; inStockOnly?: boolean; page?: number; pageSize?: number } = {};
 
-    if (params?.search) {
+    if (typeof paramsOrPage === 'number' || paramsOrPage === undefined) {
+      if (typeof paramsOrPage === 'number') {
+        params.page = paramsOrPage;
+      }
+      if (typeof pageSize === 'number') {
+        params.pageSize = pageSize;
+      }
+    } else {
+      params = paramsOrPage;
+    }
+
+    if (params.search) {
       httpParams = httpParams.set('search', params.search);
     }
 
-    if (params?.inStockOnly !== undefined) {
+    if (params.inStockOnly !== undefined) {
       httpParams = httpParams.set('inStockOnly', params.inStockOnly.toString());
+    }
+
+    if (params.page !== undefined) {
+      httpParams = httpParams.set('page', params.page.toString());
+    }
+
+    if (params.pageSize !== undefined) {
+      httpParams = httpParams.set('pageSize', params.pageSize.toString());
     }
 
     return this.http.get<PaginatedResponse<Product>>(this.apiUrl, { params: httpParams })
