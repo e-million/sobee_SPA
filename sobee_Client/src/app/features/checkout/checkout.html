@@ -1,0 +1,117 @@
+<div class="checkout-page">
+  <h1>Checkout</h1>
+
+  @if (error()) {
+    <div class="alert alert-error">
+      {{ error() }}
+    </div>
+  }
+
+  <div class="checkout-container">
+    <!-- Order Summary -->
+    <div class="order-summary">
+      <h2>Order Summary</h2>
+
+      @if (cartService.cart(); as cart) {
+        @if (cart.items.length > 0) {
+          <div class="summary-items">
+            @for (item of cart.items; track item.cartItemId) {
+              <div class="summary-item">
+                <span class="item-name">{{ item.product?.name }} × {{ item.quantity }}</span>
+                <span class="item-price">${{ item.lineTotal.toFixed(2) }}</span>
+              </div>
+            }
+          </div>
+
+          <div class="summary-totals">
+            <div class="summary-row">
+              <span>Subtotal:</span>
+              <span>${{ cart.subtotal.toFixed(2) }}</span>
+            </div>
+
+            @if (cart.promo) {
+              <div class="summary-row discount">
+                <span>Discount ({{ cart.promo.code }}):</span>
+                <span>-${{ cart.discount.toFixed(2) }}</span>
+              </div>
+            }
+
+            <div class="summary-row total">
+              <strong>Total:</strong>
+              <strong>${{ cart.total.toFixed(2) }}</strong>
+            </div>
+          </div>
+        } @else {
+          <p class="empty-cart">Your cart is empty</p>
+          <button (click)="goBack()" class="btn-secondary">Continue Shopping</button>
+        }
+      } @else {
+        <p>Loading cart...</p>
+      }
+    </div>
+
+    <!-- Checkout Form -->
+    @if (cartService.cart() && cartService.cart()!.items.length > 0) {
+      <div class="checkout-form">
+        <h2>Shipping & Payment</h2>
+
+        <form (ngSubmit)="placeOrder()" #checkoutFormRef="ngForm">
+          <!-- Shipping Address -->
+          <div class="form-section">
+            <h3>Shipping Address</h3>
+            <div class="form-group">
+              <label for="shippingAddress">Address *</label>
+              <textarea
+                id="shippingAddress"
+                [(ngModel)]="checkoutForm.shippingAddress"
+                name="shippingAddress"
+                required
+                rows="3"
+                placeholder="123 Main St, Apt 4B, City, State, ZIP"
+              ></textarea>
+            </div>
+          </div>
+
+          <!-- Payment Method -->
+          <div class="form-section">
+            <h3>Payment Method</h3>
+            <div class="form-group">
+              @if (paymentMethods().length > 0) {
+                <div class="payment-methods">
+                  @for (method of paymentMethods(); track method.paymentMethodId) {
+                    <label class="payment-option">
+                      <input
+                        type="radio"
+                        name="paymentMethodId"
+                        [value]="method.paymentMethodId"
+                        [(ngModel)]="checkoutForm.paymentMethodId"
+                        required
+                      />
+                      <span>{{ method.description }}</span>
+                    </label>
+                  }
+                </div>
+              } @else {
+                <p>Loading payment methods...</p>
+              }
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="form-actions">
+            <button type="button" (click)="goBack()" class="btn-secondary">
+              Back to Cart
+            </button>
+            <button type="submit" [disabled]="loading() || !checkoutFormRef.form.valid" class="btn-primary">
+              @if (loading()) {
+                Placing Order...
+              } @else {
+                Place Order
+              }
+            </button>
+          </div>
+        </form>
+      </div>
+    }
+  </div>
+</div>
