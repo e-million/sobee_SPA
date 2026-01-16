@@ -88,6 +88,9 @@ Copy `.env.example` to `.env` and fill in values (do not commit `.env`):
 ```bash
 cp .env.example .env
 ```
+Required values:
+- `SA_PASSWORD`: used by the SQL Server container and in the API connection string.
+- `HTTPS_CERT_PASSWORD`: only used by the API container to load the HTTPS dev cert (does not affect SQL Server).
 
 ### Build and run
 ```bash
