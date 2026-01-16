@@ -11,11 +11,13 @@ RUN dotnet publish sobee_API/sobee_API.csproj -c Release -o /app/publish /p:UseA
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
-ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
+
 EXPOSE 7058
 EXPOSE 5029
 
 COPY --from=build /app/publish .
+
+# Do NOT addgroup/adduser for "app" (already exists in the base image)
 USER app
 
 ENTRYPOINT ["dotnet", "sobee_API.dll"]
