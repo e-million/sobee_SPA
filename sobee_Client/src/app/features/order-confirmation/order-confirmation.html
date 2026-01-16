@@ -1,0 +1,63 @@
+<div class="order-confirmation-page">
+  @if (loading()) {
+    <div class="loading">Loading order details...</div>
+  } @else if (error()) {
+    <div class="error-state">
+      <h1>Error</h1>
+      <p>{{ error() }}</p>
+      <button (click)="continueShopping()" class="btn-primary">Continue Shopping</button>
+    </div>
+  } @else if (order(); as orderData) {
+    <div class="success-message">
+      <div class="checkmark">✓</div>
+      <h1>Order Confirmed!</h1>
+      <p>Thank you for your order. Your order number is <strong>#{{ orderData.orderId }}</strong></p>
+    </div>
+
+    <div class="order-details">
+      <h2>Order Details</h2>
+
+      <div class="detail-row">
+        <span>Order Date:</span>
+        <span>{{ orderData.orderDate }}</span>
+      </div>
+
+      <div class="detail-row">
+        <span>Status:</span>
+        <span class="status">{{ orderData.orderStatus }}</span>
+      </div>
+
+      <h3>Items</h3>
+      <div class="order-items">
+        @for (item of orderData.items; track item.orderItemId) {
+          <div class="order-item">
+            <span>{{ item.productName }} × {{ item.quantity }}</span>
+            <span>${{ item.lineTotal.toFixed(2) }}</span>
+          </div>
+        }
+      </div>
+
+      <div class="order-totals">
+        <div class="total-row">
+          <span>Subtotal:</span>
+          <span>${{ orderData.subtotalAmount?.toFixed(2) }}</span>
+        </div>
+        @if (orderData.discountAmount) {
+          <div class="total-row discount">
+            <span>Discount:</span>
+            <span>-${{ orderData.discountAmount.toFixed(2) }}</span>
+          </div>
+        }
+        <div class="total-row grand-total">
+          <strong>Total:</strong>
+          <strong>${{ orderData.totalAmount?.toFixed(2) }}</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button (click)="continueShopping()" class="btn-secondary">Continue Shopping</button>
+      <button (click)="viewOrders()" class="btn-primary">View Orders</button>
+    </div>
+  }
+</div>

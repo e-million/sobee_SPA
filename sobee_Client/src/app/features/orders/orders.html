@@ -1,0 +1,73 @@
+<div class="orders-page">
+  <div class="page-header">
+    <h1>My Orders</h1>
+    <button (click)="continueShopping()" class="btn-secondary">Continue Shopping</button>
+  </div>
+
+  @if (loading()) {
+    <div class="loading">Loading your orders...</div>
+  } @else if (error()) {
+    <div class="error-state">
+      <h2>Error</h2>
+      <p>{{ error() }}</p>
+      <button (click)="loadOrders()" class="btn-primary">Try Again</button>
+    </div>
+  } @else if (orders().length === 0) {
+    <div class="empty-state">
+      <h2>No Orders Yet</h2>
+      <p>You haven't placed any orders yet.</p>
+      <button (click)="continueShopping()" class="btn-primary">Start Shopping</button>
+    </div>
+  } @else {
+    <div class="orders-list">
+      @for (order of orders(); track order.orderId) {
+        <div class="order-card" (click)="viewOrderDetails(order.orderId)">
+          <div class="order-header">
+            <div class="order-info">
+              <h3>Order #{{ order.orderId }}</h3>
+              <span class="order-date">{{ formatDate(order.orderDate) }}</span>
+            </div>
+            <span class="order-status" [ngClass]="getStatusClass(order.orderStatus)">
+              {{ order.orderStatus }}
+            </span>
+          </div>
+
+          <div class="order-items">
+            @if (order.items && order.items.length > 0) {
+              @for (item of order.items; track item.orderItemId) {
+                <div class="order-item">
+                  <span class="item-name">{{ item.productName }} × {{ item.quantity }}</span>
+                  <span class="item-price">${{ item.lineTotal.toFixed(2) }}</span>
+                </div>
+              }
+            } @else {
+              <p class="no-items">No items</p>
+            }
+          </div>
+
+          <div class="order-footer">
+            <div class="order-totals">
+              @if (order.discountAmount && order.discountAmount > 0) {
+                <div class="total-row">
+                  <span>Subtotal:</span>
+                  <span>${{ order.subtotalAmount?.toFixed(2) }}</span>
+                </div>
+                <div class="total-row discount">
+                  <span>Discount:</span>
+                  <span>-${{ order.discountAmount.toFixed(2) }}</span>
+                </div>
+              }
+              <div class="total-row grand-total">
+                <strong>Total:</strong>
+                <strong>${{ order.totalAmount?.toFixed(2) }}</strong>
+              </div>
+            </div>
+            <button class="btn-view-details" (click)="viewOrderDetails(order.orderId); $event.stopPropagation()">
+              View Details
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  }
+</div>
