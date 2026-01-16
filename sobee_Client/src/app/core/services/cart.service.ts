@@ -27,7 +27,12 @@ export class CartService {
   /**
    * Add an item to the cart
    */
-  addItem(request: AddCartItemRequest): Observable<Cart> {
+  addItem(productId: number, quantity: number): Observable<Cart>;
+  addItem(request: AddCartItemRequest): Observable<Cart>;
+  addItem(productIdOrRequest: number | AddCartItemRequest, quantity?: number): Observable<Cart> {
+    const request = typeof productIdOrRequest === 'number'
+      ? { productId: productIdOrRequest, quantity: quantity ?? 1 }
+      : productIdOrRequest;
     return this.http.post<Cart>(`${this.apiUrl}/items`, request).pipe(
       tap(cart => this.cart.set(cart))
     );
