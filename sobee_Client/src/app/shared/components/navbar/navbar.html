@@ -123,6 +123,11 @@
         <!-- Auth Buttons -->
         @if (authService.isAuthenticated()) {
           <div class="flex items-center gap-3">
+            @if (authService.isAdmin()) {
+              <a routerLink="/admin/dashboard" class="text-slate-600 hover:text-primary-600 font-medium transition-colors">
+                Admin
+              </a>
+            }
             <a routerLink="/account" class="text-slate-600 hover:text-primary-600 font-medium transition-colors">
               Account
             </a>
@@ -269,6 +274,12 @@
 
         <div class="pt-3 border-t border-slate-200">
           @if (authService.isAuthenticated()) {
+            @if (authService.isAdmin()) {
+              <a routerLink="/admin/dashboard" (click)="closeMobileMenu()"
+                 class="block py-2 text-slate-600 hover:text-primary-600 font-medium">
+                Admin Dashboard
+              </a>
+            }
             <a routerLink="/account" (click)="closeMobileMenu()"
                class="block py-2 text-slate-600 hover:text-primary-600 font-medium">
               My Account

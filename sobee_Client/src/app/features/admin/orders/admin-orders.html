@@ -1,0 +1,63 @@
+<div class="space-y-6">
+  <div>
+    <p class="text-sm uppercase tracking-[0.2em] text-slate-500">Fulfillment</p>
+    <h1 class="text-3xl font-display font-bold text-slate-800">Orders</h1>
+  </div>
+
+  <div class="card p-6">
+    <h2 class="text-lg font-semibold text-slate-800 mb-2">Update order status</h2>
+    <p class="text-sm text-slate-500 mb-6">
+      Use an order ID to update its fulfillment status. Admin list views are pending API support.
+    </p>
+
+    @if (error()) {
+      <div class="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+        {{ error() }}
+      </div>
+    }
+
+    <div class="grid md:grid-cols-[minmax(0,1fr)_minmax(0,200px)_auto] gap-4 items-end">
+      <div>
+        <label class="text-sm font-medium text-slate-600">Order ID</label>
+        <input type="number" [(ngModel)]="orderId" name="orderId" class="input mt-1" placeholder="1234" />
+      </div>
+      <div>
+        <label class="text-sm font-medium text-slate-600">Status</label>
+        <select [(ngModel)]="status" name="status" class="input mt-1">
+          @for (option of statusOptions; track option) {
+            <option [value]="option">{{ option }}</option>
+          }
+        </select>
+      </div>
+      <button type="button" class="btn-primary px-4 py-2" (click)="updateStatus()" [disabled]="updating()">
+        @if (updating()) {
+          Updating...
+        } @else {
+          Update
+        }
+      </button>
+    </div>
+  </div>
+
+  @if (updatedOrder(); as order) {
+    <div class="card p-6">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+        <div>
+          <h2 class="text-lg font-semibold text-slate-800">Order #{{ order.orderId }}</h2>
+          <p class="text-sm text-slate-500">Status: {{ order.orderStatus }}</p>
+        </div>
+        <span class="text-sm text-slate-600">
+          Total: {{ order.totalAmount ?? 0 | currency:'USD':'symbol':'1.2-2' }}
+        </span>
+      </div>
+      <div class="space-y-2">
+        @for (item of order.items; track item.orderItemId) {
+          <div class="flex items-center justify-between text-sm text-slate-600">
+            <span>{{ item.productName ?? 'Item' }} (x{{ item.quantity ?? 0 }})</span>
+            <span>{{ item.lineTotal | currency:'USD':'symbol':'1.2-2' }}</span>
+          </div>
+        }
+      </div>
+    </div>
+  }
+</div>

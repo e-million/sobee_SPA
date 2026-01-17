@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, tap } from 'rxjs';
+import { Observable, catchError, map, of, switchMap, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { LoginRequest, RegisterRequest, AuthResponse, RegisterResponse, ForgotPasswordRequest, ResetPasswordRequest } from '../models';
 import { CartService } from './cart.service';
@@ -10,9 +10,13 @@ import { CartService } from './cart.service';
 })
 export class AuthService {
   private readonly apiUrl = environment.apiBaseUrl;
+  private readonly meUrl = `${environment.apiUrl}/me`;
+  private readonly rolesStorageKey = 'userRoles';
 
   // Signal to track authentication state
   isAuthenticated = signal(false);
+  roles = signal<string[]>([]);
+  rolesLoaded = signal(false);
 
   constructor(
     private http: HttpClient,
@@ -21,6 +25,21 @@ export class AuthService {
     // Check if user is already authenticated on service initialization
     const token = localStorage.getItem('accessToken');
     this.isAuthenticated.set(!!token);
+
+    const storedRoles = localStorage.getItem(this.rolesStorageKey);
+    if (storedRoles) {
+      try {
+        const parsed = JSON.parse(storedRoles) as string[];
+        this.roles.set(parsed);
+        this.rolesLoaded.set(true);
+      } catch {
+        this.roles.set([]);
+      }
+    }
+
+    if (token && !this.rolesLoaded()) {
+      this.loadRoles().subscribe({ error: () => undefined });
+    }
   }
 
   /**
@@ -55,7 +74,17 @@ export class AuthService {
         // The guest session will be cleared after the first cart request completes
 
         this.isAuthenticated.set(true);
-      })
+      }),
+      switchMap(response =>
+        this.loadRoles().pipe(
+          map(() => response),
+          catchError(() => {
+            this.rolesLoaded.set(true);
+            this.roles.set([]);
+            return of(response);
+          })
+        )
+      )
     );
   }
 
@@ -75,6 +104,7 @@ export class AuthService {
     localStorage.removeItem('refreshToken');
     this.clearGuestSession();
     this.cartService.clearCart();
+    this.clearRoles();
     this.isAuthenticated.set(false);
   }
 
@@ -83,6 +113,17 @@ export class AuthService {
    */
   isLoggedIn(): boolean {
     return this.isAuthenticated();
+  }
+
+  /**
+   * Get user roles from stored claims.
+   */
+  getUserRoles(): string[] {
+    return this.roles();
+  }
+
+  isAdmin(): boolean {
+    return this.getUserRoles().some(role => role.toLowerCase() === 'admin');
   }
 
   /**
@@ -127,4 +168,36 @@ export class AuthService {
   resetPassword(request: ResetPasswordRequest): Observable<AuthResponse> {
     return this.http.post<AuthResponse>(`${this.apiUrl}/api/auth/reset-password`, request);
   }
+
+  loadRoles(): Observable<string[]> {
+    return this.http.get<{ roles?: string[] }>(this.meUrl).pipe(
+      map(response => response.roles ?? []),
+      tap(roles => {
+        this.roles.set(roles);
+        this.rolesLoaded.set(true);
+        localStorage.setItem(this.rolesStorageKey, JSON.stringify(roles));
+      })
+    );
+  }
+
+  ensureRolesLoaded(): Observable<string[]> {
+    if (this.rolesLoaded()) {
+      return of(this.roles());
+    }
+
+    return this.loadRoles().pipe(
+      catchError(() => {
+        this.rolesLoaded.set(true);
+        this.roles.set([]);
+        return of([]);
+      })
+    );
+  }
+
+  clearRoles(): void {
+    this.roles.set([]);
+    this.rolesLoaded.set(false);
+    localStorage.removeItem(this.rolesStorageKey);
+  }
+
 }

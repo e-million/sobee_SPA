@@ -1,0 +1,159 @@
+<div class="min-h-screen bg-slate-100">
+  <div class="flex">
+    <aside class="hidden lg:flex lg:flex-col lg:w-64 bg-slate-900 text-slate-100 min-h-screen">
+      <div class="h-16 flex items-center px-6 border-b border-slate-800">
+        <a routerLink="/" class="flex items-center gap-2 text-white">
+          <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-primary-400 to-accent-500 flex items-center justify-center">
+            <span class="font-bold">S</span>
+          </div>
+          <div>
+            <p class="text-sm uppercase tracking-[0.2em] text-slate-400">SoBee</p>
+            <p class="text-lg font-semibold">Admin</p>
+          </div>
+        </a>
+      </div>
+
+      <nav class="flex-1 px-4 py-6 space-y-2">
+        @for (item of navItems; track item.route) {
+          <a
+            [routerLink]="item.route"
+            routerLinkActive="bg-slate-800 text-white"
+            class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+          >
+            <span class="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center text-primary-300">
+              @switch (item.icon) {
+                @case ('chart') {
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 6v14m0 0h16m-16 0l5-5m11 5l-6-6m0 0l-4 4m4-4V4" />
+                  </svg>
+                }
+                @case ('cube') {
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                  </svg>
+                }
+                @case ('receipt') {
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 14h6m-6-4h6m-6-4h6M7 21l-2-2V5a2 2 0 012-2h10a2 2 0 012 2v14l-2 2-3-2-3 2-3-2-3 2z" />
+                  </svg>
+                }
+                @case ('users') {
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 12a4 4 0 100-8 4 4 0 000 8zm-6 8a6 6 0 0112 0v1H6v-1z" />
+                  </svg>
+                }
+                @case ('tag') {
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M3 11l8.586-8.586a2 2 0 012.828 0l6.172 6.172a2 2 0 010 2.828L12 21 3 12v-1z" />
+                  </svg>
+                }
+              }
+            </span>
+            <span class="font-medium">{{ item.label }}</span>
+          </a>
+        }
+      </nav>
+
+      <div class="px-6 py-6 border-t border-slate-800">
+        <a routerLink="/" class="text-sm text-slate-400 hover:text-white transition-colors">
+          Back to store
+        </a>
+      </div>
+    </aside>
+
+    <div class="flex-1 flex flex-col min-h-screen">
+      <header class="sticky top-0 z-10 bg-white border-b border-slate-200">
+        <div class="h-16 flex items-center justify-between px-4 sm:px-6">
+          <div class="flex items-center gap-3">
+            <button
+              type="button"
+              (click)="toggleMobileMenu()"
+              class="lg:hidden w-10 h-10 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600"
+            >
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <div>
+              <p class="text-xs text-slate-500">Admin Console</p>
+              <p class="text-lg font-semibold text-slate-800">SoBee Ops</p>
+            </div>
+          </div>
+          <a routerLink="/" class="text-sm text-slate-500 hover:text-slate-800 transition-colors">
+            View storefront
+          </a>
+        </div>
+      </header>
+
+      <main class="flex-1 p-6 sm:p-8">
+        <router-outlet></router-outlet>
+      </main>
+    </div>
+  </div>
+
+  @if (mobileMenuOpen()) {
+    <div class="fixed inset-0 z-40 lg:hidden bg-slate-950/70">
+      <div class="absolute left-0 top-0 h-full w-72 bg-slate-900 text-slate-100 flex flex-col">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+          <div>
+            <p class="text-xs uppercase tracking-[0.2em] text-slate-400">SoBee</p>
+            <p class="text-lg font-semibold">Admin</p>
+          </div>
+          <button type="button" (click)="closeMobileMenu()" class="text-slate-300 hover:text-white">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <nav class="flex-1 px-4 py-6 space-y-2">
+          @for (item of navItems; track item.route) {
+            <a
+              [routerLink]="item.route"
+              (click)="closeMobileMenu()"
+              routerLinkActive="bg-slate-800 text-white"
+              class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+            >
+              <span class="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center text-primary-300">
+                @switch (item.icon) {
+                  @case ('chart') {
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M4 6v14m0 0h16m-16 0l5-5m11 5l-6-6m0 0l-4 4m4-4V4" />
+                    </svg>
+                  }
+                  @case ('cube') {
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                    </svg>
+                  }
+                  @case ('receipt') {
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 14h6m-6-4h6m-6-4h6M7 21l-2-2V5a2 2 0 012-2h10a2 2 0 012 2v14l-2 2-3-2-3 2-3-2-3 2z" />
+                    </svg>
+                  }
+                  @case ('users') {
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 12a4 4 0 100-8 4 4 0 000 8zm-6 8a6 6 0 0112 0v1H6v-1z" />
+                    </svg>
+                  }
+                  @case ('tag') {
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M3 11l8.586-8.586a2 2 0 012.828 0l6.172 6.172a2 2 0 010 2.828L12 21 3 12v-1z" />
+                    </svg>
+                  }
+                }
+              </span>
+              <span class="font-medium">{{ item.label }}</span>
+            </a>
+          }
+        </nav>
+
+        <div class="px-6 py-6 border-t border-slate-800">
+          <a routerLink="/" (click)="closeMobileMenu()" class="text-sm text-slate-400 hover:text-white transition-colors">
+            Back to store
+          </a>
+        </div>
+      </div>
+    </div>
+  }
+</div>

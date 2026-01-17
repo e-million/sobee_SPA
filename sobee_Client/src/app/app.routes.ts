@@ -21,7 +21,13 @@ import { RefundPolicy } from './features/refund-policy/refund-policy';
 import { Shipping } from './features/shipping/shipping';
 import { Terms } from './features/terms/terms';
 import { Privacy } from './features/privacy/privacy';
-import { authGuard, guestGuard } from './core/guards';
+import { AdminLayout } from './features/admin/layout/admin-layout';
+import { AdminDashboard } from './features/admin/dashboard/admin-dashboard';
+import { AdminProducts } from './features/admin/products/admin-products';
+import { AdminOrders } from './features/admin/orders/admin-orders';
+import { AdminUsers } from './features/admin/users/admin-users';
+import { AdminPromos } from './features/admin/promos/admin-promos';
+import { adminChildGuard, adminGuard, authGuard, guestGuard } from './core/guards';
 
 export const routes: Routes = [
   // Public pages
@@ -36,6 +42,22 @@ export const routes: Routes = [
   { path: 'shipping', component: Shipping },
   { path: 'terms', component: Terms },
   { path: 'privacy', component: Privacy },
+
+  // Admin (protected)
+  {
+    path: 'admin',
+    component: AdminLayout,
+    canActivate: [adminGuard],
+    canActivateChild: [adminChildGuard],
+    children: [
+      { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
+      { path: 'dashboard', component: AdminDashboard },
+      { path: 'products', component: AdminProducts },
+      { path: 'orders', component: AdminOrders },
+      { path: 'users', component: AdminUsers },
+      { path: 'promos', component: AdminPromos },
+    ]
+  },
 
   // Authentication pages (standalone)
   { path: 'login', component: Login, canActivate: [guestGuard] },

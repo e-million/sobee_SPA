@@ -34,3 +34,7 @@ export interface PaymentMethod {
   description: string | null;
   isActive: boolean;
 }
+
+export interface UpdateOrderStatusRequest {
+  status: string;
+}

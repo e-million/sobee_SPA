@@ -795,7 +795,7 @@ interface PaginatedResponse<T> {
 |------|-------------|------------|--------------|
 | 7.1 Product Reviews | Submit/display reviews | High | API endpoints |
 | 7.2 Wishlist | Save for later | Medium | API endpoints |
-| 7.3 Analytics | Google Analytics | Easy | GA account |
+| 7.3 Analytics | Google Analytics (display in admin dashboard) | Easy | GA account |
 | 7.4 Error Monitoring | Sentry integration | Easy | Sentry account |
 | 7.5 PWA Support | Service worker | Medium | None |
 
