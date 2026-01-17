@@ -13,6 +13,11 @@ import { AuthService } from '../../core/services/auth.service';
 import { Product, Review } from '../../core/models';
 
 type ProductTab = 'description' | 'ingredients' | 'reviews';
+type ReviewSummary = {
+  total: number;
+  average: number;
+  counts: number[];
+};
 
 @Component({
   selector: 'app-product-detail',
@@ -29,6 +34,7 @@ export class ProductDetail implements OnInit {
   quantity = signal(1);
   activeTab = signal<ProductTab>('description');
   reviews = signal<Review[]>([]);
+  reviewSummary = signal<ReviewSummary>({ total: 0, average: 0, counts: [0, 0, 0, 0, 0] });
   reviewsLoading = signal(false);
   reviewsError = signal('');
   reviewRating = 5;
@@ -63,6 +69,7 @@ export class ProductDetail implements OnInit {
         this.relatedProducts.set([]);
         this.error.set('');
         this.reviews.set([]);
+        this.reviewSummary.set({ total: 0, average: 0, counts: [0, 0, 0, 0, 0] });
         this.replyOpenIds.set(new Set());
         this.replyDrafts.set({});
         return;
@@ -86,6 +93,7 @@ export class ProductDetail implements OnInit {
         this.quantity.set(1);
         this.activeTab.set('description');
         this.reviews.set([]);
+        this.reviewSummary.set({ total: 0, average: 0, counts: [0, 0, 0, 0, 0] });
         this.reviewsError.set('');
         this.reviewText = '';
         this.reviewRating = 5;
@@ -354,10 +362,12 @@ export class ProductDetail implements OnInit {
     this.reviewService.getReviews(productId).subscribe({
       next: (response) => {
         this.reviews.set(response.reviews);
+        this.reviewSummary.set(this.buildReviewSummary(response.reviews));
         this.reviewsLoading.set(false);
       },
       error: () => {
         this.reviewsError.set('Unable to load reviews.');
+        this.reviewSummary.set({ total: 0, average: 0, counts: [0, 0, 0, 0, 0] });
         this.reviewsLoading.set(false);
       }
     });
@@ -378,5 +388,39 @@ export class ProductDetail implements OnInit {
         this.isFavorite.set(false);
       }
     });
+  }
+
+  private buildReviewSummary(reviews: Review[]): ReviewSummary {
+    const counts = [0, 0, 0, 0, 0];
+    let totalRating = 0;
+
+    for (const review of reviews) {
+      if (review.rating >= 1 && review.rating <= 5) {
+        counts[review.rating - 1] += 1;
+        totalRating += review.rating;
+      }
+    }
+
+    const total = counts.reduce((sum, count) => sum + count, 0);
+    const average = total === 0 ? 0 : totalRating / total;
+
+    return { total, average, counts };
+  }
+
+  getReviewRatingRows(): { label: string; count: number; stars: number }[] {
+    const summary = this.reviewSummary();
+    return [5, 4, 3, 2, 1].map(stars => ({
+      stars,
+      label: `${stars} star${stars === 1 ? '' : 's'}`,
+      count: summary.counts[stars - 1] ?? 0
+    }));
+  }
+
+  getReviewRatingWidth(count: number): number {
+    const total = this.reviewSummary().total;
+    if (total === 0) {
+      return 0;
+    }
+    return Math.round((count / total) * 100);
   }
 }
