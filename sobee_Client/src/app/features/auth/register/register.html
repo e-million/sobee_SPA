@@ -1,0 +1,232 @@
+<section class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-accent-50 flex items-center">
+  <div class="container-narrow w-full py-16">
+    <div class="grid lg:grid-cols-2 gap-10 items-center">
+      <div class="hidden lg:block">
+        <a routerLink="/" class="inline-flex items-center gap-3 mb-8">
+          <div class="w-12 h-12 bg-gradient-to-br from-primary-400 to-accent-500 rounded-xl flex items-center justify-center">
+            <span class="text-white font-bold text-xl">S</span>
+          </div>
+          <span class="font-display font-bold text-2xl text-slate-800">SoBee</span>
+        </a>
+        <h1 class="text-3xl font-display font-bold text-slate-800 mb-4">
+          Create your Sobee account.
+        </h1>
+        <p class="text-slate-600 mb-6">
+          Join the community to unlock exclusive drops, member perks, and faster checkout.
+        </p>
+        <div class="space-y-4 text-sm text-slate-600">
+          <div class="flex items-start gap-3">
+            <span class="mt-1 inline-flex h-2 w-2 rounded-full bg-primary-500"></span>
+            <span>Track orders and manage subscriptions.</span>
+          </div>
+          <div class="flex items-start gap-3">
+            <span class="mt-1 inline-flex h-2 w-2 rounded-full bg-accent-500"></span>
+            <span>Early access to new flavors.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card p-8 md:p-10">
+        <div class="mb-6">
+          <h2 class="text-2xl font-display font-bold text-slate-800">Sign up</h2>
+          <p class="text-slate-600 mt-2">It only takes a minute.</p>
+        </div>
+
+        @if (apiError()) {
+          <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {{ apiError() }}
+          </div>
+        }
+
+        <form #registerForm="ngForm" (ngSubmit)="onSubmit(registerForm)" novalidate>
+          <div class="grid md:grid-cols-2 gap-5">
+            <div>
+              <label for="firstName" class="block text-sm font-medium text-slate-700 mb-2">First name</label>
+              <input
+                id="firstName"
+                name="firstName"
+                type="text"
+                [(ngModel)]="form.firstName"
+                #firstName="ngModel"
+                required
+                class="input"
+                [class.input-error]="(firstName.invalid && (firstName.touched || submitAttempted())) || fieldErrors()['firstName']"
+                placeholder="Avery"
+              />
+              @if (firstName.errors?.['required'] && (firstName.touched || submitAttempted())) {
+                <p class="mt-2 text-sm text-red-600">First name is required.</p>
+              } @else if (fieldErrors()['firstName']) {
+                <p class="mt-2 text-sm text-red-600">{{ fieldErrors()['firstName'] }}</p>
+              }
+            </div>
+
+            <div>
+              <label for="lastName" class="block text-sm font-medium text-slate-700 mb-2">Last name</label>
+              <input
+                id="lastName"
+                name="lastName"
+                type="text"
+                [(ngModel)]="form.lastName"
+                #lastName="ngModel"
+                required
+                class="input"
+                [class.input-error]="(lastName.invalid && (lastName.touched || submitAttempted())) || fieldErrors()['lastName']"
+                placeholder="Park"
+              />
+              @if (lastName.errors?.['required'] && (lastName.touched || submitAttempted())) {
+                <p class="mt-2 text-sm text-red-600">Last name is required.</p>
+              } @else if (fieldErrors()['lastName']) {
+                <p class="mt-2 text-sm text-red-600">{{ fieldErrors()['lastName'] }}</p>
+              }
+            </div>
+          </div>
+
+          <div class="mt-5">
+            <label for="email" class="block text-sm font-medium text-slate-700 mb-2">Email</label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              [(ngModel)]="form.email"
+              #email="ngModel"
+              required
+              email
+              class="input"
+              [class.input-error]="(email.invalid && (email.touched || submitAttempted())) || fieldErrors()['email']"
+              placeholder="you@sobee.com"
+            />
+            @if (email.errors?.['required'] && (email.touched || submitAttempted())) {
+              <p class="mt-2 text-sm text-red-600">Email is required.</p>
+            } @else if (email.errors?.['email'] && (email.touched || submitAttempted())) {
+              <p class="mt-2 text-sm text-red-600">Enter a valid email address.</p>
+            } @else if (fieldErrors()['email']) {
+              <p class="mt-2 text-sm text-red-600">{{ fieldErrors()['email'] }}</p>
+            }
+          </div>
+
+          <div class="mt-5">
+            <label for="billingAddress" class="block text-sm font-medium text-slate-700 mb-2">Billing address</label>
+            <textarea
+              id="billingAddress"
+              name="billingAddress"
+              [(ngModel)]="form.billingAddress"
+              #billingAddress="ngModel"
+              required
+              rows="3"
+              class="input resize-none"
+              [class.input-error]="(billingAddress.invalid && (billingAddress.touched || submitAttempted())) || fieldErrors()['billingAddress']"
+              placeholder="Street, city, state, zip"
+            ></textarea>
+            @if (billingAddress.invalid && (billingAddress.touched || submitAttempted())) {
+              <p class="mt-2 text-sm text-red-600">Billing address is required.</p>
+            } @else if (fieldErrors()['billingAddress']) {
+              <p class="mt-2 text-sm text-red-600">{{ fieldErrors()['billingAddress'] }}</p>
+            }
+          </div>
+
+          <div class="mt-5">
+            <label for="shippingAddress" class="block text-sm font-medium text-slate-700 mb-2">Shipping address</label>
+            <textarea
+              id="shippingAddress"
+              name="shippingAddress"
+              [(ngModel)]="form.shippingAddress"
+              #shippingAddress="ngModel"
+              required
+              rows="3"
+              class="input resize-none"
+              [class.input-error]="(shippingAddress.invalid && (shippingAddress.touched || submitAttempted())) || fieldErrors()['shippingAddress']"
+              placeholder="Street, city, state, zip"
+            ></textarea>
+            @if (shippingAddress.invalid && (shippingAddress.touched || submitAttempted())) {
+              <p class="mt-2 text-sm text-red-600">Shipping address is required.</p>
+            } @else if (fieldErrors()['shippingAddress']) {
+              <p class="mt-2 text-sm text-red-600">{{ fieldErrors()['shippingAddress'] }}</p>
+            }
+          </div>
+
+          <div class="mt-5">
+            <label for="password" class="block text-sm font-medium text-slate-700 mb-2">Password</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              [(ngModel)]="form.password"
+              #password="ngModel"
+              required
+              minlength="8"
+              class="input"
+              [class.input-error]="(password.invalid && (password.touched || submitAttempted())) || fieldErrors()['password']"
+              placeholder="At least 8 characters"
+            />
+            @if (password.errors?.['required'] && (password.touched || submitAttempted())) {
+              <p class="mt-2 text-sm text-red-600">Password is required.</p>
+            } @else if (password.errors?.['minlength'] && (password.touched || submitAttempted())) {
+              <p class="mt-2 text-sm text-red-600">Password must be at least 8 characters.</p>
+            } @else if (fieldErrors()['password']) {
+              <p class="mt-2 text-sm text-red-600">{{ fieldErrors()['password'] }}</p>
+            }
+          </div>
+
+          <div class="mt-5">
+            <label for="confirmPassword" class="block text-sm font-medium text-slate-700 mb-2">Confirm password</label>
+            <input
+              id="confirmPassword"
+              name="confirmPassword"
+              type="password"
+              [(ngModel)]="form.confirmPassword"
+              #confirmPassword="ngModel"
+              required
+              class="input"
+              [class.input-error]="(!passwordsMatch && (confirmPassword.touched || submitAttempted())) || (confirmPassword.invalid && (confirmPassword.touched || submitAttempted()))"
+              placeholder="Repeat password"
+            />
+            @if (confirmPassword.errors?.['required'] && (confirmPassword.touched || submitAttempted())) {
+              <p class="mt-2 text-sm text-red-600">Please confirm your password.</p>
+            } @else if (!passwordsMatch && (confirmPassword.touched || submitAttempted())) {
+              <p class="mt-2 text-sm text-red-600">Passwords do not match.</p>
+            }
+          </div>
+
+          <div class="mt-5">
+            <label class="flex items-start gap-2 text-sm text-slate-600">
+              <input
+                type="checkbox"
+                name="acceptTerms"
+                [(ngModel)]="form.acceptTerms"
+                #acceptTerms="ngModel"
+                required
+                class="mt-1 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+              />
+              <span>
+                I agree to the
+                <a routerLink="/terms" class="text-primary-600 hover:text-primary-700 font-medium">terms of service</a>
+                and
+                <a routerLink="/privacy" class="text-primary-600 hover:text-primary-700 font-medium">privacy policy</a>.
+              </span>
+            </label>
+            @if (acceptTerms.invalid && (acceptTerms.touched || submitAttempted())) {
+              <p class="mt-2 text-sm text-red-600">Please accept the terms to continue.</p>
+            }
+          </div>
+
+          <button type="submit" class="btn-primary w-full mt-6" [disabled]="loading()">
+            @if (loading()) {
+              <svg class="w-5 h-5 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Creating account...
+            } @else {
+              Create account
+            }
+          </button>
+        </form>
+
+        <p class="mt-6 text-sm text-slate-600">
+          Already have an account?
+          <a routerLink="/login" class="text-primary-600 hover:text-primary-700 font-medium">Sign in</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</section>

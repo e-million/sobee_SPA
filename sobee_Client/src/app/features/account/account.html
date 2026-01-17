@@ -1,0 +1,247 @@
+<app-main-layout>
+  <section class="bg-gradient-to-br from-slate-100 to-slate-50 py-14">
+    <div class="container-wide">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 class="text-3xl md:text-4xl font-display font-bold text-slate-800">My Account</h1>
+          <p class="text-slate-600 mt-2">Manage your profile, addresses, and password.</p>
+        </div>
+        <a routerLink="/orders" class="btn-secondary">View order history</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section bg-white">
+    <div class="container-wide">
+      @if (loading()) {
+        <div class="text-center text-slate-500">Loading your profile...</div>
+      } @else {
+        <div class="grid lg:grid-cols-3 gap-8">
+          <div class="lg:col-span-1 space-y-6">
+            <div class="card p-6">
+              <h2 class="text-lg font-semibold text-slate-800 mb-2">Account summary</h2>
+              <p class="text-slate-600">
+                {{ profileForm.firstName || 'First name' }} {{ profileForm.lastName || 'Last name' }}
+              </p>
+              <p class="text-sm text-slate-500">{{ profileForm.email || 'email@example.com' }}</p>
+            </div>
+
+            <div class="card p-6">
+              <h3 class="text-lg font-semibold text-slate-800 mb-2">Quick actions</h3>
+              <div class="space-y-3">
+                <a routerLink="/orders" class="btn-outline w-full text-center">Order history</a>
+                <a routerLink="/shop" class="btn-primary w-full text-center">Shop new arrivals</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="lg:col-span-2 space-y-8">
+            <div class="card p-6 md:p-8">
+              <div class="flex items-center justify-between mb-6">
+                <h2 class="text-xl font-semibold text-slate-800">Profile & addresses</h2>
+                @if (profileSuccess()) {
+                  <span class="text-sm text-green-600">{{ profileSuccess() }}</span>
+                }
+              </div>
+
+              @if (profileError()) {
+                <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {{ profileError() }}
+                </div>
+              }
+
+              <form #profileFormRef="ngForm" (ngSubmit)="saveProfile(profileFormRef)" novalidate>
+                <div class="grid md:grid-cols-2 gap-5">
+                  <div>
+                    <label for="firstName" class="block text-sm font-medium text-slate-700 mb-2">First name</label>
+                    <input
+                      id="firstName"
+                      name="firstName"
+                      type="text"
+                      [(ngModel)]="profileForm.firstName"
+                      #firstName="ngModel"
+                      required
+                      class="input"
+                      [class.input-error]="firstName.invalid && (firstName.touched || profileFormRef.submitted)"
+                    />
+                    @if (firstName.invalid && (firstName.touched || profileFormRef.submitted)) {
+                      <p class="mt-2 text-sm text-red-600">First name is required.</p>
+                    }
+                  </div>
+
+                  <div>
+                    <label for="lastName" class="block text-sm font-medium text-slate-700 mb-2">Last name</label>
+                    <input
+                      id="lastName"
+                      name="lastName"
+                      type="text"
+                      [(ngModel)]="profileForm.lastName"
+                      #lastName="ngModel"
+                      required
+                      class="input"
+                      [class.input-error]="lastName.invalid && (lastName.touched || profileFormRef.submitted)"
+                    />
+                    @if (lastName.invalid && (lastName.touched || profileFormRef.submitted)) {
+                      <p class="mt-2 text-sm text-red-600">Last name is required.</p>
+                    }
+                  </div>
+                </div>
+
+                <div class="mt-5">
+                  <label for="email" class="block text-sm font-medium text-slate-700 mb-2">Email</label>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    [(ngModel)]="profileForm.email"
+                    #email="ngModel"
+                    required
+                    email
+                    class="input"
+                    [class.input-error]="email.invalid && (email.touched || profileFormRef.submitted)"
+                  />
+                  @if (email.errors?.['required'] && (email.touched || profileFormRef.submitted)) {
+                    <p class="mt-2 text-sm text-red-600">Email is required.</p>
+                  } @else if (email.errors?.['email'] && (email.touched || profileFormRef.submitted)) {
+                    <p class="mt-2 text-sm text-red-600">Enter a valid email address.</p>
+                  }
+                </div>
+
+                <div class="mt-5">
+                  <label for="billingAddress" class="block text-sm font-medium text-slate-700 mb-2">Billing address</label>
+                  <textarea
+                    id="billingAddress"
+                    name="billingAddress"
+                    [(ngModel)]="profileForm.billingAddress"
+                    #billingAddress="ngModel"
+                    required
+                    rows="3"
+                    class="input resize-none"
+                    [class.input-error]="billingAddress.invalid && (billingAddress.touched || profileFormRef.submitted)"
+                  ></textarea>
+                  @if (billingAddress.invalid && (billingAddress.touched || profileFormRef.submitted)) {
+                    <p class="mt-2 text-sm text-red-600">Billing address is required.</p>
+                  }
+                </div>
+
+                <div class="mt-5">
+                  <label for="shippingAddress" class="block text-sm font-medium text-slate-700 mb-2">Shipping address</label>
+                  <textarea
+                    id="shippingAddress"
+                    name="shippingAddress"
+                    [(ngModel)]="profileForm.shippingAddress"
+                    #shippingAddress="ngModel"
+                    required
+                    rows="3"
+                    class="input resize-none"
+                    [class.input-error]="shippingAddress.invalid && (shippingAddress.touched || profileFormRef.submitted)"
+                  ></textarea>
+                  @if (shippingAddress.invalid && (shippingAddress.touched || profileFormRef.submitted)) {
+                    <p class="mt-2 text-sm text-red-600">Shipping address is required.</p>
+                  }
+                </div>
+
+                <button type="submit" class="btn-primary mt-6" [disabled]="savingProfile()">
+                  @if (savingProfile()) {
+                    <svg class="w-5 h-5 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Saving...
+                  } @else {
+                    Save changes
+                  }
+                </button>
+              </form>
+            </div>
+
+            <div class="card p-6 md:p-8">
+              <div class="flex items-center justify-between mb-6">
+                <h2 class="text-xl font-semibold text-slate-800">Change password</h2>
+                @if (passwordSuccess()) {
+                  <span class="text-sm text-green-600">{{ passwordSuccess() }}</span>
+                }
+              </div>
+
+              @if (passwordError()) {
+                <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {{ passwordError() }}
+                </div>
+              }
+
+              <form #passwordFormRef="ngForm" (ngSubmit)="savePassword(passwordFormRef)" novalidate>
+                <div class="space-y-5">
+                  <div>
+                    <label for="currentPassword" class="block text-sm font-medium text-slate-700 mb-2">Current password</label>
+                    <input
+                      id="currentPassword"
+                      name="currentPassword"
+                      type="password"
+                      [(ngModel)]="passwordForm.currentPassword"
+                      #currentPassword="ngModel"
+                      required
+                      class="input"
+                      [class.input-error]="currentPassword.invalid && (currentPassword.touched || passwordFormRef.submitted)"
+                    />
+                    @if (currentPassword.invalid && (currentPassword.touched || passwordFormRef.submitted)) {
+                      <p class="mt-2 text-sm text-red-600">Current password is required.</p>
+                    }
+                  </div>
+
+                  <div>
+                    <label for="newPassword" class="block text-sm font-medium text-slate-700 mb-2">New password</label>
+                    <input
+                      id="newPassword"
+                      name="newPassword"
+                      type="password"
+                      [(ngModel)]="passwordForm.newPassword"
+                      #newPassword="ngModel"
+                      required
+                      minlength="8"
+                      class="input"
+                      [class.input-error]="newPassword.invalid && (newPassword.touched || passwordFormRef.submitted)"
+                    />
+                    @if (newPassword.errors?.['required'] && (newPassword.touched || passwordFormRef.submitted)) {
+                      <p class="mt-2 text-sm text-red-600">New password is required.</p>
+                    } @else if (newPassword.errors?.['minlength'] && (newPassword.touched || passwordFormRef.submitted)) {
+                      <p class="mt-2 text-sm text-red-600">Password must be at least 8 characters.</p>
+                    }
+                  </div>
+
+                  <div>
+                    <label for="confirmPassword" class="block text-sm font-medium text-slate-700 mb-2">Confirm new password</label>
+                    <input
+                      id="confirmPassword"
+                      name="confirmPassword"
+                      type="password"
+                      [(ngModel)]="passwordForm.confirmPassword"
+                      #confirmPassword="ngModel"
+                      required
+                      class="input"
+                      [class.input-error]="confirmPassword.invalid && (confirmPassword.touched || passwordFormRef.submitted)"
+                    />
+                    @if (confirmPassword.invalid && (confirmPassword.touched || passwordFormRef.submitted)) {
+                      <p class="mt-2 text-sm text-red-600">Please confirm your new password.</p>
+                    }
+                  </div>
+                </div>
+
+                <button type="submit" class="btn-primary mt-6" [disabled]="savingPassword()">
+                  @if (savingPassword()) {
+                    <svg class="w-5 h-5 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Updating...
+                  } @else {
+                    Update password
+                  }
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+  </section>
+</app-main-layout>

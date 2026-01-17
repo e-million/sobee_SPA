@@ -2,7 +2,7 @@ import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { LoginRequest, RegisterRequest, AuthResponse } from '../models';
+import { LoginRequest, RegisterRequest, AuthResponse, RegisterResponse, ForgotPasswordRequest, ResetPasswordRequest } from '../models';
 
 @Injectable({
   providedIn: 'root'
@@ -22,8 +22,19 @@ export class AuthService {
   /**
    * Register a new user with profile information
    */
-  register(request: RegisterRequest): Observable<any> {
-    return this.http.post(`${this.apiUrl}/api/auth/register`, request);
+  register(request: RegisterRequest): Observable<AuthResponse | RegisterResponse> {
+    return this.http.post<AuthResponse | RegisterResponse>(`${this.apiUrl}/api/auth/register`, request).pipe(
+      tap(response => {
+        const accessToken = (response as AuthResponse | null)?.accessToken;
+        const refreshToken = (response as AuthResponse | null)?.refreshToken;
+
+        if (accessToken && refreshToken) {
+          localStorage.setItem('accessToken', accessToken);
+          localStorage.setItem('refreshToken', refreshToken);
+          this.isAuthenticated.set(true);
+        }
+      })
+    );
   }
 
   /**
@@ -58,6 +69,7 @@ export class AuthService {
   logout(): void {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
+    this.clearGuestSession();
     this.isAuthenticated.set(false);
   }
 
@@ -95,5 +107,19 @@ export class AuthService {
         this.isAuthenticated.set(true);
       })
     );
+  }
+
+  /**
+   * Request a password reset email
+   */
+  forgotPassword(request: ForgotPasswordRequest): Observable<{ success: boolean }> {
+    return this.http.post<{ success: boolean }>(`${this.apiUrl}/api/auth/forgot-password`, request);
+  }
+
+  /**
+   * Reset password using a token
+   */
+  resetPassword(request: ResetPasswordRequest): Observable<AuthResponse> {
+    return this.http.post<AuthResponse>(`${this.apiUrl}/api/auth/reset-password`, request);
   }
 }

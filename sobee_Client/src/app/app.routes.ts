@@ -8,7 +8,13 @@ import { Shop } from './features/shop/shop';
 import { About } from './features/about/about';
 import { Contact } from './features/contact/contact';
 import { Faq } from './features/faq/faq';
-import { authGuard } from './core/guards';
+import { Login } from './features/auth/login/login';
+import { Register } from './features/auth/register/register';
+import { ForgotPassword } from './features/auth/forgot-password/forgot-password';
+import { ResetPassword } from './features/auth/reset-password/reset-password';
+import { Account } from './features/account/account';
+import { NotFound } from './features/not-found/not-found';
+import { authGuard, guestGuard } from './core/guards';
 
 export const routes: Routes = [
   // Public pages
@@ -18,16 +24,26 @@ export const routes: Routes = [
   { path: 'contact', component: Contact },
   { path: 'faq', component: Faq },
 
+  // Authentication pages (standalone)
+  { path: 'login', component: Login, canActivate: [guestGuard] },
+  { path: 'register', component: Register, canActivate: [guestGuard] },
+  { path: 'forgot-password', component: ForgotPassword, canActivate: [guestGuard] },
+  { path: 'reset-password', component: ResetPassword },
+
   // Shopping flow
   { path: 'checkout', component: Checkout },
   { path: 'order-confirmation/:orderId', component: OrderConfirmation },
 
   // Authenticated routes
   { path: 'orders', component: Orders, canActivate: [authGuard] },
+  { path: 'account', component: Account, canActivate: [authGuard] },
 
   // Dev/Test page (keep for debugging)
   { path: 'test', component: TestPage },
 
   // Redirects for convenience
   { path: 'story', redirectTo: '/about', pathMatch: 'full' },
+
+  // Not found
+  { path: '**', component: NotFound }
 ];

@@ -10,7 +10,7 @@ export const guestGuard: CanActivateFn = (route, state) => {
     return true;
   }
 
-  // Already logged in, redirect to home/test page
-  router.navigate(['/test']);
+  // Already logged in, redirect to home
+  router.navigate(['/']);
   return false;
 };
