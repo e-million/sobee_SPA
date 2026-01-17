@@ -1,17 +1,24 @@
 <div class="card-hover group">
   <!-- Product Image -->
-  <div class="relative aspect-square overflow-hidden bg-slate-100">
+  <a
+    [routerLink]="['/product', product.id]"
+    class="relative aspect-square overflow-hidden bg-slate-100 block"
+  >
     <img
       [src]="productImage"
-      [alt]="product.name"
+      [alt]="product.name ?? 'Sobee product'"
       class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
     />
-    @if (product.stockAmount && product.stockAmount < 10) {
+    @if (isOutOfStock) {
+      <span class="absolute top-3 left-3 bg-slate-800 text-white text-xs font-semibold px-2 py-1 rounded">
+        Out of Stock
+      </span>
+    } @else if (isLowStock) {
       <span class="absolute top-3 left-3 bg-accent-500 text-white text-xs font-semibold px-2 py-1 rounded">
-        Low Stock
+        Only {{ product.stockAmount }} left
       </span>
     }
-  </div>
+  </a>
 
   <!-- Product Info -->
   <div class="p-4">
@@ -36,7 +43,11 @@
     </div>
 
     <!-- Name -->
-    <h3 class="font-semibold text-slate-800 mb-1 line-clamp-2">{{ product.name }}</h3>
+    <a [routerLink]="['/product', product.id]" class="block">
+      <h3 class="font-semibold text-slate-800 mb-1 line-clamp-2">
+        {{ product.name ?? 'Unnamed product' }}
+      </h3>
+    </a>
 
     <!-- Description -->
     @if (product.description) {
@@ -45,7 +56,9 @@
 
     <!-- Price -->
     <div class="flex items-center gap-2 mb-4">
-      <span class="text-xl font-bold text-slate-800">${{ product.price.toFixed(2) }}</span>
+      <span class="text-xl font-bold text-slate-800">
+        {{ product.price | currency:'USD':'symbol':'1.2-2' }}
+      </span>
     </div>
 
     <!-- Quantity & Add to Cart -->
@@ -54,7 +67,7 @@
       <div class="flex items-center border border-slate-200 rounded-lg">
         <button
           (click)="decrementQuantity()"
-          [disabled]="quantity() <= 1"
+          [disabled]="quantity() <= 1 || isOutOfStock"
           class="w-8 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-l-lg transition-colors"
         >
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -64,7 +77,7 @@
         <span class="w-8 text-center text-sm font-medium">{{ quantity() }}</span>
         <button
           (click)="incrementQuantity()"
-          [disabled]="quantity() >= 10"
+          [disabled]="quantity() >= maxQuantity || isOutOfStock"
           class="w-8 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-r-lg transition-colors"
         >
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -76,7 +89,7 @@
       <!-- Add to Cart Button -->
       <button
         (click)="onAddToCart()"
-        [disabled]="isAdding()"
+        [disabled]="isAdding() || isOutOfStock || maxQuantity === 0"
         class="flex-1 btn-primary text-sm py-2"
         [class.animate-pulse]="isAdding()"
       >
@@ -90,7 +103,11 @@
           <svg class="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
           </svg>
-          Add to Cart
+          @if (isOutOfStock) {
+            Out of Stock
+          } @else {
+            Add to Cart
+          }
         }
       </button>
     </div>

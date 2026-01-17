@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, of } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { Product } from '../models';
@@ -24,7 +24,13 @@ export class ProductService {
   /**
    * Get all products with optional filtering
    */
-  getProducts(params?: { search?: string; inStockOnly?: boolean }): Observable<Product[]> {
+  getProducts(params?: {
+    search?: string;
+    inStockOnly?: boolean;
+    category?: string;
+    minPrice?: number;
+    maxPrice?: number;
+  }): Observable<Product[]> {
     let httpParams = new HttpParams();
 
     if (params?.search) {
@@ -33,6 +39,18 @@ export class ProductService {
 
     if (params?.inStockOnly !== undefined) {
       httpParams = httpParams.set('inStockOnly', params.inStockOnly.toString());
+    }
+
+    if (params?.category) {
+      httpParams = httpParams.set('category', params.category);
+    }
+
+    if (params?.minPrice !== undefined && params?.minPrice !== null) {
+      httpParams = httpParams.set('minPrice', params.minPrice.toString());
+    }
+
+    if (params?.maxPrice !== undefined && params?.maxPrice !== null) {
+      httpParams = httpParams.set('maxPrice', params.maxPrice.toString());
     }
 
     return this.http.get<PaginatedResponse<Product>>(this.apiUrl, { params: httpParams })
@@ -50,6 +68,24 @@ export class ProductService {
    * Search products by name or description
    */
   searchProducts(searchTerm: string): Observable<Product[]> {
-    return this.getProducts({ search: searchTerm });
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) {
+      return of([]);
+    }
+
+    return this.getProducts({ search: searchTerm }).pipe(
+      map(products => products.filter(product => {
+        const name = product.name?.toLowerCase() ?? '';
+        const description = product.description?.toLowerCase() ?? '';
+        return name.includes(term) || description.includes(term);
+      }))
+    );
+  }
+
+  /**
+   * Get product categories
+   */
+  getCategories(): Observable<string[]> {
+    return this.http.get<string[]>(`${environment.apiUrl}/categories`);
   }
 }

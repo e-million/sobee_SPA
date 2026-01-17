@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { LoginRequest, RegisterRequest, AuthResponse, RegisterResponse, ForgotPasswordRequest, ResetPasswordRequest } from '../models';
+import { CartService } from './cart.service';
 
 @Injectable({
   providedIn: 'root'
@@ -13,7 +14,10 @@ export class AuthService {
   // Signal to track authentication state
   isAuthenticated = signal(false);
 
-  constructor(private http: HttpClient) {
+  constructor(
+    private http: HttpClient,
+    private cartService: CartService
+  ) {
     // Check if user is already authenticated on service initialization
     const token = localStorage.getItem('accessToken');
     this.isAuthenticated.set(!!token);
@@ -70,6 +74,7 @@ export class AuthService {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     this.clearGuestSession();
+    this.cartService.clearCart();
     this.isAuthenticated.set(false);
   }
 

@@ -14,12 +14,17 @@ import { ForgotPassword } from './features/auth/forgot-password/forgot-password'
 import { ResetPassword } from './features/auth/reset-password/reset-password';
 import { Account } from './features/account/account';
 import { NotFound } from './features/not-found/not-found';
+import { Cart } from './features/cart/cart';
+import { ProductDetail } from './features/product-detail/product-detail';
+import { Search } from './features/search/search';
 import { authGuard, guestGuard } from './core/guards';
 
 export const routes: Routes = [
   // Public pages
   { path: '', component: Home },
   { path: 'shop', component: Shop },
+  { path: 'product/:id', component: ProductDetail },
+  { path: 'search', component: Search },
   { path: 'about', component: About },
   { path: 'contact', component: Contact },
   { path: 'faq', component: Faq },
@@ -31,6 +36,7 @@ export const routes: Routes = [
   { path: 'reset-password', component: ResetPassword },
 
   // Shopping flow
+  { path: 'cart', component: Cart },
   { path: 'checkout', component: Checkout },
   { path: 'order-confirmation/:orderId', component: OrderConfirmation },
 

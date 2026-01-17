@@ -20,28 +20,78 @@
   <section class="section bg-white">
     <div class="container-wide">
       <!-- Toolbar -->
-      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8 pb-6 border-b border-slate-200">
-        <p class="text-slate-600">
-          @if (!loading()) {
-            Showing <span class="font-medium text-slate-800">{{ products().length }}</span> products
-          }
-        </p>
+      <div class="flex flex-col gap-5 mb-8 pb-6 border-b border-slate-200">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <p class="text-slate-600">
+            @if (!loading()) {
+              Showing <span class="font-medium text-slate-800">{{ products().length }}</span>
+              of <span class="font-medium text-slate-800">{{ totalProducts() }}</span> products
+            }
+          </p>
 
-        <div class="flex items-center gap-4">
-          <!-- Sort Dropdown -->
-          <div class="flex items-center gap-2">
-            <label for="sort" class="text-sm text-slate-600 whitespace-nowrap">Sort by:</label>
+          <div class="flex items-center gap-4">
+            <!-- Sort Dropdown -->
+            <div class="flex items-center gap-2">
+              <label for="sort" class="text-sm text-slate-600 whitespace-nowrap">Sort by:</label>
+              <select
+                id="sort"
+                [(ngModel)]="selectedSort"
+                (change)="onSortChange()"
+                class="input py-2 pl-3 pr-8 w-auto min-w-[160px]"
+              >
+                @for (option of sortOptions; track option.value) {
+                  <option [value]="option.value">{{ option.label }}</option>
+                }
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-[minmax(0,220px)_minmax(0,160px)_minmax(0,160px)_auto] gap-4 items-end">
+          <div>
+            <label for="category" class="text-sm text-slate-600">Category</label>
             <select
-              id="sort"
-              [(ngModel)]="selectedSort"
-              (change)="onSortChange()"
-              class="input py-2 pl-3 pr-8 w-auto min-w-[160px]"
+              id="category"
+              [(ngModel)]="selectedCategory"
+              (change)="onCategoryChange()"
+              class="input py-2 mt-1"
             >
-              @for (option of sortOptions; track option.value) {
-                <option [value]="option.value">{{ option.label }}</option>
+              <option value="all">All Categories</option>
+              @for (category of categories(); track category) {
+                <option [value]="category">{{ category }}</option>
               }
             </select>
           </div>
+
+          <div>
+            <label for="minPrice" class="text-sm text-slate-600">Min Price</label>
+            <input
+              id="minPrice"
+              type="number"
+              min="0"
+              [(ngModel)]="minPrice"
+              (change)="onPriceChange()"
+              class="input py-2 mt-1"
+              placeholder="0"
+            />
+          </div>
+
+          <div>
+            <label for="maxPrice" class="text-sm text-slate-600">Max Price</label>
+            <input
+              id="maxPrice"
+              type="number"
+              min="0"
+              [(ngModel)]="maxPrice"
+              (change)="onPriceChange()"
+              class="input py-2 mt-1"
+              placeholder="100"
+            />
+          </div>
+
+          <button type="button" (click)="clearFilters()" class="btn-outline text-sm px-4 py-2 w-full md:w-auto">
+            Clear filters
+          </button>
         </div>
       </div>
 
@@ -114,9 +164,9 @@
             </svg>
           </div>
           <h3 class="text-xl font-semibold text-slate-800 mb-2">No Products Found</h3>
-          <p class="text-slate-500 mb-6">We couldn't find any products. Please check back later.</p>
-          <button (click)="loadProducts()" class="btn-primary">
-            Refresh
+          <p class="text-slate-500 mb-6">Try adjusting your filters or clearing them to see more options.</p>
+          <button (click)="clearFilters()" class="btn-primary">
+            Clear filters
           </button>
         </div>
       }

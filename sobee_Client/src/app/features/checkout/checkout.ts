@@ -82,6 +82,6 @@ export class Checkout implements OnInit {
   }
 
   goBack() {
-    this.router.navigate(['/test']);
+    this.router.navigate(['/cart']);
   }
 }

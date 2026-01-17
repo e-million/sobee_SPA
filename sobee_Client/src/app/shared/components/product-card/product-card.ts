@@ -16,6 +16,15 @@ export class ProductCard {
   quantity = signal(1);
   isAdding = signal(false);
 
+  get maxQuantity(): number {
+    if (!this.product.inStock) {
+      return 0;
+    }
+
+    const stockLimit = this.product.stockAmount ?? 10;
+    return Math.min(10, stockLimit);
+  }
+
   decrementQuantity() {
     if (this.quantity() > 1) {
       this.quantity.update(q => q - 1);
@@ -23,12 +32,16 @@ export class ProductCard {
   }
 
   incrementQuantity() {
-    if (this.quantity() < 10) {
+    if (this.quantity() < this.maxQuantity) {
       this.quantity.update(q => q + 1);
     }
   }
 
   onAddToCart() {
+    if (!this.product.inStock || this.maxQuantity === 0) {
+      return;
+    }
+
     this.isAdding.set(true);
     this.addToCart.emit({ product: this.product, quantity: this.quantity() });
 
@@ -46,6 +59,14 @@ export class ProductCard {
 
   get productImage(): string {
     // Return a placeholder or actual image URL
-    return this.product.imageUrl || 'https://placehold.co/400x400/f59e0b/white?text=SoBee';
+    return this.product.primaryImageUrl || this.product.imageUrl || 'https://placehold.co/400x400/f59e0b/white?text=SoBee';
+  }
+
+  get isLowStock(): boolean {
+    return !!this.product.stockAmount && this.product.stockAmount > 0 && this.product.stockAmount < 5;
+  }
+
+  get isOutOfStock(): boolean {
+    return !this.product.inStock || this.product.stockAmount === 0;
   }
 }

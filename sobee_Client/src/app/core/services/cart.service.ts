@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, tap } from 'rxjs';
+import { Observable, switchMap, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { Cart, AddCartItemRequest, UpdateCartItemRequest, ApplyPromoRequest } from '../models';
 
@@ -55,8 +55,8 @@ export class CartService {
    * Apply a promo code to the cart
    */
   applyPromo(request: ApplyPromoRequest): Observable<Cart> {
-    return this.http.post<Cart>(`${this.apiUrl}/promo`, request).pipe(
-      tap(cart => this.cart.set(cart))
+    return this.http.post<void>(`${this.apiUrl}/promo/apply`, request).pipe(
+      switchMap(() => this.getCart())
     );
   }
 
@@ -64,9 +64,13 @@ export class CartService {
    * Remove promo code from cart
    */
   removePromo(): Observable<Cart> {
-    return this.http.delete<Cart>(`${this.apiUrl}/promo`).pipe(
-      tap(cart => this.cart.set(cart))
+    return this.http.delete<void>(`${this.apiUrl}/promo`).pipe(
+      switchMap(() => this.getCart())
     );
+  }
+
+  clearCart(): void {
+    this.cart.set(null);
   }
 
   /**

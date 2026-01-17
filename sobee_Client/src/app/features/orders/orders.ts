@@ -25,7 +25,7 @@ export class Orders implements OnInit {
   ngOnInit() {
     // Check if user is authenticated
     if (!this.authService.isAuthenticated()) {
-      this.router.navigate(['/test']);
+      this.router.navigate(['/login']);
       return;
     }
 
@@ -50,7 +50,7 @@ export class Orders implements OnInit {
   }
 
   continueShopping() {
-    this.router.navigate(['/test']);
+    this.router.navigate(['/shop']);
   }
 
   getStatusClass(status: string | null): string {
