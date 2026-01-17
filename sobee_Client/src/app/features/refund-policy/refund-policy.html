@@ -1,0 +1,44 @@
+<app-main-layout>
+  <section class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white py-16">
+    <div class="container-wide">
+      <span class="inline-block px-4 py-1.5 bg-primary-500/20 text-primary-200 text-sm font-medium rounded-full mb-4">
+        Support
+      </span>
+      <h1 class="text-3xl md:text-4xl font-display font-bold mb-3">Refund Policy</h1>
+      <p class="text-slate-300 max-w-2xl">
+        Simple, transparent, and built for peace of mind.
+      </p>
+      <p class="text-xs text-slate-400 mt-4">Last updated: {{ lastUpdated }}</p>
+    </div>
+  </section>
+
+  <section class="section bg-white">
+    <div class="container-narrow">
+      <div class="space-y-10">
+        @for (section of sections; track section.title) {
+          <div>
+            <h2 class="text-xl md:text-2xl font-semibold text-slate-800 mb-3">{{ section.title }}</h2>
+            <div class="space-y-3 text-slate-600 leading-relaxed">
+              @for (paragraph of section.content; track paragraph) {
+                <p>{{ paragraph }}</p>
+              }
+            </div>
+          </div>
+        }
+      </div>
+
+      <div class="mt-12 p-6 bg-slate-50 border border-slate-200 rounded-xl">
+        <h3 class="text-lg font-semibold text-slate-800 mb-2">Need help?</h3>
+        <p class="text-slate-600">
+          Reach out to our team and we will take care of it quickly.
+        </p>
+        <a routerLink="/contact" class="inline-flex items-center gap-2 text-primary-600 font-medium mt-3">
+          Contact support
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+          </svg>
+        </a>
+      </div>
+    </div>
+  </section>
+</app-main-layout>

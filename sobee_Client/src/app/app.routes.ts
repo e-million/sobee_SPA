@@ -17,6 +17,10 @@ import { NotFound } from './features/not-found/not-found';
 import { Cart } from './features/cart/cart';
 import { ProductDetail } from './features/product-detail/product-detail';
 import { Search } from './features/search/search';
+import { RefundPolicy } from './features/refund-policy/refund-policy';
+import { Shipping } from './features/shipping/shipping';
+import { Terms } from './features/terms/terms';
+import { Privacy } from './features/privacy/privacy';
 import { authGuard, guestGuard } from './core/guards';
 
 export const routes: Routes = [
@@ -28,6 +32,10 @@ export const routes: Routes = [
   { path: 'about', component: About },
   { path: 'contact', component: Contact },
   { path: 'faq', component: Faq },
+  { path: 'refund-policy', component: RefundPolicy },
+  { path: 'shipping', component: Shipping },
+  { path: 'terms', component: Terms },
+  { path: 'privacy', component: Privacy },
 
   // Authentication pages (standalone)
   { path: 'login', component: Login, canActivate: [guestGuard] },
