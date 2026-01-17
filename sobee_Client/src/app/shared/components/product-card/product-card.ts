@@ -39,7 +39,7 @@ export class ProductCard {
     }, 500);
   }
 
-  getStars(rating: number | null): number[] {
+  getStars(rating: number | null | undefined): number[] {
     const starRating = rating || 0;
     return Array(5).fill(0).map((_, i) => i < Math.round(starRating) ? 1 : 0);
   }

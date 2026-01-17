@@ -43,9 +43,13 @@ export class Shop implements OnInit {
 
   loadProducts() {
     this.loading.set(true);
-    this.productService.getProducts(this.currentPage(), this.pageSize()).subscribe({
+    this.productService.getProducts().subscribe({
       next: (products) => {
-        this.products.set(products);
+        this.totalProducts.set(products.length);
+        // Client-side pagination for now
+        const start = (this.currentPage() - 1) * this.pageSize();
+        const end = start + this.pageSize();
+        this.products.set(products.slice(start, end));
         this.loading.set(false);
       },
       error: () => {
@@ -56,7 +60,7 @@ export class Shop implements OnInit {
   }
 
   onAddToCart(event: { product: Product; quantity: number }) {
-    this.cartService.addItem(event.product.id, event.quantity).subscribe({
+    this.cartService.addItem({ productId: event.product.id, quantity: event.quantity }).subscribe({
       next: () => {
         this.toastService.success(`Added ${event.quantity} ${event.product.name} to cart!`);
       },

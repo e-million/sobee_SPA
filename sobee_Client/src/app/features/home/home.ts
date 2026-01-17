@@ -52,9 +52,10 @@ export class Home implements OnInit {
   }
 
   loadFeaturedProducts() {
-    this.productService.getProducts(1, 4).subscribe({
+    this.productService.getProducts().subscribe({
       next: (products) => {
-        this.featuredProducts.set(products);
+        // Take first 4 products as featured
+        this.featuredProducts.set(products.slice(0, 4));
         this.loading.set(false);
       },
       error: () => {
@@ -64,7 +65,7 @@ export class Home implements OnInit {
   }
 
   onAddToCart(event: { product: Product; quantity: number }) {
-    this.cartService.addItem(event.product.id, event.quantity).subscribe({
+    this.cartService.addItem({ productId: event.product.id, quantity: event.quantity }).subscribe({
       next: () => {
         this.toastService.success(`Added ${event.quantity} ${event.product.name} to cart!`);
       },
