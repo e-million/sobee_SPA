@@ -1,0 +1,8 @@
+services:
+  sobee_api:
+    build:
+      target: dev
+    volumes:
+      - ./sobee_API:/src
+    environment:
+      DOTNET_USE_POLLING_FILE_WATCHER: "1"
