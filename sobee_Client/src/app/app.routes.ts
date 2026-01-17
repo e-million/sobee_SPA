@@ -28,6 +28,7 @@ import { AdminOrders } from './features/admin/orders/admin-orders';
 import { AdminUsers } from './features/admin/users/admin-users';
 import { AdminPromos } from './features/admin/promos/admin-promos';
 import { adminChildGuard, adminGuard, authGuard, guestGuard } from './core/guards';
+import { Favorites } from './features/favorites/favorites';
 
 export const routes: Routes = [
   // Public pages
@@ -42,6 +43,7 @@ export const routes: Routes = [
   { path: 'shipping', component: Shipping },
   { path: 'terms', component: Terms },
   { path: 'privacy', component: Privacy },
+  { path: 'favorites', component: Favorites, canActivate: [authGuard] },
 
   // Admin (protected)
   {

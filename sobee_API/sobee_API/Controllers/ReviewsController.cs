@@ -71,8 +71,9 @@ namespace sobee_API.Controllers
         }
 
         /// <summary>
-        /// Create a review for a product (authenticated or valid guest session).
+        /// Create a review for a product (authenticated only).
         /// </summary>
+        [Authorize]
         [HttpPost("product/{productId:int}")]
         public async Task<IActionResult> Create(int productId, [FromBody] CreateReviewRequest request)
         {
@@ -86,10 +87,8 @@ namespace sobee_API.Controllers
             );
 
             // Must be either authenticated OR a valid existing guest session.
-            if (string.IsNullOrWhiteSpace(owner.UserId) && string.IsNullOrWhiteSpace(owner.GuestSessionId))
-            {
-                return Forbid();
-            }
+            if (string.IsNullOrWhiteSpace(owner.UserId))
+                return Unauthorized(new { error = "Missing NameIdentifier claim." });
 
             // Validate product exists
             var productExists = await _db.Tproducts.AnyAsync(p => p.IntProductId == productId);
@@ -143,6 +142,12 @@ namespace sobee_API.Controllers
             var review = await _db.Treviews.FirstOrDefaultAsync(r => r.IntReviewId == reviewId);
             if (review == null)
                 return NotFound(new { error = "Review not found.", reviewId });
+
+            var isAdmin = User.IsInRole("Admin");
+            var isOwner = !string.IsNullOrWhiteSpace(review.UserId) && review.UserId == owner.UserId;
+
+            if (!isAdmin && !isOwner)
+                return Forbid();
 
             var reply = new Sobee.Domain.Entities.Reviews.TReviewReplies
             {

@@ -1,18 +1,22 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import { MainLayout } from '../../shared/layout/main-layout';
 import { ProductCard } from '../../shared/components/product-card/product-card';
 import { ProductService } from '../../core/services/product.service';
 import { CartService } from '../../core/services/cart.service';
 import { ToastService } from '../../core/services/toast.service';
-import { Product } from '../../core/models';
+import { FavoritesService } from '../../core/services/favorites.service';
+import { ReviewService } from '../../core/services/review.service';
+import { AuthService } from '../../core/services/auth.service';
+import { Product, Review } from '../../core/models';
 
-type ProductTab = 'description' | 'ingredients';
+type ProductTab = 'description' | 'ingredients' | 'reviews';
 
 @Component({
   selector: 'app-product-detail',
-  imports: [CommonModule, RouterModule, MainLayout, ProductCard],
+  imports: [CommonModule, FormsModule, RouterModule, MainLayout, ProductCard],
   templateUrl: './product-detail.html',
   styleUrl: './product-detail.css'
 })
@@ -24,12 +28,27 @@ export class ProductDetail implements OnInit {
   error = signal('');
   quantity = signal(1);
   activeTab = signal<ProductTab>('description');
+  reviews = signal<Review[]>([]);
+  reviewsLoading = signal(false);
+  reviewsError = signal('');
+  reviewRating = 5;
+  reviewText = '';
+  reviewSubmitting = signal(false);
+  isFavorite = signal(false);
+  favoriteLoading = signal(false);
+  replyOpenIds = signal<Set<number>>(new Set());
+  replyDrafts = signal<Record<number, string>>({});
+  replySubmitting = signal(false);
 
   constructor(
     private route: ActivatedRoute,
+    private router: Router,
     private productService: ProductService,
     private cartService: CartService,
-    private toastService: ToastService
+    private toastService: ToastService,
+    private favoritesService: FavoritesService,
+    private reviewService: ReviewService,
+    private authService: AuthService
   ) {}
 
   ngOnInit() {
@@ -43,6 +62,9 @@ export class ProductDetail implements OnInit {
         this.product.set(null);
         this.relatedProducts.set([]);
         this.error.set('');
+        this.reviews.set([]);
+        this.replyOpenIds.set(new Set());
+        this.replyDrafts.set({});
         return;
       }
 
@@ -63,7 +85,16 @@ export class ProductDetail implements OnInit {
         this.loading.set(false);
         this.quantity.set(1);
         this.activeTab.set('description');
+        this.reviews.set([]);
+        this.reviewsError.set('');
+        this.reviewText = '';
+        this.reviewRating = 5;
+        this.isFavorite.set(false);
+        this.replyOpenIds.set(new Set());
+        this.replyDrafts.set({});
         this.loadRelatedProducts(product);
+        this.loadReviews(product.id);
+        this.loadFavoriteState(product.id);
       },
       error: (err) => {
         this.loading.set(false);
@@ -117,6 +148,82 @@ export class ProductDetail implements OnInit {
     });
   }
 
+  toggleFavorite() {
+    const product = this.product();
+    if (!product) {
+      return;
+    }
+
+    if (!this.authService.isAuthenticated()) {
+      localStorage.setItem('returnUrl', this.router.url);
+      this.router.navigate(['/login']);
+      return;
+    }
+
+    this.favoriteLoading.set(true);
+
+    const request = this.isFavorite()
+      ? this.favoritesService.removeFavorite(product.id)
+      : this.favoritesService.addFavorite(product.id);
+
+    request.subscribe({
+      next: () => {
+        const newState = !this.isFavorite();
+        this.isFavorite.set(newState);
+        this.favoriteLoading.set(false);
+        this.toastService.success(newState ? 'Added to wishlist.' : 'Removed from wishlist.');
+      },
+      error: () => {
+        this.favoriteLoading.set(false);
+        this.toastService.error('Unable to update wishlist.');
+      }
+    });
+  }
+
+  submitReview() {
+    const product = this.product();
+    if (!product) {
+      return;
+    }
+
+    if (!this.authService.isAuthenticated()) {
+      localStorage.setItem('returnUrl', this.router.url);
+      this.router.navigate(['/login']);
+      return;
+    }
+
+    const text = this.reviewText.trim();
+    if (!text) {
+      this.reviewsError.set('Please add a review message.');
+      return;
+    }
+
+    if (this.reviewRating < 1 || this.reviewRating > 5) {
+      this.reviewsError.set('Select a rating between 1 and 5.');
+      return;
+    }
+
+    this.reviewSubmitting.set(true);
+    this.reviewsError.set('');
+
+    this.reviewService.createReview(product.id, {
+      rating: this.reviewRating,
+      reviewText: text
+    }).subscribe({
+      next: () => {
+        this.reviewText = '';
+        this.reviewRating = 5;
+        this.reviewSubmitting.set(false);
+        this.loadReviews(product.id);
+        this.toastService.success('Review submitted.');
+      },
+      error: () => {
+        this.reviewSubmitting.set(false);
+        this.reviewsError.set('Unable to submit review. Make sure you are signed in.');
+      }
+    });
+  }
+
   addRelatedToCart(event: { product: Product; quantity: number }) {
     this.cartService.addItem({ productId: event.product.id, quantity: event.quantity }).subscribe({
       next: () => {
@@ -164,5 +271,112 @@ export class ProductDetail implements OnInit {
   getStars(rating: number | null | undefined): number[] {
     const starRating = rating || 0;
     return Array(5).fill(0).map((_, i) => i < Math.round(starRating) ? 1 : 0);
+  }
+
+  getStarOptions(): number[] {
+    return [1, 2, 3, 4, 5];
+  }
+
+  canSubmitReview(): boolean {
+    return this.authService.isAuthenticated();
+  }
+
+  canReply(review: Review): boolean {
+    if (!this.authService.isAuthenticated()) {
+      return false;
+    }
+
+    if (this.authService.isAdmin()) {
+      return true;
+    }
+
+    const userId = this.authService.getUserId();
+    return !!userId && review.userId === userId;
+  }
+
+  isReviewOwner(review: Review): boolean {
+    const userId = this.authService.getUserId();
+    return !!userId && review.userId === userId;
+  }
+
+  toggleReply(reviewId: number) {
+    const updated = new Set(this.replyOpenIds());
+    if (updated.has(reviewId)) {
+      updated.delete(reviewId);
+    } else {
+      updated.add(reviewId);
+    }
+    this.replyOpenIds.set(updated);
+  }
+
+  getReplyDraft(reviewId: number): string {
+    return this.replyDrafts()[reviewId] ?? '';
+  }
+
+  setReplyDraft(reviewId: number, value: string) {
+    this.replyDrafts.update(drafts => ({ ...drafts, [reviewId]: value }));
+  }
+
+  submitReply(review: Review) {
+    if (!this.canReply(review)) {
+      this.reviewsError.set('You are not allowed to reply to this review.');
+      return;
+    }
+
+    const content = this.getReplyDraft(review.reviewId).trim();
+    if (!content) {
+      this.reviewsError.set('Please enter a reply.');
+      return;
+    }
+
+    this.replySubmitting.set(true);
+    this.reviewsError.set('');
+
+    this.reviewService.createReply(review.reviewId, { content }).subscribe({
+      next: () => {
+        this.replySubmitting.set(false);
+        this.setReplyDraft(review.reviewId, '');
+        this.toggleReply(review.reviewId);
+        this.loadReviews(review.productId);
+        this.toastService.success('Reply posted.');
+      },
+      error: () => {
+        this.replySubmitting.set(false);
+        this.reviewsError.set('Unable to post reply.');
+      }
+    });
+  }
+
+  private loadReviews(productId: number) {
+    this.reviewsLoading.set(true);
+    this.reviewsError.set('');
+
+    this.reviewService.getReviews(productId).subscribe({
+      next: (response) => {
+        this.reviews.set(response.reviews);
+        this.reviewsLoading.set(false);
+      },
+      error: () => {
+        this.reviewsError.set('Unable to load reviews.');
+        this.reviewsLoading.set(false);
+      }
+    });
+  }
+
+  private loadFavoriteState(productId: number) {
+    if (!this.authService.isAuthenticated()) {
+      this.isFavorite.set(false);
+      return;
+    }
+
+    this.favoritesService.getFavorites().subscribe({
+      next: (response) => {
+        const hasFavorite = response.favorites.some(fav => fav.productId === productId);
+        this.isFavorite.set(hasFavorite);
+      },
+      error: () => {
+        this.isFavorite.set(false);
+      }
+    });
   }
 }

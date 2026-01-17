@@ -5,6 +5,16 @@ import { environment } from '../../../environments/environment';
 import { LoginRequest, RegisterRequest, AuthResponse, RegisterResponse, ForgotPasswordRequest, ResetPasswordRequest } from '../models';
 import { CartService } from './cart.service';
 
+interface MeResponseClaim {
+  type?: string;
+  value?: string;
+}
+
+interface MeResponse {
+  roles?: string[];
+  claims?: MeResponseClaim[];
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -12,11 +22,13 @@ export class AuthService {
   private readonly apiUrl = environment.apiBaseUrl;
   private readonly meUrl = `${environment.apiUrl}/me`;
   private readonly rolesStorageKey = 'userRoles';
+  private readonly userIdStorageKey = 'userId';
 
   // Signal to track authentication state
   isAuthenticated = signal(false);
   roles = signal<string[]>([]);
   rolesLoaded = signal(false);
+  currentUserId = signal<string | null>(null);
 
   constructor(
     private http: HttpClient,
@@ -35,6 +47,11 @@ export class AuthService {
       } catch {
         this.roles.set([]);
       }
+    }
+
+    const storedUserId = localStorage.getItem(this.userIdStorageKey);
+    if (storedUserId) {
+      this.currentUserId.set(storedUserId);
     }
 
     if (token && !this.rolesLoaded()) {
@@ -126,6 +143,10 @@ export class AuthService {
     return this.getUserRoles().some(role => role.toLowerCase() === 'admin');
   }
 
+  getUserId(): string | null {
+    return this.currentUserId();
+  }
+
   /**
    * Get the current access token
    */
@@ -170,8 +191,19 @@ export class AuthService {
   }
 
   loadRoles(): Observable<string[]> {
-    return this.http.get<{ roles?: string[] }>(this.meUrl).pipe(
-      map(response => response.roles ?? []),
+    return this.http.get<MeResponse>(this.meUrl).pipe(
+      map(response => {
+        const roles = response.roles ?? [];
+        const userId = this.extractUserId(response.claims ?? []);
+        if (userId) {
+          this.currentUserId.set(userId);
+          localStorage.setItem(this.userIdStorageKey, userId);
+        } else {
+          this.currentUserId.set(null);
+          localStorage.removeItem(this.userIdStorageKey);
+        }
+        return roles;
+      }),
       tap(roles => {
         this.roles.set(roles);
         this.rolesLoaded.set(true);
@@ -198,6 +230,17 @@ export class AuthService {
     this.roles.set([]);
     this.rolesLoaded.set(false);
     localStorage.removeItem(this.rolesStorageKey);
+    this.currentUserId.set(null);
+    localStorage.removeItem(this.userIdStorageKey);
+  }
+
+  private extractUserId(claims: MeResponseClaim[]): string | null {
+    const idClaim = claims.find(claim =>
+      claim.type === 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier' ||
+      claim.type === 'sub'
+    );
+
+    return idClaim?.value ?? null;
   }
 
 }
