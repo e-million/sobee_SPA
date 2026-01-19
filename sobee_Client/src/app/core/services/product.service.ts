@@ -1,9 +1,10 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { PaginatedResponse, Product } from '../models';
+import { buildHttpParams } from '../utils/http-params.util';
 
 /**
  * Product service for catalog queries and category lookup.
@@ -28,27 +29,13 @@ export class ProductService {
     minPrice?: number;
     maxPrice?: number;
   }): Observable<Product[]> {
-    let httpParams = new HttpParams();
-
-    if (params?.search) {
-      httpParams = httpParams.set('search', params.search);
-    }
-
-    if (params?.inStockOnly !== undefined) {
-      httpParams = httpParams.set('inStockOnly', params.inStockOnly.toString());
-    }
-
-    if (params?.category) {
-      httpParams = httpParams.set('category', params.category);
-    }
-
-    if (params?.minPrice !== undefined && params?.minPrice !== null) {
-      httpParams = httpParams.set('minPrice', params.minPrice.toString());
-    }
-
-    if (params?.maxPrice !== undefined && params?.maxPrice !== null) {
-      httpParams = httpParams.set('maxPrice', params.maxPrice.toString());
-    }
+    const httpParams = buildHttpParams({
+      search: params?.search,
+      inStockOnly: params?.inStockOnly,
+      category: params?.category,
+      minPrice: params?.minPrice,
+      maxPrice: params?.maxPrice
+    });
 
     return this.http.get<PaginatedResponse<Product>>(this.apiUrl, { params: httpParams })
       .pipe(map(response => response.items));

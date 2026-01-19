@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
@@ -24,6 +24,7 @@ import {
   PaginatedResponse,
   UpdateOrderStatusRequest
 } from '../models';
+import { buildHttpParams } from '../utils/http-params.util';
 
 /**
  * Admin analytics service for dashboard and reporting endpoints.
@@ -53,7 +54,7 @@ export class AdminService {
    * @returns Observable of AdminOrdersPerDay[].
    */
   getOrdersPerDay(days: number = 30): Observable<AdminOrdersPerDay[]> {
-    const params = new HttpParams().set('days', days.toString());
+    const params = buildHttpParams({ days });
     return this.http.get<AdminOrdersPerDay[]>(`${this.apiUrl}/orders-per-day`, { params });
   }
 
@@ -63,7 +64,7 @@ export class AdminService {
    * @returns Observable of AdminLowStockProduct[].
    */
   getLowStock(threshold: number = 5): Observable<AdminLowStockProduct[]> {
-    const params = new HttpParams().set('threshold', threshold.toString());
+    const params = buildHttpParams({ threshold });
     return this.http.get<AdminLowStockProduct[]>(`${this.apiUrl}/low-stock`, { params });
   }
 
@@ -73,7 +74,7 @@ export class AdminService {
    * @returns Observable of AdminTopProduct[].
    */
   getTopProducts(limit: number = 5): Observable<AdminTopProduct[]> {
-    const params = new HttpParams().set('limit', limit.toString());
+    const params = buildHttpParams({ limit });
     return this.http.get<AdminTopProduct[]>(`${this.apiUrl}/top-products`, { params });
   }
 
@@ -85,10 +86,7 @@ export class AdminService {
    * @returns Observable of AdminRevenuePoint[].
    */
   getRevenueByPeriod(startDate: string, endDate: string, granularity: string = 'day'): Observable<AdminRevenuePoint[]> {
-    const params = new HttpParams()
-      .set('startDate', startDate)
-      .set('endDate', endDate)
-      .set('granularity', granularity);
+    const params = buildHttpParams({ startDate, endDate, granularity });
     return this.http.get<AdminRevenuePoint[]>(`${this.analyticsUrl}/revenue`, { params });
   }
 
@@ -114,7 +112,7 @@ export class AdminService {
    * @returns Observable of AdminReviewSummary[].
    */
   getRecentReviews(limit: number = 5): Observable<AdminReviewSummary[]> {
-    const params = new HttpParams().set('limit', limit.toString());
+    const params = buildHttpParams({ limit });
     return this.http.get<AdminReviewSummary[]>(`${this.analyticsUrl}/reviews/recent`, { params });
   }
 
@@ -124,7 +122,7 @@ export class AdminService {
    * @returns Observable of AdminWorstProduct[].
    */
   getWorstProducts(limit: number = 5): Observable<AdminWorstProduct[]> {
-    const params = new HttpParams().set('limit', limit.toString());
+    const params = buildHttpParams({ limit });
     return this.http.get<AdminWorstProduct[]>(`${this.analyticsUrl}/products/worst`, { params });
   }
 
@@ -134,7 +132,7 @@ export class AdminService {
    * @returns Observable of AdminInventorySummary.
    */
   getInventorySummary(lowStockThreshold: number = 5): Observable<AdminInventorySummary> {
-    const params = new HttpParams().set('lowStockThreshold', lowStockThreshold.toString());
+    const params = buildHttpParams({ lowStockThreshold });
     return this.http.get<AdminInventorySummary>(`${this.analyticsUrl}/inventory/summary`, { params });
   }
 
@@ -145,9 +143,7 @@ export class AdminService {
    * @returns Observable of AdminCategoryPerformance[].
    */
   getCategoryPerformance(startDate: string, endDate: string): Observable<AdminCategoryPerformance[]> {
-    const params = new HttpParams()
-      .set('startDate', startDate)
-      .set('endDate', endDate);
+    const params = buildHttpParams({ startDate, endDate });
     return this.http.get<AdminCategoryPerformance[]>(`${this.analyticsUrl}/products/categories`, { params });
   }
 
@@ -158,9 +154,7 @@ export class AdminService {
    * @returns Observable of AdminFulfillmentMetrics.
    */
   getFulfillmentMetrics(startDate: string, endDate: string): Observable<AdminFulfillmentMetrics> {
-    const params = new HttpParams()
-      .set('startDate', startDate)
-      .set('endDate', endDate);
+    const params = buildHttpParams({ startDate, endDate });
     return this.http.get<AdminFulfillmentMetrics>(`${this.analyticsUrl}/orders/fulfillment`, { params });
   }
 
@@ -171,9 +165,7 @@ export class AdminService {
    * @returns Observable of AdminCustomerBreakdown.
    */
   getCustomerBreakdown(startDate: string, endDate: string): Observable<AdminCustomerBreakdown> {
-    const params = new HttpParams()
-      .set('startDate', startDate)
-      .set('endDate', endDate);
+    const params = buildHttpParams({ startDate, endDate });
     return this.http.get<AdminCustomerBreakdown>(`${this.analyticsUrl}/customers/breakdown`, { params });
   }
 
@@ -185,10 +177,7 @@ export class AdminService {
    * @returns Observable of AdminCustomerGrowthPoint[].
    */
   getCustomerGrowth(startDate: string, endDate: string, granularity: string = 'day'): Observable<AdminCustomerGrowthPoint[]> {
-    const params = new HttpParams()
-      .set('startDate', startDate)
-      .set('endDate', endDate)
-      .set('granularity', granularity);
+    const params = buildHttpParams({ startDate, endDate, granularity });
     return this.http.get<AdminCustomerGrowthPoint[]>(`${this.analyticsUrl}/customers/growth`, { params });
   }
 
@@ -200,13 +189,7 @@ export class AdminService {
    * @returns Observable of AdminTopCustomer[].
    */
   getTopCustomers(limit: number = 5, startDate?: string, endDate?: string): Observable<AdminTopCustomer[]> {
-    let params = new HttpParams().set('limit', limit.toString());
-    if (startDate) {
-      params = params.set('startDate', startDate);
-    }
-    if (endDate) {
-      params = params.set('endDate', endDate);
-    }
+    const params = buildHttpParams({ limit, startDate, endDate });
     return this.http.get<AdminTopCustomer[]>(`${this.analyticsUrl}/customers/top`, { params });
   }
 
@@ -216,7 +199,7 @@ export class AdminService {
    * @returns Observable of AdminWishlistProduct[].
    */
   getMostWishlisted(limit: number = 5): Observable<AdminWishlistProduct[]> {
-    const params = new HttpParams().set('limit', limit.toString());
+    const params = buildHttpParams({ limit });
     return this.http.get<AdminWishlistProduct[]>(`${this.analyticsUrl}/wishlist/top`, { params });
   }
 
@@ -240,17 +223,11 @@ export class AdminService {
     page?: number;
     pageSize?: number;
   }): Observable<PaginatedResponse<AdminUser>> {
-    let httpParams = new HttpParams();
-
-    if (params?.search) {
-      httpParams = httpParams.set('search', params.search);
-    }
-    if (params?.page) {
-      httpParams = httpParams.set('page', params.page.toString());
-    }
-    if (params?.pageSize) {
-      httpParams = httpParams.set('pageSize', params.pageSize.toString());
-    }
+    const httpParams = buildHttpParams({
+      search: params?.search,
+      page: params?.page,
+      pageSize: params?.pageSize
+    });
 
     return this.http.get<PaginatedResponse<AdminUser>>(this.usersUrl, { params: httpParams });
   }

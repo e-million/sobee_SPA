@@ -1,8 +1,9 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AdminProduct, CreateAdminProductRequest, UpdateAdminProductRequest, PaginatedResponse } from '../models';
+import { buildHttpParams } from '../utils/http-params.util';
 
 /**
  * Admin product management service for CRUD operations.
@@ -26,23 +27,12 @@ export class AdminProductService {
     pageSize?: number;
     sort?: 'priceAsc' | 'priceDesc';
   }): Observable<PaginatedResponse<AdminProduct>> {
-    let httpParams = new HttpParams();
-
-    if (params?.search) {
-      httpParams = httpParams.set('q', params.search);
-    }
-
-    if (params?.page) {
-      httpParams = httpParams.set('page', params.page.toString());
-    }
-
-    if (params?.pageSize) {
-      httpParams = httpParams.set('pageSize', params.pageSize.toString());
-    }
-
-    if (params?.sort) {
-      httpParams = httpParams.set('sort', params.sort);
-    }
+    const httpParams = buildHttpParams({
+      q: params?.search,
+      page: params?.page,
+      pageSize: params?.pageSize,
+      sort: params?.sort
+    });
 
     return this.http.get<PaginatedResponse<AdminProduct>>(this.apiUrl, { params: httpParams });
   }

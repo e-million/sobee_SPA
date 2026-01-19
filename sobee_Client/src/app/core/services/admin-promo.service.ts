@@ -1,8 +1,9 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AdminPromo, PaginatedResponse } from '../models';
+import { buildHttpParams } from '../utils/http-params.util';
 
 /**
  * Admin promo management service for listing and editing promo codes.
@@ -26,23 +27,12 @@ export class AdminPromoService {
     page?: number;
     pageSize?: number;
   }): Observable<PaginatedResponse<AdminPromo>> {
-    let httpParams = new HttpParams();
-
-    if (params?.search) {
-      httpParams = httpParams.set('search', params.search);
-    }
-
-    if (params?.includeExpired !== undefined) {
-      httpParams = httpParams.set('includeExpired', params.includeExpired.toString());
-    }
-
-    if (params?.page) {
-      httpParams = httpParams.set('page', params.page.toString());
-    }
-
-    if (params?.pageSize) {
-      httpParams = httpParams.set('pageSize', params.pageSize.toString());
-    }
+    const httpParams = buildHttpParams({
+      search: params?.search,
+      includeExpired: params?.includeExpired,
+      page: params?.page,
+      pageSize: params?.pageSize
+    });
 
     return this.http.get<PaginatedResponse<AdminPromo>>(this.apiUrl, { params: httpParams });
   }
