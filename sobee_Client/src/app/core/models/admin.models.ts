@@ -127,6 +127,28 @@ export interface AdminWishlistProduct {
   wishlistCount: number;
 }
 
+export interface AdminUser {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  createdDate: string;
+  lastLoginDate: string | null;
+  roles: string[];
+  isAdmin: boolean;
+  isLocked: boolean;
+  isCurrentUser: boolean;
+}
+
+export interface AdminPromo {
+  id: number;
+  code: string;
+  discountPercentage: number;
+  expirationDate: string;
+  usageCount: number;
+  isExpired: boolean;
+}
+
 export interface AdminProduct {
   id: number;
   name: string;
