@@ -4,6 +4,9 @@ import { Observable, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { Order, CheckoutRequest, PaymentMethod } from '../models';
 
+/**
+ * Order service for checkout and order history state.
+ */
 @Injectable({
   providedIn: 'root'
 })
@@ -19,6 +22,7 @@ export class OrderService {
 
   /**
    * Get all orders for the current user (requires authentication)
+   * @returns Observable of Order[].
    */
   getOrders(): Observable<Order[]> {
     return this.http.get<Order[]>(`${this.apiUrl}/my`).pipe(
@@ -28,6 +32,8 @@ export class OrderService {
 
   /**
    * Get a specific order by ID
+   * @param orderId - Order identifier.
+   * @returns Observable of Order.
    */
   getOrder(orderId: number): Observable<Order> {
     return this.http.get<Order>(`${this.apiUrl}/${orderId}`).pipe(
@@ -37,6 +43,8 @@ export class OrderService {
 
   /**
    * Checkout - create an order from the current cart
+   * @param request - Checkout payload.
+   * @returns Observable of the created Order.
    */
   checkout(request: CheckoutRequest): Observable<Order> {
     return this.http.post<Order>(`${this.apiUrl}/checkout`, request).pipe(
@@ -46,6 +54,9 @@ export class OrderService {
 
   /**
    * Pay for an existing order
+   * @param orderId - Order identifier.
+   * @param paymentMethodId - Payment method identifier.
+   * @returns Observable of the updated Order.
    */
   payOrder(orderId: number, paymentMethodId: number): Observable<Order> {
     return this.http.post<Order>(`${this.apiUrl}/${orderId}/pay`, { paymentMethodId }).pipe(
@@ -55,6 +66,7 @@ export class OrderService {
 
   /**
    * Get available payment methods
+   * @returns Observable of PaymentMethod[].
    */
   getPaymentMethods(): Observable<PaymentMethod[]> {
     return this.http.get<PaymentMethod[]>(this.paymentMethodsUrl);

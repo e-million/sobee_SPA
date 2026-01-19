@@ -1,0 +1,680 @@
+===============================================================================
+                    REFACTORING PLAN - OVER-ENGINEERING FIXES
+                              sobee_SPA Project
+                            Created: 2026-01-19
+                            Updated: 2026-01-19
+===============================================================================
+
+This plan is organized by priority. Each task includes exact file paths, line
+numbers, and step-by-step instructions. Tasks are independent and can be
+completed in any order within their priority group.
+
+
+===============================================================================
+                         PRIORITY 1: QUICK WINS
+===============================================================================
+These are high-impact, low-effort changes. Start here.
+
+-------------------------------------------------------------------------------
+TASK 1.1: CONSOLIDATE PaginatedResponse INTERFACE
+-------------------------------------------------------------------------------
+Estimated scope: 5 files modified
+
+PROBLEM:
+The same interface is defined in 4 separate files.
+
+STEP 1: Add PaginatedResponse to shared models
+File: src/app/core/models/index.ts
+Action: Add this export at the end of the file:
+
+    export interface PaginatedResponse<T> {
+      items: T[];
+      page: number;
+      pageSize: number;
+      totalCount: number;
+    }
+
+STEP 2: Update admin-product.service.ts
+File: src/app/core/services/admin-product.service.ts
+Action A: Add import at top of file (around line 3):
+    import { PaginatedResponse } from '../models';
+Action B: DELETE lines 7-12 (the local interface definition):
+    interface PaginatedResponse<T> {
+      items: T[];
+      page: number;
+      pageSize: number;
+      totalCount: number;
+    }
+
+STEP 3: Update admin-promo.service.ts
+File: src/app/core/services/admin-promo.service.ts
+Action A: Add import at top of file (around line 3):
+    import { PaginatedResponse } from '../models';
+Action B: DELETE lines 7-12 (the local interface definition)
+
+STEP 4: Update admin-user.service.ts
+File: src/app/core/services/admin-user.service.ts
+Action A: Add import at top of file (around line 3):
+    import { PaginatedResponse } from '../models';
+Action B: DELETE lines 7-12 (the local interface definition)
+
+STEP 5: Update product.service.ts
+File: src/app/core/services/product.service.ts
+Action A: Add import at top of file:
+    import { PaginatedResponse } from '../models';
+Action B: DELETE lines 9-14 (the local interface definition)
+
+VERIFICATION:
+- Run: ng build
+- Ensure no TypeScript errors about PaginatedResponse
+
+
+-------------------------------------------------------------------------------
+TASK 1.2: FIX Observable<unknown> RETURN TYPES
+-------------------------------------------------------------------------------
+Estimated scope: 2 files modified, 6 methods total
+
+PROBLEM:
+Methods returning Observable<unknown> should use proper response types.
+
+IMPORTANT: The API endpoints return JSON bodies, NOT empty responses:
+- FavoritesController.AddFavorite returns: { message, favoriteId, productId, added }
+- FavoritesController.RemoveFavorite returns: { message, productId }
+- ReviewsController.Create returns: { message, reviewId, productId, rating, reviewText, created, userId, sessionId }
+- ReviewsController.Reply returns: { message, replyId, reviewId, content, created, userId }
+- ReviewsController.DeleteReview returns: { message, reviewId }
+- ReviewsController.DeleteReply returns: { message, replyId }
+
+DECISION: Since the client code doesn't use these response bodies (just
+subscribes for completion), you have two options:
+
+OPTION A (Minimal change - recommended):
+Use lightweight typed responses (message + id fields) without modeling full payloads.
+This acknowledges the API returns JSON and improves type safety without extra models.
+
+FILE 1: src/app/core/services/favorites.service.ts
+
+Method 1 - addFavorite (line 38-40):
+BEFORE:
+    addFavorite(productId: number): Observable<unknown> {
+      return this.http.post(`${this.apiUrl}/${productId}`, {});
+    }
+AFTER:
+    addFavorite(productId: number): Observable<{ message: string }> {
+      return this.http.post<{ message: string }>(`${this.apiUrl}/${productId}`, {});
+    }
+
+Method 2 - removeFavorite (line 47-49):
+BEFORE:
+    removeFavorite(productId: number): Observable<unknown> {
+      return this.http.delete(`${this.apiUrl}/${productId}`);
+    }
+AFTER:
+    removeFavorite(productId: number): Observable<{ message: string }> {
+      return this.http.delete<{ message: string }>(`${this.apiUrl}/${productId}`);
+    }
+
+FILE 2: src/app/core/services/review.service.ts
+
+Method 1 - createReview (line 40-41):
+BEFORE:
+    createReview(productId: number, request: CreateReviewRequest): Observable<unknown> {
+      return this.http.post(`${this.apiUrl}/product/${productId}`, request);
+    }
+AFTER:
+    createReview(productId: number, request: CreateReviewRequest): Observable<{ message: string; reviewId: number }> {
+      return this.http.post<{ message: string; reviewId: number }>(`${this.apiUrl}/product/${productId}`, request);
+    }
+
+Method 2 - createReply (line 50-51):
+BEFORE:
+    createReply(reviewId: number, request: CreateReplyRequest): Observable<unknown> {
+      return this.http.post(`${this.apiUrl}/${reviewId}/reply`, request);
+    }
+AFTER:
+    createReply(reviewId: number, request: CreateReplyRequest): Observable<{ message: string; replyId: number }> {
+      return this.http.post<{ message: string; replyId: number }>(`${this.apiUrl}/${reviewId}/reply`, request);
+    }
+
+Method 3 - deleteReview (line 59-60):
+BEFORE:
+    deleteReview(reviewId: number): Observable<unknown> {
+      return this.http.delete(`${this.apiUrl}/${reviewId}`);
+    }
+AFTER:
+    deleteReview(reviewId: number): Observable<{ message: string }> {
+      return this.http.delete<{ message: string }>(`${this.apiUrl}/${reviewId}`);
+    }
+
+Method 4 - deleteReply (line 68-69):
+BEFORE:
+    deleteReply(replyId: number): Observable<unknown> {
+      return this.http.delete(`${this.apiUrl}/replies/${replyId}`);
+    }
+AFTER:
+    deleteReply(replyId: number): Observable<{ message: string }> {
+      return this.http.delete<{ message: string }>(`${this.apiUrl}/replies/${replyId}`);
+    }
+
+OPTION B (More complete typing):
+Create proper response interfaces in models if you want full type safety.
+
+VERIFICATION:
+- Run: ng build
+- No compilation errors
+
+
+-------------------------------------------------------------------------------
+TASK 1.3: CREATE SHARED STAR RATING PIPE
+-------------------------------------------------------------------------------
+Estimated scope: 1 file created, 2 files modified
+
+PROBLEM:
+Identical getStars() method duplicated in two components.
+
+STEP 1: Create the pipe
+File: src/app/shared/pipes/star-rating.pipe.ts (NEW FILE)
+
+Content:
+    import { Pipe, PipeTransform } from '@angular/core';
+
+    @Pipe({
+      name: 'starRating',
+      pure: true,
+      standalone: true
+    })
+    export class StarRatingPipe implements PipeTransform {
+      transform(rating: number | null | undefined): number[] {
+        const starRating = rating || 0;
+        return Array(5).fill(0).map((_, i) => i < Math.round(starRating) ? 1 : 0);
+      }
+    }
+
+STEP 2: Update product-card component
+File: src/app/shared/components/product-card/product-card.ts
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+      (CORRECTED PATH - component is in shared/components, not features/shop)
+
+Action A: Add import at top:
+    import { StarRatingPipe } from '../../pipes/star-rating.pipe';
+
+Action B: Add StarRatingPipe to imports array in @Component decorator
+
+Action C: DELETE the getStars method (lines 77-80):
+    getStars(rating: number | null | undefined): number[] {
+      const starRating = rating || 0;
+      return Array(5).fill(0).map((_, i) => i < Math.round(starRating) ? 1 : 0);
+    }
+
+Action D: Update template usage in product-card.html
+Find:    getStars(product.rating)
+Replace: product.rating | starRating
+
+STEP 3: Update product-detail component
+File: src/app/features/product-detail/product-detail.ts
+
+Action A: Add import at top:
+    import { StarRatingPipe } from '../../shared/pipes/star-rating.pipe';
+
+Action B: Add StarRatingPipe to imports array in @Component decorator
+
+Action C: DELETE the getStars method (lines 291-294)
+
+Action D: Update ALL template usages of getStars() in product-detail.html:
+Find:    getStars(...)
+Replace: ... | starRating
+
+VERIFICATION:
+- Run: ng build
+- Check product cards display stars correctly
+- Check product detail page displays stars correctly
+
+
+-------------------------------------------------------------------------------
+TASK 1.4: CONVERT PLAIN PROPERTIES TO SIGNALS IN ProductDetail
+-------------------------------------------------------------------------------
+Estimated scope: 1 file modified
+
+PROBLEM:
+reviewRating and reviewText are plain properties while all other state uses
+signals. This is inconsistent and can cause change detection issues.
+
+File: src/app/features/product-detail/product-detail.ts
+
+STEP 1: Change property declarations (lines 45-46)
+BEFORE:
+    reviewRating = 5;
+    reviewText = '';
+AFTER:
+    reviewRating = signal(5);
+    reviewText = signal('');
+
+STEP 2: Update all usages of reviewRating
+Search for: this.reviewRating
+Replace with: this.reviewRating() for reads, this.reviewRating.set(value) for writes
+
+Specific locations to update:
+- Line ~105: this.reviewRating = 5  -->  this.reviewRating.set(5)
+- Line ~372: this.reviewRating      -->  this.reviewRating()  (in submitReview)
+- Line ~381: this.reviewRating = 5  -->  this.reviewRating.set(5)
+
+STEP 3: Update all usages of reviewText
+Search for: this.reviewText
+Replace with: this.reviewText() for reads, this.reviewText.set(value) for writes
+
+Specific locations to update:
+- Line ~106: this.reviewText = ''   -->  this.reviewText.set('')
+- Line ~371: this.reviewText.trim() -->  this.reviewText().trim()
+- Line ~372: this.reviewText        -->  this.reviewText()  (in submitReview)
+- Line ~380: this.reviewText = ''   -->  this.reviewText.set('')
+
+STEP 4: Update template bindings
+File: src/app/features/product-detail/product-detail.html
+
+For reviewRating (two-way binding):
+Find:    [(ngModel)]="reviewRating"
+Replace: [ngModel]="reviewRating()" (ngModelChange)="reviewRating.set($event)"
+
+For reviewText (two-way binding):
+Find:    [(ngModel)]="reviewText"
+Replace: [ngModel]="reviewText()" (ngModelChange)="reviewText.set($event)"
+
+VERIFICATION:
+- Run: ng build
+- Test review submission form still works
+- Test that rating and text reset after submission
+
+
+===============================================================================
+                       PRIORITY 2: MEDIUM IMPACT
+===============================================================================
+These improve maintainability and code clarity.
+
+-------------------------------------------------------------------------------
+TASK 2.1: CLEAN UP MODEL INTERFACE NULLABILITY
+-------------------------------------------------------------------------------
+Estimated scope: 2 files modified
+
+PROBLEM:
+Some properties use both ? (optional) AND | null (nullable), which is redundant.
+Choose one pattern consistently.
+
+DECISION: Use | null for nullable fields, remove ? when | null is present.
+
+FILE 1: src/app/core/models/product.models.ts
+
+Line 8 - stockAmount:
+BEFORE: stockAmount?: number | null;
+AFTER:  stockAmount: number | null;
+
+Line 11 - imageUrl:
+BEFORE: imageUrl?: string | null;
+AFTER:  imageUrl: string | null;
+
+Line 12 - category:
+BEFORE: category?: string | null;
+AFTER:  category: string | null;
+
+Line 13 - rating:
+BEFORE: rating?: number | null;
+AFTER:  rating: number | null;
+
+FILE 2: src/app/core/models/cart.models.ts
+
+Line 8 - primaryImageUrl in CartProduct:
+BEFORE: primaryImageUrl?: string | null;
+AFTER:  primaryImageUrl: string | null;
+
+VERIFICATION:
+- Run: ng build
+- Fix any compilation errors where code expects property to be optional
+  (change checks from `product.rating` to `product.rating !== null`)
+
+
+-------------------------------------------------------------------------------
+TASK 2.2: MERGE SMALL ADMIN SERVICES INTO admin.service.ts
+-------------------------------------------------------------------------------
+Estimated scope: 3 files modified, 2 files deleted
+
+PROBLEM:
+admin-order.service.ts has only 1 method. admin-user.service.ts has only 2
+methods. These should be part of the main admin.service.ts.
+
+STEP 1: Add imports to admin.service.ts
+File: src/app/core/services/admin.service.ts
+
+Add these imports at top (merge with existing import from '../models'):
+    import { Order, UpdateOrderStatusRequest } from '../models';
+    import { AdminUser, PaginatedResponse } from '../models';
+
+    (Or add to existing '../models' import if there is one)
+
+STEP 2: Add new base URL for orders
+The existing service uses:
+    private readonly apiUrl = `${environment.apiUrl}/admin`;
+    private readonly analyticsUrl = `${environment.apiUrl}/admin/analytics`;
+
+Add a new one for orders:
+    private readonly ordersUrl = `${environment.apiUrl}/orders`;
+    private readonly usersUrl = `${this.apiUrl}/users`;  // uses existing apiUrl
+
+STEP 3: Add methods at the end of the class (before closing brace):
+
+    // ===== Order Management =====
+    updateOrderStatus(orderId: number, request: UpdateOrderStatusRequest): Observable<Order> {
+      return this.http.patch<Order>(`${this.ordersUrl}/${orderId}/status`, request);
+    }
+    ^^^^^
+    NOTE: AdminOrderService uses PATCH (line 25), so keep PATCH here.
+
+    // ===== User Management =====
+    getUsers(params?: {
+      search?: string;
+      page?: number;
+      pageSize?: number;
+    }): Observable<PaginatedResponse<AdminUser>> {
+      let httpParams = new HttpParams();
+
+      if (params?.search) {
+        httpParams = httpParams.set('search', params.search);
+      }
+      if (params?.page) {
+        httpParams = httpParams.set('page', params.page.toString());
+      }
+      if (params?.pageSize) {
+        httpParams = httpParams.set('pageSize', params.pageSize.toString());
+      }
+
+      return this.http.get<PaginatedResponse<AdminUser>>(this.usersUrl, { params: httpParams });
+    }
+
+    setAdmin(userId: string, isAdmin: boolean): Observable<AdminUser> {
+      return this.http.put<AdminUser>(`${this.usersUrl}/${userId}/admin`, { isAdmin });
+    }
+    ^^^^^
+    NOTE: AdminUserService uses PUT (line 59), so keep PUT here - NOT PATCH.
+
+STEP 4: Update all imports of AdminOrderService
+Search project for: AdminOrderService
+
+Files likely affected:
+- src/app/features/admin/orders/*.ts
+
+Change:
+    import { AdminOrderService } from '../../core/services/admin-order.service';
+To:
+    import { AdminService } from '../../core/services/admin.service';
+
+Change:
+    private adminOrderService = inject(AdminOrderService);
+To:
+    private adminService = inject(AdminService);
+
+Change:
+    this.adminOrderService.updateOrderStatus(...)
+To:
+    this.adminService.updateOrderStatus(...)
+
+STEP 5: Update all imports of AdminUserService
+Search project for: AdminUserService
+
+Files likely affected:
+- src/app/features/admin/users/*.ts
+
+Apply same pattern as Step 4.
+
+STEP 6: Delete the old service files
+Delete: src/app/core/services/admin-order.service.ts
+Delete: src/app/core/services/admin-user.service.ts
+
+VERIFICATION:
+- Run: ng build
+- Test admin order status update functionality
+- Test admin user management functionality
+
+
+-------------------------------------------------------------------------------
+TASK 2.3: GROUP ProductDetail REVIEW SIGNALS (Optional Advanced)
+-------------------------------------------------------------------------------
+Estimated scope: 1 file heavily modified
+
+PROBLEM:
+ProductDetail has 22 separate state properties. Review-related state (8 signals)
+can be grouped into a single object signal for cleaner code.
+
+NOTE: This is a larger refactor. Consider if the benefit outweighs the effort.
+
+File: src/app/features/product-detail/product-detail.ts
+
+STEP 1: Define the ReviewsState interface (add near top of file):
+
+    interface ReviewsState {
+      reviews: Review[];
+      summary: ReviewSummary;
+      page: number;
+      totalCount: number;
+      loading: boolean;
+      error: string;
+    }
+
+    const INITIAL_REVIEWS_STATE: ReviewsState = {
+      reviews: [],
+      summary: { total: 0, average: 0, counts: [0, 0, 0, 0, 0] },
+      page: 1,
+      totalCount: 0,
+      loading: false,
+      error: ''
+    };
+
+STEP 2: Replace individual review signals (lines 38-44) with:
+
+BEFORE:
+    reviews = signal<Review[]>([]);
+    reviewSummary = signal<ReviewSummary>({ total: 0, average: 0, counts: [0, 0, 0, 0, 0] });
+    reviewsPage = signal(1);
+    reviewsTotalCount = signal(0);
+    readonly reviewsPageSize = 5;
+    reviewsLoading = signal(false);
+    reviewsError = signal('');
+
+AFTER:
+    reviewsState = signal<ReviewsState>(INITIAL_REVIEWS_STATE);
+    readonly reviewsPageSize = 5;
+
+STEP 3: Update all usages throughout the component
+
+For reads:
+    this.reviews()           -->  this.reviewsState().reviews
+    this.reviewSummary()     -->  this.reviewsState().summary
+    this.reviewsPage()       -->  this.reviewsState().page
+    this.reviewsTotalCount() -->  this.reviewsState().totalCount
+    this.reviewsLoading()    -->  this.reviewsState().loading
+    this.reviewsError()      -->  this.reviewsState().error
+
+For writes (use update() for partial updates):
+    this.reviews.set([])     -->  this.reviewsState.update(s => ({...s, reviews: []}))
+    this.reviewsLoading.set(true) --> this.reviewsState.update(s => ({...s, loading: true}))
+
+For resets:
+    // All the individual .set() calls become one:
+    this.reviewsState.set(INITIAL_REVIEWS_STATE);
+
+STEP 4: Update template bindings
+Change all template references to match new signal structure.
+
+VERIFICATION:
+- Run: ng build
+- Test loading reviews on product detail page
+- Test pagination
+- Test review submission
+
+
+===============================================================================
+                         PRIORITY 3: NICE TO HAVE
+===============================================================================
+These are lower priority improvements.
+
+-------------------------------------------------------------------------------
+TASK 3.1: CREATE HttpParams BUILDER UTILITY
+-------------------------------------------------------------------------------
+Estimated scope: 1 file created, 5+ files can be updated
+
+STEP 1: Create utility file
+File: src/app/core/utils/http-params.util.ts (NEW FILE)
+
+Content:
+    import { HttpParams } from '@angular/common/http';
+
+    /**
+     * Builds HttpParams from an object, filtering out null/undefined values.
+     * Converts all values to strings.
+     */
+    export function buildHttpParams(obj: Record<string, any>): HttpParams {
+      return Object.entries(obj).reduce(
+        (params, [key, value]) => {
+          if (value !== null && value !== undefined && value !== '') {
+            return params.set(key, String(value));
+          }
+          return params;
+        },
+        new HttpParams()
+      );
+    }
+
+STEP 2: Refactor services to use it (example for product.service.ts)
+
+File: src/app/core/services/product.service.ts
+
+Add import:
+    import { buildHttpParams } from '../utils/http-params.util';
+
+BEFORE (lines 39-59):
+    let httpParams = new HttpParams();
+    if (params?.search) {
+      httpParams = httpParams.set('search', params.search);
+    }
+    if (params?.category) {
+      httpParams = httpParams.set('category', params.category);
+    }
+    // ... more conditions
+
+AFTER:
+    const httpParams = buildHttpParams({
+      search: params?.search,
+      category: params?.category,
+      inStockOnly: params?.inStockOnly,
+      minPrice: params?.minPrice,
+      maxPrice: params?.maxPrice
+    });
+
+STEP 3: Apply same pattern to other services
+- admin.service.ts (multiple methods)
+- admin-product.service.ts
+- admin-promo.service.ts
+- admin-user.service.ts (if not already merged)
+
+VERIFICATION:
+- Run: ng build
+- Test that filtering/pagination still works on shop page
+- Test admin dashboard data loading
+
+
+-------------------------------------------------------------------------------
+TASK 3.2: EXTRACT ADMIN DASHBOARD FORMATTING TO PIPES (Optional)
+-------------------------------------------------------------------------------
+Estimated scope: 6+ pipe files created, 1 component modified
+
+This is optional and only recommended if the dashboard component becomes
+difficult to maintain.
+
+Candidates for pipes:
+1. formatDate()        -> DateFormatPipe
+2. formatPeriodLabel() -> PeriodLabelPipe
+3. formatTrend()       -> TrendFormatPipe
+4. formatWishlistName() -> TruncateNamePipe (can reuse)
+5. truncateComment()   -> TruncatePipe
+6. formatUserId()      -> UserIdFormatPipe
+
+Example - TruncatePipe:
+File: src/app/shared/pipes/truncate.pipe.ts
+
+    import { Pipe, PipeTransform } from '@angular/core';
+
+    @Pipe({
+      name: 'truncate',
+      pure: true,
+      standalone: true
+    })
+    export class TruncatePipe implements PipeTransform {
+      transform(value: string | null, maxLength: number = 50): string {
+        if (!value) return '';
+        if (value.length <= maxLength) return value;
+        return value.substring(0, maxLength) + '...';
+      }
+    }
+
+Then in template:
+    {{ comment | truncate:100 }}
+
+NOTE: Only create pipes for methods called multiple times in templates.
+Methods used once can stay as component methods.
+
+
+===============================================================================
+                           VERIFICATION CHECKLIST
+===============================================================================
+
+After completing all tasks, verify:
+
+[ ] ng build completes without errors
+[ ] ng test passes (if tests exist)
+[ ] Shop page displays products with star ratings
+[ ] Product detail page:
+    [ ] Shows product information
+    [ ] Displays reviews with ratings
+    [ ] Review submission works
+    [ ] Reply functionality works
+[ ] Admin dashboard loads all metrics
+[ ] Admin order status update works
+[ ] Admin user management works
+[ ] Cart functionality works
+[ ] Favorites add/remove works
+
+
+===============================================================================
+                              FILES SUMMARY
+===============================================================================
+
+FILES TO CREATE:
+- src/app/shared/pipes/star-rating.pipe.ts
+- src/app/core/utils/http-params.util.ts (optional)
+
+FILES TO MODIFY:
+- src/app/core/models/index.ts (add PaginatedResponse)
+- src/app/core/models/product.models.ts (fix nullability)
+- src/app/core/models/cart.models.ts (fix nullability)
+- src/app/core/services/admin.service.ts (add merged methods, add base URLs)
+- src/app/core/services/admin-product.service.ts (import PaginatedResponse)
+- src/app/core/services/admin-promo.service.ts (import PaginatedResponse)
+- src/app/core/services/admin-user.service.ts (import before deletion)
+- src/app/core/services/product.service.ts (import PaginatedResponse)
+- src/app/core/services/favorites.service.ts (fix return types)
+- src/app/core/services/review.service.ts (fix return types)
+- src/app/features/product-detail/product-detail.ts (signals, pipe)
+- src/app/features/product-detail/product-detail.html (pipe usage)
+- src/app/shared/components/product-card/product-card.ts (pipe)
+  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  (CORRECTED PATH)
+
+FILES TO DELETE (after migration):
+- src/app/core/services/admin-order.service.ts
+- src/app/core/services/admin-user.service.ts
+
+COMPONENTS TO UPDATE IMPORTS (after service merge):
+- Any component importing AdminOrderService
+- Any component importing AdminUserService
+
+
+===============================================================================
+                               END OF PLAN
+===============================================================================

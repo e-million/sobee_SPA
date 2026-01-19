@@ -6,6 +6,12 @@ import { AuthService } from '../services/auth.service';
 let isRefreshing = false;
 const refreshTokenSubject = new BehaviorSubject<string | null>(null);
 
+/**
+ * Interceptor that attempts token refresh on 401 responses.
+ * @param req - Outgoing HTTP request.
+ * @param next - Next handler in the interceptor chain.
+ * @returns Observable of the HTTP event stream.
+ */
 export const tokenRefreshInterceptor: HttpInterceptorFn = (req, next) => {
   const authService = inject(AuthService);
 
@@ -21,10 +27,22 @@ export const tokenRefreshInterceptor: HttpInterceptorFn = (req, next) => {
   );
 };
 
+/**
+ * Check whether the request is an auth endpoint.
+ * @param url - Request URL.
+ * @returns True if the URL points to an auth endpoint.
+ */
 function isAuthEndpoint(url: string): boolean {
   return url.includes('/login') || url.includes('/register') || url.includes('/refresh');
 }
 
+/**
+ * Handle 401 responses by refreshing the token and retrying the request.
+ * @param req - Original HTTP request.
+ * @param next - Next handler in the interceptor chain.
+ * @param authService - AuthService for refresh/logout.
+ * @returns Observable of the retried HTTP request.
+ */
 function handle401Error(req: HttpRequest<unknown>, next: HttpHandlerFn, authService: AuthService) {
   if (!isRefreshing) {
     isRefreshing = true;
@@ -62,6 +80,12 @@ function handle401Error(req: HttpRequest<unknown>, next: HttpHandlerFn, authServ
   );
 }
 
+/**
+ * Clone a request with an Authorization header.
+ * @param req - Original HTTP request.
+ * @param token - Access token to attach.
+ * @returns Cloned HTTP request with Authorization header.
+ */
 function addTokenToRequest(req: HttpRequest<unknown>, token: string): HttpRequest<unknown> {
   return req.clone({
     setHeaders: {

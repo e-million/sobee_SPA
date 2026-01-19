@@ -14,6 +14,12 @@ const SILENT_ENDPOINTS = ['/login', '/register', '/refresh'];
 // Status codes that should trigger retry
 const RETRYABLE_STATUS_CODES = [408, 500, 502, 503, 504];
 
+/**
+ * Interceptor that normalizes errors, retries safe requests, and shows toasts.
+ * @param req - Outgoing HTTP request.
+ * @param next - Next handler in the interceptor chain.
+ * @returns Observable of the HTTP event stream.
+ */
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const router = inject(Router);
   const toastService = inject(ToastService);

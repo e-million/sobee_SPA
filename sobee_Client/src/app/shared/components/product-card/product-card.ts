@@ -2,10 +2,14 @@ import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, signal
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { Product } from '../../../core/models';
+import { StarRatingPipe } from '../../pipes/star-rating.pipe';
 
+/**
+ * Product card component with quantity controls and add-to-cart emit.
+ */
 @Component({
   selector: 'app-product-card',
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, StarRatingPipe],
   templateUrl: './product-card.html',
   styleUrl: './product-card.css',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -17,6 +21,10 @@ export class ProductCard {
   quantity = signal(1);
   isAdding = signal(false);
 
+  /**
+   * Maximum quantity based on stock and per-item cap.
+   * @returns Max quantity allowed for the product.
+   */
   get maxQuantity(): number {
     if (!this.product.inStock) {
       return 0;
@@ -26,18 +34,27 @@ export class ProductCard {
     return Math.min(10, stockLimit);
   }
 
+  /**
+   * Decrease quantity by one, down to minimum of 1.
+   */
   decrementQuantity() {
     if (this.quantity() > 1) {
       this.quantity.update(q => q - 1);
     }
   }
 
+  /**
+   * Increase quantity by one, up to the max quantity.
+   */
   incrementQuantity() {
     if (this.quantity() < this.maxQuantity) {
       this.quantity.update(q => q + 1);
     }
   }
 
+  /**
+   * Emit add-to-cart event and reset UI state after animation.
+   */
   onAddToCart() {
     if (!this.product.inStock || this.maxQuantity === 0) {
       return;
@@ -53,20 +70,27 @@ export class ProductCard {
     }, 500);
   }
 
-  getStars(rating: number | null | undefined): number[] {
-    const starRating = rating || 0;
-    return Array(5).fill(0).map((_, i) => i < Math.round(starRating) ? 1 : 0);
-  }
-
+  /**
+   * Resolve the best image URL or fallback placeholder.
+   * @returns Image URL string.
+   */
   get productImage(): string {
     // Return a placeholder or actual image URL
     return this.product.primaryImageUrl || this.product.imageUrl || 'https://placehold.co/400x400/f59e0b/white?text=SoBee';
   }
 
+  /**
+   * Whether the product stock is low.
+   * @returns True if stock is below the low-stock threshold.
+   */
   get isLowStock(): boolean {
     return !!this.product.stockAmount && this.product.stockAmount > 0 && this.product.stockAmount < 5;
   }
 
+  /**
+   * Whether the product is out of stock.
+   * @returns True if the item is unavailable.
+   */
   get isOutOfStock(): boolean {
     return !this.product.inStock || this.product.stockAmount === 0;
   }

@@ -2,15 +2,11 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { AdminPromo } from '../models';
+import { AdminPromo, PaginatedResponse } from '../models';
 
-interface PaginatedResponse<T> {
-  items: T[];
-  page: number;
-  pageSize: number;
-  totalCount: number;
-}
-
+/**
+ * Admin promo management service for listing and editing promo codes.
+ */
 @Injectable({
   providedIn: 'root'
 })
@@ -19,6 +15,11 @@ export class AdminPromoService {
 
   constructor(private http: HttpClient) {}
 
+  /**
+   * Fetch a paginated list of promo codes.
+   * @param params - Query options for search, filtering, and pagination.
+   * @returns Observable of a paginated AdminPromo response.
+   */
   getPromos(params?: {
     search?: string;
     includeExpired?: boolean;
@@ -46,6 +47,11 @@ export class AdminPromoService {
     return this.http.get<PaginatedResponse<AdminPromo>>(this.apiUrl, { params: httpParams });
   }
 
+  /**
+   * Create a new promo code.
+   * @param payload - Promo code details.
+   * @returns Observable of the created AdminPromo.
+   */
   createPromo(payload: {
     code: string;
     discountPercentage: number;
@@ -54,6 +60,12 @@ export class AdminPromoService {
     return this.http.post<AdminPromo>(this.apiUrl, payload);
   }
 
+  /**
+   * Update an existing promo code.
+   * @param promoId - Promo identifier.
+   * @param payload - Updated fields for the promo.
+   * @returns Observable of the updated AdminPromo.
+   */
   updatePromo(
     promoId: number,
     payload: {
@@ -65,6 +77,11 @@ export class AdminPromoService {
     return this.http.put<AdminPromo>(`${this.apiUrl}/${promoId}`, payload);
   }
 
+  /**
+   * Delete a promo code by ID.
+   * @param promoId - Promo identifier.
+   * @returns Observable containing a confirmation message.
+   */
   deletePromo(promoId: number): Observable<{ message: string }> {
     return this.http.delete<{ message: string }>(`${this.apiUrl}/${promoId}`);
   }

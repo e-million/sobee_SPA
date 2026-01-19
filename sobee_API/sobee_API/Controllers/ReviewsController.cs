@@ -45,14 +45,34 @@ namespace sobee_API.Controllers
                 allowAuthenticatedGuestSession: false
             );
 
-            var query = _db.Treviews
-                .Include(r => r.TReviewReplies)
+            var baseQuery = _db.Treviews
                 .AsNoTracking()
                 .Where(r => r.IntProductId == productId);
 
-            var totalCount = await query.CountAsync();
+            var totalCount = await baseQuery.CountAsync();
 
-            var reviews = await query
+            var ratingGroups = await baseQuery
+                .GroupBy(r => r.IntRating)
+                .Select(g => new { rating = g.Key, count = g.Count() })
+                .ToListAsync();
+
+            var ratingCounts = new int[5];
+            foreach (var group in ratingGroups)
+            {
+                if (group.rating >= 1 && group.rating <= 5)
+                {
+                    ratingCounts[group.rating - 1] = group.count;
+                }
+            }
+
+            var totalRating = ratingGroups
+                .Where(g => g.rating >= 1 && g.rating <= 5)
+                .Sum(g => g.rating * g.count);
+
+            var averageRating = totalCount == 0 ? 0m : (decimal)totalRating / totalCount;
+
+            var reviews = await baseQuery
+                .Include(r => r.TReviewReplies)
                 .OrderByDescending(r => r.DtmReviewDate)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
@@ -87,7 +107,16 @@ namespace sobee_API.Controllers
             return Ok(new
             {
                 productId,
+                page,
+                pageSize,
+                totalCount,
                 count = results.Count,
+                summary = new
+                {
+                    total = totalCount,
+                    average = averageRating,
+                    counts = ratingCounts
+                },
                 reviews = results
             });
         }

@@ -4,6 +4,9 @@ import { Observable, switchMap, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { Cart, AddCartItemRequest, UpdateCartItemRequest, ApplyPromoRequest } from '../models';
 
+/**
+ * Cart service for guest/auth cart operations and cart state.
+ */
 @Injectable({
   providedIn: 'root'
 })
@@ -17,6 +20,7 @@ export class CartService {
 
   /**
    * Get the current user's cart (or guest cart)
+   * @returns Observable of Cart.
    */
   getCart(): Observable<Cart> {
     return this.http.get<Cart>(this.apiUrl).pipe(
@@ -26,6 +30,8 @@ export class CartService {
 
   /**
    * Add an item to the cart
+   * @param request - Add-to-cart payload.
+   * @returns Observable of Cart.
    */
   addItem(request: AddCartItemRequest): Observable<Cart> {
     return this.http.post<Cart>(`${this.apiUrl}/items`, request).pipe(
@@ -35,6 +41,9 @@ export class CartService {
 
   /**
    * Update cart item quantity
+   * @param cartItemId - Cart item identifier.
+   * @param request - Quantity update payload.
+   * @returns Observable of Cart.
    */
   updateItem(cartItemId: number, request: UpdateCartItemRequest): Observable<Cart> {
     return this.http.put<Cart>(`${this.apiUrl}/items/${cartItemId}`, request).pipe(
@@ -44,6 +53,8 @@ export class CartService {
 
   /**
    * Remove an item from the cart
+   * @param cartItemId - Cart item identifier.
+   * @returns Observable of Cart.
    */
   removeItem(cartItemId: number): Observable<Cart> {
     return this.http.delete<Cart>(`${this.apiUrl}/items/${cartItemId}`).pipe(
@@ -53,6 +64,8 @@ export class CartService {
 
   /**
    * Apply a promo code to the cart
+   * @param request - Promo payload.
+   * @returns Observable of Cart.
    */
   applyPromo(request: ApplyPromoRequest): Observable<Cart> {
     return this.http.post<void>(`${this.apiUrl}/promo/apply`, request).pipe(
@@ -62,6 +75,7 @@ export class CartService {
 
   /**
    * Remove promo code from cart
+   * @returns Observable of Cart.
    */
   removePromo(): Observable<Cart> {
     return this.http.delete<void>(`${this.apiUrl}/promo`).pipe(
@@ -69,12 +83,16 @@ export class CartService {
     );
   }
 
+  /**
+   * Clear cart state from memory.
+   */
   clearCart(): void {
     this.cart.set(null);
   }
 
   /**
    * Get cart item count
+   * @returns Total quantity across cart items.
    */
   getItemCount(): number {
     const currentCart = this.cart();

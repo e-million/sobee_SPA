@@ -3,16 +3,11 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
-import { Product } from '../models';
+import { PaginatedResponse, Product } from '../models';
 
-// Interface for paginated API response
-interface PaginatedResponse<T> {
-  items: T[];
-  page: number;
-  pageSize: number;
-  totalCount: number;
-}
-
+/**
+ * Product service for catalog queries and category lookup.
+ */
 @Injectable({
   providedIn: 'root'
 })
@@ -22,7 +17,9 @@ export class ProductService {
   constructor(private http: HttpClient) {}
 
   /**
-   * Get all products with optional filtering
+   * Get all products with optional filtering.
+   * @param params - Query filters for search, stock, category, and price.
+   * @returns Observable of Product[].
    */
   getProducts(params?: {
     search?: string;
@@ -58,14 +55,18 @@ export class ProductService {
   }
 
   /**
-   * Get a single product by ID
+   * Get a single product by ID.
+   * @param id - Product identifier.
+   * @returns Observable of Product.
    */
   getProduct(id: number): Observable<Product> {
     return this.http.get<Product>(`${this.apiUrl}/${id}`);
   }
 
   /**
-   * Search products by name or description
+   * Search products by name or description with client-side fallback.
+   * @param searchTerm - User-entered search term.
+   * @returns Observable of Product[].
    */
   searchProducts(searchTerm: string): Observable<Product[]> {
     const term = searchTerm.trim().toLowerCase();
@@ -83,7 +84,8 @@ export class ProductService {
   }
 
   /**
-   * Get product categories
+   * Get product categories.
+   * @returns Observable of category strings.
    */
   getCategories(): Observable<string[]> {
     return this.http.get<string[]>(`${environment.apiUrl}/categories`);

@@ -1,6 +1,12 @@
 import { HttpInterceptorFn, HttpResponse } from '@angular/common/http';
 import { tap } from 'rxjs/operators';
 
+/**
+ * Interceptor that attaches guest session headers and captures updated sessions.
+ * @param req - Outgoing HTTP request.
+ * @param next - Next handler in the interceptor chain.
+ * @returns Observable of the HTTP event stream.
+ */
 export const guestSessionInterceptor: HttpInterceptorFn = (req, next) => {
   // Get guest session from localStorage
   const sessionId = localStorage.getItem('guestSessionId');

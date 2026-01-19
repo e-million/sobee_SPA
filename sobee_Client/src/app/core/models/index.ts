@@ -7,3 +7,10 @@ export * from './product.models';
 export * from './order.models';
 export * from './common.models';
 export * from './review.models';
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}

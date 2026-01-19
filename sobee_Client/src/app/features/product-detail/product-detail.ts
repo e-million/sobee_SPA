@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MainLayout } from '../../shared/layout/main-layout';
 import { ProductCard } from '../../shared/components/product-card/product-card';
+import { StarRatingPipe } from '../../shared/pipes/star-rating.pipe';
 import { ProductService } from '../../core/services/product.service';
 import { CartService } from '../../core/services/cart.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -22,7 +23,7 @@ type ReviewSummary = {
 
 @Component({
   selector: 'app-product-detail',
-  imports: [CommonModule, FormsModule, RouterModule, MainLayout, ProductCard],
+  imports: [CommonModule, FormsModule, RouterModule, MainLayout, ProductCard, StarRatingPipe],
   templateUrl: './product-detail.html',
   styleUrl: './product-detail.css',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -37,10 +38,13 @@ export class ProductDetail implements OnInit {
   activeTab = signal<ProductTab>('description');
   reviews = signal<Review[]>([]);
   reviewSummary = signal<ReviewSummary>({ total: 0, average: 0, counts: [0, 0, 0, 0, 0] });
+  reviewsPage = signal(1);
+  reviewsTotalCount = signal(0);
+  readonly reviewsPageSize = 5;
   reviewsLoading = signal(false);
   reviewsError = signal('');
-  reviewRating = 5;
-  reviewText = '';
+  reviewRating = signal(5);
+  reviewText = signal('');
   reviewSubmitting = signal(false);
   isFavorite = signal(false);
   favoriteLoading = signal(false);
@@ -75,6 +79,8 @@ export class ProductDetail implements OnInit {
           this.error.set('');
           this.reviews.set([]);
           this.reviewSummary.set({ total: 0, average: 0, counts: [0, 0, 0, 0, 0] });
+          this.reviewsPage.set(1);
+          this.reviewsTotalCount.set(0);
           this.replyOpenIds.set(new Set());
           this.replyDrafts.set({});
           return;
@@ -99,14 +105,16 @@ export class ProductDetail implements OnInit {
         this.activeTab.set('description');
         this.reviews.set([]);
         this.reviewSummary.set({ total: 0, average: 0, counts: [0, 0, 0, 0, 0] });
+        this.reviewsPage.set(1);
+        this.reviewsTotalCount.set(0);
         this.reviewsError.set('');
-        this.reviewText = '';
-        this.reviewRating = 5;
+        this.reviewText.set('');
+        this.reviewRating.set(5);
         this.isFavorite.set(false);
         this.replyOpenIds.set(new Set());
         this.replyDrafts.set({});
         this.loadRelatedProducts(product);
-        this.loadReviews(product.id);
+        this.loadReviews(product.id, 1);
         this.loadFavoriteState(product.id);
       },
       error: (err) => {
@@ -205,13 +213,14 @@ export class ProductDetail implements OnInit {
       return;
     }
 
-    const text = this.reviewText.trim();
+    const text = this.reviewText().trim();
     if (!text) {
       this.reviewsError.set('Please add a review message.');
       return;
     }
 
-    if (this.reviewRating < 1 || this.reviewRating > 5) {
+    const rating = this.reviewRating();
+    if (rating < 1 || rating > 5) {
       this.reviewsError.set('Select a rating between 1 and 5.');
       return;
     }
@@ -220,14 +229,14 @@ export class ProductDetail implements OnInit {
     this.reviewsError.set('');
 
     this.reviewService.createReview(product.id, {
-      rating: this.reviewRating,
+      rating,
       reviewText: text
     }).subscribe({
       next: () => {
-        this.reviewText = '';
-        this.reviewRating = 5;
+        this.reviewText.set('');
+        this.reviewRating.set(5);
         this.reviewSubmitting.set(false);
-        this.loadReviews(product.id);
+        this.loadReviews(product.id, 1);
         this.toastService.success('Review submitted.');
       },
       error: () => {
@@ -279,11 +288,6 @@ export class ProductDetail implements OnInit {
     }
 
     return product.primaryImageUrl || product.imageUrl || 'https://placehold.co/600x600/f59e0b/white?text=SoBee';
-  }
-
-  getStars(rating: number | null | undefined): number[] {
-    const starRating = rating || 0;
-    return Array(5).fill(0).map((_, i) => i < Math.round(starRating) ? 1 : 0);
   }
 
   getStarOptions(): number[] {
@@ -350,7 +354,7 @@ export class ProductDetail implements OnInit {
         this.replySubmitting.set(false);
         this.setReplyDraft(review.reviewId, '');
         this.toggleReply(review.reviewId);
-        this.loadReviews(review.productId);
+        this.loadReviews(review.productId, this.reviewsPage());
         this.toastService.success('Reply posted.');
       },
       error: () => {
@@ -360,19 +364,27 @@ export class ProductDetail implements OnInit {
     });
   }
 
-  private loadReviews(productId: number) {
+  private loadReviews(productId: number, page = this.reviewsPage()) {
     this.reviewsLoading.set(true);
     this.reviewsError.set('');
+    this.reviewsPage.set(page);
 
-    this.reviewService.getReviews(productId).subscribe({
+    this.reviewService.getReviews(productId, page, this.reviewsPageSize).subscribe({
       next: (response) => {
         this.reviews.set(response.reviews);
-        this.reviewSummary.set(this.buildReviewSummary(response.reviews));
+        const totalCount = response.totalCount ?? response.summary?.total ?? response.reviews.length;
+        this.reviewsTotalCount.set(totalCount);
+        if (response.summary) {
+          this.reviewSummary.set(response.summary);
+        } else {
+          this.reviewSummary.set(this.buildReviewSummary(response.reviews));
+        }
         this.reviewsLoading.set(false);
       },
       error: () => {
         this.reviewsError.set('Unable to load reviews.');
         this.reviewSummary.set({ total: 0, average: 0, counts: [0, 0, 0, 0, 0] });
+        this.reviewsTotalCount.set(0);
         this.reviewsLoading.set(false);
       }
     });
@@ -427,5 +439,44 @@ export class ProductDetail implements OnInit {
       return 0;
     }
     return Math.round((count / total) * 100);
+  }
+
+  get reviewsTotalPages(): number {
+    const total = this.reviewsTotalCount();
+    if (total === 0) {
+      return 1;
+    }
+    return Math.ceil(total / this.reviewsPageSize);
+  }
+
+  get reviewsRangeStart(): number {
+    const total = this.reviewsTotalCount();
+    if (total === 0) {
+      return 0;
+    }
+    return (this.reviewsPage() - 1) * this.reviewsPageSize + 1;
+  }
+
+  get reviewsRangeEnd(): number {
+    const total = this.reviewsTotalCount();
+    if (total === 0) {
+      return 0;
+    }
+    return Math.min(total, this.reviewsPage() * this.reviewsPageSize);
+  }
+
+  goToReviewPage(page: number) {
+    const product = this.product();
+    if (!product) {
+      return;
+    }
+
+    const totalPages = this.reviewsTotalPages;
+    const nextPage = Math.max(1, Math.min(totalPages, page));
+    if (nextPage === this.reviewsPage()) {
+      return;
+    }
+
+    this.loadReviews(product.id, nextPage);
   }
 }

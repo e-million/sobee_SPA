@@ -4,6 +4,11 @@ import { map } from 'rxjs';
 import { AuthService } from '../services/auth.service';
 import { ToastService } from '../services/toast.service';
 
+/**
+ * Resolve admin access for both canActivate and canActivateChild.
+ * @param stateUrl - URL being accessed.
+ * @returns True if access is allowed or an Observable that resolves to true/false.
+ */
 const canAccessAdmin = (stateUrl: string) => {
   const authService = inject(AuthService);
   const router = inject(Router);
@@ -28,10 +33,22 @@ const canAccessAdmin = (stateUrl: string) => {
   );
 };
 
+/**
+ * Guard that blocks non-admin users from admin routes.
+ * @param route - Activated route snapshot.
+ * @param state - Router state snapshot.
+ * @returns True if access is allowed, otherwise false or a redirect.
+ */
 export const adminGuard: CanActivateFn = (route, state) => {
   return canAccessAdmin(state.url);
 };
 
+/**
+ * Child-route guard that blocks non-admin users from admin routes.
+ * @param route - Activated route snapshot.
+ * @param state - Router state snapshot.
+ * @returns True if access is allowed, otherwise false or a redirect.
+ */
 export const adminChildGuard: CanActivateChildFn = (route, state) => {
   return canAccessAdmin(state.url);
 };

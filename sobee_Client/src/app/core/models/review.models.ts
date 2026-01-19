@@ -19,10 +19,20 @@ export interface Review {
   replies: ReviewReply[];
 }
 
+export interface ReviewSummaryResponse {
+  total: number;
+  average: number;
+  counts: number[];
+}
+
 export interface ReviewsResponse {
   productId: number;
   count: number;
   reviews: Review[];
+  page?: number;
+  pageSize?: number;
+  totalCount?: number;
+  summary?: ReviewSummaryResponse;
 }
 
 export interface CreateReviewRequest {

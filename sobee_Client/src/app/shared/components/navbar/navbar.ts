@@ -9,6 +9,9 @@ import { CartService } from '../../../core/services/cart.service';
 import { ProductService } from '../../../core/services/product.service';
 import { Product } from '../../../core/models';
 
+/**
+ * Navbar component with auth links, cart badge, and search dropdown.
+ */
 @Component({
   selector: 'app-navbar',
   imports: [CommonModule, FormsModule, RouterModule],
@@ -29,6 +32,13 @@ export class Navbar {
   private readonly searchSubject = new Subject<string>();
   private readonly destroyRef = inject(DestroyRef);
 
+  /**
+   * Initialize services and wire up search input stream.
+   * @param authService - AuthService for login/logout state.
+   * @param cartService - CartService for cart badge.
+   * @param productService - ProductService for search suggestions.
+   * @param router - Router for search navigation.
+   */
   constructor(
     public authService: AuthService,
     public cartService: CartService,
@@ -58,6 +68,10 @@ export class Navbar {
     });
   }
 
+  /**
+   * Close search when clicking outside search containers.
+   * @param event - Document click event.
+   */
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent) {
     const target = event.target as Node;
@@ -69,37 +83,61 @@ export class Navbar {
     }
   }
 
+  /**
+   * Close search on ESC key.
+   */
   @HostListener('document:keydown.escape')
   onEscape() {
     this.searchOpen.set(false);
   }
 
+  /**
+   * Toggle mobile menu visibility.
+   */
   toggleMobileMenu() {
     this.mobileMenuOpen.update(v => !v);
   }
 
+  /**
+   * Close the mobile menu.
+   */
   closeMobileMenu() {
     this.mobileMenuOpen.set(false);
   }
 
+  /**
+   * Log out and close the mobile menu.
+   */
   logout() {
     this.authService.logout();
     this.closeMobileMenu();
   }
 
+  /**
+   * Handle search input changes and open the dropdown.
+   */
   onSearchInput() {
     this.searchSubject.next(this.searchTerm);
     this.searchOpen.set(true);
   }
 
+  /**
+   * Open the search dropdown.
+   */
   openSearch() {
     this.searchOpen.set(true);
   }
 
+  /**
+   * Close the search dropdown.
+   */
   closeSearch() {
     this.searchOpen.set(false);
   }
 
+  /**
+   * Clear the search input and results.
+   */
   clearSearch() {
     this.searchTerm = '';
     this.searchResults.set([]);
@@ -107,6 +145,9 @@ export class Navbar {
     this.searchSubject.next('');
   }
 
+  /**
+   * Submit the search and navigate to results.
+   */
   onSearchSubmit() {
     const term = this.searchTerm.trim();
     if (!term) {
@@ -118,19 +159,31 @@ export class Navbar {
     this.closeMobileMenu();
   }
 
+  /**
+   * Close search dropdown after selecting a result.
+   */
   selectSearchResult() {
     this.closeSearch();
     this.closeMobileMenu();
   }
 
+  /**
+   * Whether the search input has non-empty text.
+   */
   get hasSearchTerm(): boolean {
     return this.searchTerm.trim().length > 0;
   }
 
+  /**
+   * Trimmed search term for UI display.
+   */
   get trimmedSearchTerm(): string {
     return this.searchTerm.trim();
   }
 
+  /**
+   * Total count of items in the cart.
+   */
   get cartItemCount(): number {
     const cart = this.cartService.cart();
     if (!cart || !cart.items) return 0;
