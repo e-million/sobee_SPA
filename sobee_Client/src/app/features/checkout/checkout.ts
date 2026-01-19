@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -12,6 +12,7 @@ import { CheckoutRequest, PaymentMethod } from '../../core/models';
   imports: [CommonModule, FormsModule],
   templateUrl: './checkout.html',
   styleUrl: './checkout.css',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class Checkout implements OnInit {
   loading = signal(false);

@@ -13,7 +13,7 @@ namespace sobee_API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class CartController : ControllerBase
+    public class CartController : ApiControllerBase
     {
         private readonly SobeecoredbContext _db;
         private readonly GuestSessionService _guestSessionService;
@@ -123,7 +123,7 @@ namespace sobee_API.Controllers
             if (errorResult != null)
                 return errorResult;
 
-            var cart = await FindCartAsync(identity!.UserId, identity.GuestSessionId);
+            var cart = await FindCartAsync(identity!.UserId, identity.GuestSessionId, track: false);
             if (cart == null)
                 return NotFoundError("Cart not found.", "NotFound");
 
@@ -289,7 +289,7 @@ namespace sobee_API.Controllers
             if (errorResult != null)
                 return errorResult;
 
-            var cart = await FindCartAsync(identity!.UserId, identity.GuestSessionId);
+            var cart = await FindCartAsync(identity!.UserId, identity.GuestSessionId, track: false);
             if (cart == null)
                 return NotFoundError("Cart not found.", "NotFound");
 
@@ -340,13 +340,19 @@ namespace sobee_API.Controllers
             return (identity, null);
         }
 
-        private async Task<TshoppingCart?> FindCartAsync(string? userId, string? sessionId)
+        private async Task<TshoppingCart?> FindCartAsync(string? userId, string? sessionId, bool track = true)
         {
+            var query = _db.TshoppingCarts.AsQueryable();
+            if (!track)
+            {
+                query = query.AsNoTracking();
+            }
+
             if (!string.IsNullOrWhiteSpace(userId))
-                return await _db.TshoppingCarts.FirstOrDefaultAsync(c => c.UserId == userId);
+                return await query.FirstOrDefaultAsync(c => c.UserId == userId);
 
             if (!string.IsNullOrWhiteSpace(sessionId))
-                return await _db.TshoppingCarts.FirstOrDefaultAsync(c => c.SessionId == sessionId);
+                return await query.FirstOrDefaultAsync(c => c.SessionId == sessionId);
 
             return null;
         }
@@ -559,25 +565,6 @@ namespace sobee_API.Controllers
                 new { productId, availableStock, requested }
             );
         }
-
-        private BadRequestObjectResult BadRequestError(string message, string? code = null, object? details = null)
-            => BadRequest(new ApiErrorResponse(message, code, details));
-
-        private NotFoundObjectResult NotFoundError(string message, string? code = null, object? details = null)
-            => NotFound(new ApiErrorResponse(message, code, details));
-
-        private ConflictObjectResult ConflictError(string message, string? code = null, object? details = null)
-            => Conflict(new ApiErrorResponse(message, code, details));
-
-        private UnauthorizedObjectResult UnauthorizedError(string message, string? code = null, object? details = null)
-            => Unauthorized(new ApiErrorResponse(message, code, details));
-
-        private ObjectResult ForbiddenError(string message, string? code = null, object? details = null)
-            => StatusCode(StatusCodes.Status403Forbidden, new ApiErrorResponse(message, code, details));
-
-        private ObjectResult ServerError(string message = "An unexpected error occurred.", string? code = "ServerError", object? details = null)
-            => StatusCode(StatusCodes.Status500InternalServerError, new ApiErrorResponse(message, code, details));
-
 
     }
 }

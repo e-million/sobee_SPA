@@ -18,7 +18,7 @@
       }
 
       @if (loading()) {
-        <div class="grid lg:grid-cols-[minmax(0,1fr)_360px] gap-8">
+        <div class="grid lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)] gap-8">
           <div class="space-y-4">
             @for (i of [1, 2, 3]; track i) {
               <div class="card p-4 animate-pulse">
@@ -45,7 +45,7 @@
         </div>
       } @else if (cartService.cart(); as cart) {
         @if (cart.items.length > 0) {
-          <div class="grid lg:grid-cols-[minmax(0,1fr)_360px] gap-8">
+          <div class="grid lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)] gap-8">
             <div class="space-y-4">
               @for (item of cart.items; track item.cartItemId) {
                 <div class="card p-4">

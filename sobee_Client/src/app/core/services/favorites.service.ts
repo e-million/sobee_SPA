@@ -12,8 +12,13 @@ export class FavoritesService {
 
   constructor(private http: HttpClient) {}
 
-  getFavorites(): Observable<FavoritesResponse> {
-    return this.http.get<FavoritesResponse>(this.apiUrl);
+  getFavorites(page = 1, pageSize = 100): Observable<FavoritesResponse> {
+    return this.http.get<FavoritesResponse>(this.apiUrl, {
+      params: {
+        page,
+        pageSize
+      }
+    });
   }
 
   addFavorite(productId: number): Observable<unknown> {

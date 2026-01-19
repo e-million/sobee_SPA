@@ -19,7 +19,7 @@ namespace sobee_API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class OrdersController : ControllerBase
+    public class OrdersController : ApiControllerBase
     {
         private readonly SobeecoredbContext _db;
         private readonly RequestIdentityResolver _identityResolver;
@@ -565,25 +565,6 @@ namespace sobee_API.Controllers
 
             return resp;
         }
-
-        private BadRequestObjectResult BadRequestError(string message, string? code = null, object? details = null)
-            => BadRequest(new ApiErrorResponse(message, code, details));
-
-        private NotFoundObjectResult NotFoundError(string message, string? code = null, object? details = null)
-            => NotFound(new ApiErrorResponse(message, code, details));
-
-        private ConflictObjectResult ConflictError(string message, string? code = null, object? details = null)
-            => Conflict(new ApiErrorResponse(message, code, details));
-
-        private UnauthorizedObjectResult UnauthorizedError(string message, string? code = null, object? details = null)
-            => Unauthorized(new ApiErrorResponse(message, code, details));
-
-        private ObjectResult ForbiddenError(string message, string? code = null, object? details = null)
-            => StatusCode(StatusCodes.Status403Forbidden, new ApiErrorResponse(message, code, details));
-
-        private ObjectResult ServerError(string message = "An unexpected error occurred.", string? code = "ServerError", object? details = null)
-            => StatusCode(StatusCodes.Status500InternalServerError, new ApiErrorResponse(message, code, details));
-
 
     }
 }

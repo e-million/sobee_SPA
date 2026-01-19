@@ -20,7 +20,7 @@ interface MeResponse {
 })
 export class AuthService {
   private readonly apiBaseUrl = environment.apiBaseUrl;
-  private readonly apiUrl = environment.apiUrl;
+  private readonly apiUrl = `${this.apiBaseUrl}/api`;
   private readonly meUrl = `${this.apiUrl}/me`;
   private readonly rolesStorageKey = 'userRoles';
   private readonly userIdStorageKey = 'userId';
@@ -181,14 +181,14 @@ export class AuthService {
    * Request a password reset email
    */
   forgotPassword(request: ForgotPasswordRequest): Observable<{ success: boolean }> {
-    return this.http.post<{ success: boolean }>(`${this.apiUrl}/auth/forgot-password`, request);
+    return this.http.post<{ success: boolean }>(`${this.apiBaseUrl}/forgotPassword`, request);
   }
 
   /**
    * Reset password using a token
    */
   resetPassword(request: ResetPasswordRequest): Observable<AuthResponse> {
-    return this.http.post<AuthResponse>(`${this.apiUrl}/auth/reset-password`, request);
+    return this.http.post<AuthResponse>(`${this.apiBaseUrl}/resetPassword`, request);
   }
 
   loadRoles(): Observable<string[]> {

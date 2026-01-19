@@ -53,16 +53,21 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
             errorMessage = 'You do not have permission to perform this action.';
             break;
           case 404:
-            errorMessage = error.error?.message || 'The requested resource was not found.';
+            errorMessage = error.error?.message || error.error?.error || 'The requested resource was not found.';
             break;
           case 409:
-            errorMessage = error.error?.message || 'A conflict occurred with the current state.';
+            errorMessage = error.error?.message || error.error?.error || 'A conflict occurred with the current state.';
             break;
-          case 422:
-            errorMessage = error.error?.message || 'Validation failed. Please check your input.';
+          case 422: {
+            const fieldErrors = error.error?.details?.errors ?? error.error?.errors;
+            if (fieldErrors) {
+              showToast = false;
+            }
+            errorMessage = error.error?.message || error.error?.error || 'Validation failed. Please check your input.';
             break;
+          }
           case 429:
-            errorMessage = error.error?.message || 'Too many requests. Please try again later.';
+            errorMessage = error.error?.message || error.error?.error || 'Too many requests. Please try again later.';
             break;
           case 500:
             errorMessage = 'An internal server error occurred. Please try again later.';
@@ -78,7 +83,15 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
         }
       }
 
-      console.error('HTTP Error:', errorMessage, error);
+      const correlationId = error.headers?.get('X-Correlation-Id');
+
+      console.error('HTTP Error:', {
+        message: errorMessage,
+        status: error.status,
+        url: req.url,
+        correlationId,
+        error
+      });
 
       // Show toast notification for user-facing errors
       if (showToast) {

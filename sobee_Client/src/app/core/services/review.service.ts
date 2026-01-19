@@ -12,8 +12,13 @@ export class ReviewService {
 
   constructor(private http: HttpClient) {}
 
-  getReviews(productId: number): Observable<ReviewsResponse> {
-    return this.http.get<ReviewsResponse>(`${this.apiUrl}/product/${productId}`);
+  getReviews(productId: number, page = 1, pageSize = 100): Observable<ReviewsResponse> {
+    return this.http.get<ReviewsResponse>(`${this.apiUrl}/product/${productId}`, {
+      params: {
+        page,
+        pageSize
+      }
+    });
   }
 
   createReview(productId: number, request: CreateReviewRequest): Observable<unknown> {

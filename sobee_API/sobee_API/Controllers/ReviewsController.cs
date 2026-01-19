@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Sobee.Domain.Data;
+using sobee_API.DTOs.Common;
 using sobee_API.DTOs.Reviews;
 using sobee_API.Services;
 
@@ -24,8 +25,17 @@ namespace sobee_API.Controllers
         /// Get reviews for a product (public).
         /// </summary>
         [HttpGet("product/{productId:int}")]
-        public async Task<IActionResult> GetByProduct(int productId)
+        public async Task<IActionResult> GetByProduct(
+            int productId,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20)
         {
+            if (page <= 0)
+                return BadRequest(new ApiErrorResponse("page must be >= 1", "ValidationError"));
+
+            if (pageSize <= 0 || pageSize > 100)
+                return BadRequest(new ApiErrorResponse("pageSize must be between 1 and 100", "ValidationError"));
+
             // Public endpoint: do not create guest sessions.
             _ = await _identity.ResolveAsync(
                 User,
@@ -35,11 +45,17 @@ namespace sobee_API.Controllers
                 allowAuthenticatedGuestSession: false
             );
 
-            var reviews = await _db.Treviews
+            var query = _db.Treviews
                 .Include(r => r.TReviewReplies)
                 .AsNoTracking()
-                .Where(r => r.IntProductId == productId)
+                .Where(r => r.IntProductId == productId);
+
+            var totalCount = await query.CountAsync();
+
+            var reviews = await query
                 .OrderByDescending(r => r.DtmReviewDate)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
 
             var results = reviews.Select(r => new
@@ -63,6 +79,10 @@ namespace sobee_API.Controllers
                     })
                     .ToList()
             }).ToList();
+
+            Response.Headers["X-Total-Count"] = totalCount.ToString();
+            Response.Headers["X-Page"] = page.ToString();
+            Response.Headers["X-Page-Size"] = pageSize.ToString();
 
             return Ok(new
             {
@@ -90,12 +110,12 @@ namespace sobee_API.Controllers
 
             // Must be either authenticated OR a valid existing guest session.
             if (string.IsNullOrWhiteSpace(owner.UserId))
-                return Unauthorized(new { error = "Missing NameIdentifier claim." });
+                return Unauthorized(new ApiErrorResponse("Missing NameIdentifier claim.", "Unauthorized"));
 
             // Validate product exists
             var productExists = await _db.Tproducts.AnyAsync(p => p.IntProductId == productId);
             if (!productExists)
-                return NotFound(new { error = "Product not found.", productId });
+                return NotFound(new ApiErrorResponse("Product not found.", "NotFound", new { productId }));
 
             var review = new Sobee.Domain.Entities.Reviews.Treview
             {
@@ -139,17 +159,17 @@ namespace sobee_API.Controllers
             );
 
             if (string.IsNullOrWhiteSpace(owner.UserId))
-                return Unauthorized(new { error = "Missing NameIdentifier claim." });
+                return Unauthorized(new ApiErrorResponse("Missing NameIdentifier claim.", "Unauthorized"));
 
             var review = await _db.Treviews.FirstOrDefaultAsync(r => r.IntReviewId == reviewId);
             if (review == null)
-                return NotFound(new { error = "Review not found.", reviewId });
+                return NotFound(new ApiErrorResponse("Review not found.", "NotFound", new { reviewId }));
 
             var isAdmin = User.IsInRole("Admin");
             var isOwner = !string.IsNullOrWhiteSpace(review.UserId) && review.UserId == owner.UserId;
 
             if (!isAdmin && !isOwner)
-                return Forbid();
+                return StatusCode(StatusCodes.Status403Forbidden, new ApiErrorResponse("Forbidden.", "Forbidden"));
 
             var reply = new Sobee.Domain.Entities.Reviews.TReviewReplies
             {
@@ -189,18 +209,18 @@ namespace sobee_API.Controllers
             );
 
             if (string.IsNullOrWhiteSpace(owner.UserId))
-                return Unauthorized(new { error = "Missing NameIdentifier claim." });
+                return Unauthorized(new ApiErrorResponse("Missing NameIdentifier claim.", "Unauthorized"));
 
             var review = await _db.Treviews.FirstOrDefaultAsync(r => r.IntReviewId == reviewId);
             if (review == null)
-                return NotFound(new { error = "Review not found.", reviewId });
+                return NotFound(new ApiErrorResponse("Review not found.", "NotFound", new { reviewId }));
 
             // Owner check or Admin role
             var isAdmin = User.IsInRole("Admin");
             var isOwner = !string.IsNullOrWhiteSpace(review.UserId) && review.UserId == owner.UserId;
 
             if (!isOwner && !isAdmin)
-                return Forbid();
+                return StatusCode(StatusCodes.Status403Forbidden, new ApiErrorResponse("Forbidden.", "Forbidden"));
 
             // Remove replies first (if FK doesn't cascade)
             var replies = await _db.TReviewReplies.Where(rr => rr.IntReviewId == reviewId).ToListAsync();
@@ -229,17 +249,17 @@ namespace sobee_API.Controllers
             );
 
             if (string.IsNullOrWhiteSpace(owner.UserId))
-                return Unauthorized(new { error = "Missing NameIdentifier claim." });
+                return Unauthorized(new ApiErrorResponse("Missing NameIdentifier claim.", "Unauthorized"));
 
             var reply = await _db.TReviewReplies.FirstOrDefaultAsync(r => r.IntReviewReplyID == replyId);
             if (reply == null)
-                return NotFound(new { error = "Reply not found.", replyId });
+                return NotFound(new ApiErrorResponse("Reply not found.", "NotFound", new { replyId }));
 
             var isAdmin = User.IsInRole("Admin");
             var isOwner = !string.IsNullOrWhiteSpace(reply.UserId) && reply.UserId == owner.UserId;
 
             if (!isOwner && !isAdmin)
-                return Forbid();
+                return StatusCode(StatusCodes.Status403Forbidden, new ApiErrorResponse("Forbidden.", "Forbidden"));
 
             _db.TReviewReplies.Remove(reply);
             await _db.SaveChangesAsync();

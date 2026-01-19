@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using sobee_API.Constants;
+using sobee_API.DTOs.Common;
 using Sobee.Domain.Data;
 
 namespace sobee_API.Controllers
@@ -28,12 +29,12 @@ namespace sobee_API.Controllers
         {
             if (!TryNormalizeDateRange(startDate, endDate, out var start, out var end, out var error))
             {
-                return BadRequest(new { error });
+                return BadRequest(new ApiErrorResponse(error ?? "Invalid date range.", "ValidationError"));
             }
 
             if (!TryNormalizeGranularity(granularity, out var normalizedGranularity))
             {
-                return BadRequest(new { error = "Granularity must be day, week, or month." });
+                return BadRequest(new ApiErrorResponse("Granularity must be day, week, or month.", "ValidationError"));
             }
 
             var ordersQuery = _db.Torders
@@ -161,7 +162,7 @@ namespace sobee_API.Controllers
         {
             if (limit <= 0 || limit > 50)
             {
-                return BadRequest(new { error = "Limit must be between 1 and 50." });
+                return BadRequest(new ApiErrorResponse("Limit must be between 1 and 50.", "ValidationError"));
             }
 
             var reviews = await _db.Treviews
@@ -189,7 +190,7 @@ namespace sobee_API.Controllers
         {
             if (limit <= 0 || limit > 50)
             {
-                return BadRequest(new { error = "Limit must be between 1 and 50." });
+                return BadRequest(new ApiErrorResponse("Limit must be between 1 and 50.", "ValidationError"));
             }
 
             var products = await _db.Tproducts
@@ -216,7 +217,7 @@ namespace sobee_API.Controllers
         {
             if (!TryNormalizeDateRange(startDate, endDate, out var start, out var end, out var error))
             {
-                return BadRequest(new { error });
+                return BadRequest(new ApiErrorResponse(error ?? "Invalid date range.", "ValidationError"));
             }
 
             var productCounts = await _db.Tproducts
@@ -322,7 +323,7 @@ namespace sobee_API.Controllers
         {
             if (lowStockThreshold < 0)
             {
-                return BadRequest(new { error = "Threshold cannot be negative." });
+                return BadRequest(new ApiErrorResponse("Threshold cannot be negative.", "ValidationError"));
             }
 
             var totalProducts = await _db.Tproducts.CountAsync();
@@ -349,7 +350,7 @@ namespace sobee_API.Controllers
         {
             if (!TryNormalizeDateRange(startDate, endDate, out var start, out var end, out var error))
             {
-                return BadRequest(new { error });
+                return BadRequest(new ApiErrorResponse(error ?? "Invalid date range.", "ValidationError"));
             }
 
             var currentData = await _db.Torders
@@ -398,27 +399,33 @@ namespace sobee_API.Controllers
         {
             if (!TryNormalizeDateRange(startDate, endDate, out var start, out var end, out var error))
             {
-                return BadRequest(new { error });
+                return BadRequest(new ApiErrorResponse(error ?? "Invalid date range.", "ValidationError"));
             }
 
-            var orders = await _db.Torders
+            var firstOrders = await _db.Torders
                 .AsNoTracking()
                 .Where(o => o.UserId != null && o.DtmOrderDate != null)
-                .Select(o => new
+                .GroupBy(o => o.UserId!)
+                .Select(g => new
                 {
-                    userId = o.UserId!,
-                    date = o.DtmOrderDate!.Value,
-                    total = o.DecTotalAmount ?? 0m
+                    userId = g.Key,
+                    firstOrder = g.Min(x => x.DtmOrderDate)!.Value
                 })
                 .ToListAsync();
 
-            var firstOrderByUser = orders
-                .GroupBy(o => o.userId, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(g => g.Key, g => g.Min(x => x.date), StringComparer.OrdinalIgnoreCase);
+            var ordersInRange = await _db.Torders
+                .AsNoTracking()
+                .Where(o => o.UserId != null && o.DtmOrderDate != null && o.DtmOrderDate >= start && o.DtmOrderDate <= end)
+                .GroupBy(o => o.UserId!)
+                .Select(g => new
+                {
+                    userId = g.Key,
+                    total = g.Sum(x => x.DecTotalAmount ?? 0m)
+                })
+                .ToListAsync();
 
-            var ordersInRange = orders
-                .Where(o => o.date >= start && o.date <= end)
-                .ToList();
+            var firstOrderByUser = firstOrders
+                .ToDictionary(item => item.userId, item => item.firstOrder, StringComparer.OrdinalIgnoreCase);
 
             var newCustomerIds = firstOrderByUser
                 .Where(kvp => kvp.Value >= start && kvp.Value <= end)
@@ -427,7 +434,6 @@ namespace sobee_API.Controllers
 
             var returningCustomerIds = ordersInRange
                 .Select(o => o.userId)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Where(userId => firstOrderByUser.TryGetValue(userId, out var firstOrderDate) && firstOrderDate < start)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -456,12 +462,12 @@ namespace sobee_API.Controllers
         {
             if (!TryNormalizeDateRange(startDate, endDate, out var start, out var end, out var error))
             {
-                return BadRequest(new { error });
+                return BadRequest(new ApiErrorResponse(error ?? "Invalid date range.", "ValidationError"));
             }
 
             if (!TryNormalizeGranularity(granularity, out var normalizedGranularity))
             {
-                return BadRequest(new { error = "Granularity must be day, week, or month." });
+                return BadRequest(new ApiErrorResponse("Granularity must be day, week, or month.", "ValidationError"));
             }
 
             var baselineCount = await _identityDb.Users
@@ -509,7 +515,7 @@ namespace sobee_API.Controllers
         {
             if (limit <= 0 || limit > 50)
             {
-                return BadRequest(new { error = "Limit must be between 1 and 50." });
+                return BadRequest(new ApiErrorResponse("Limit must be between 1 and 50.", "ValidationError"));
             }
 
             DateTime start = DateTime.MinValue;
@@ -518,7 +524,7 @@ namespace sobee_API.Controllers
             {
                 if (!TryNormalizeDateRange(startDate, endDate, out start, out end, out var error))
                 {
-                    return BadRequest(new { error });
+                    return BadRequest(new ApiErrorResponse(error ?? "Invalid date range.", "ValidationError"));
                 }
             }
 
@@ -585,7 +591,7 @@ namespace sobee_API.Controllers
         {
             if (limit <= 0 || limit > 50)
             {
-                return BadRequest(new { error = "Limit must be between 1 and 50." });
+                return BadRequest(new ApiErrorResponse("Limit must be between 1 and 50.", "ValidationError"));
             }
 
             var items = await _db.Tfavorites

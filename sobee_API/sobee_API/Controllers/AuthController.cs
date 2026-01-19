@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Sobee.Domain.Identity;
 using sobee_API.DTOs.Auth;
+using sobee_API.DTOs.Common;
 
 namespace sobee_API.Controllers
 {
@@ -26,7 +27,7 @@ namespace sobee_API.Controllers
 
             var existing = await _userManager.FindByEmailAsync(email);
             if (existing != null)
-                return Conflict(new { error = "A user with this email already exists." });
+                return Conflict(new ApiErrorResponse("A user with this email already exists.", "Conflict"));
 
             var user = new ApplicationUser
             {
@@ -46,11 +47,13 @@ namespace sobee_API.Controllers
 
             if (!result.Succeeded)
             {
-                return BadRequest(new
-                {
-                    error = "Registration failed.",
-                    details = result.Errors.Select(e => new { e.Code, e.Description })
-                });
+                return BadRequest(new ApiErrorResponse(
+                    "Registration failed.",
+                    "ValidationError",
+                    new
+                    {
+                        errors = result.Errors.Select(e => new { e.Code, e.Description }).ToArray()
+                    }));
             }
 
             // Do NOT issue tokens here. Use Identity /identity/login for bearer token issuance.

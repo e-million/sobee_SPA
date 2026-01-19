@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { Product } from '../../../core/models';
@@ -7,7 +7,8 @@ import { Product } from '../../../core/models';
   selector: 'app-product-card',
   imports: [CommonModule, RouterModule],
   templateUrl: './product-card.html',
-  styleUrl: './product-card.css'
+  styleUrl: './product-card.css',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ProductCard {
   @Input({ required: true }) product!: Product;

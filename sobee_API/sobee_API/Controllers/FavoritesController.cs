@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Sobee.Domain.Data;
 using Sobee.Domain.Entities.Cart; // if needed by your project; safe to remove if unused
 using Sobee.Domain.Entities.Products;
+using sobee_API.DTOs.Common;
 using sobee_API.Services;
 using System.Security.Claims;
 
@@ -27,8 +28,16 @@ namespace sobee_API.Controllers
         /// </summary>
         [HttpGet]
         [Authorize]
-        public async Task<IActionResult> GetMyFavorites()
+        public async Task<IActionResult> GetMyFavorites(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20)
         {
+            if (page <= 0)
+                return BadRequest(new ApiErrorResponse("page must be >= 1", "ValidationError"));
+
+            if (pageSize <= 0 || pageSize > 100)
+                return BadRequest(new ApiErrorResponse("pageSize must be between 1 and 100", "ValidationError"));
+
             // Auth-only endpoint: do not create guest sessions.
             var owner = await _identity.ResolveAsync(
                 User,
@@ -39,12 +48,18 @@ namespace sobee_API.Controllers
             );
 
             if (string.IsNullOrWhiteSpace(owner.UserId))
-                return Unauthorized(new { error = "Missing NameIdentifier claim." });
+                return Unauthorized(new ApiErrorResponse("Missing NameIdentifier claim.", "Unauthorized"));
 
-            var favorites = await _db.Tfavorites
+            var query = _db.Tfavorites
                 .AsNoTracking()
-                .Where(f => f.UserId == owner.UserId)
+                .Where(f => f.UserId == owner.UserId);
+
+            var totalCount = await query.CountAsync();
+
+            var favorites = await query
                 .OrderByDescending(f => f.DtmDateAdded)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .Select(f => new
                 {
                     favoriteId = f.IntFavoriteId,
@@ -52,6 +67,10 @@ namespace sobee_API.Controllers
                     added = f.DtmDateAdded
                 })
                 .ToListAsync();
+
+            Response.Headers["X-Total-Count"] = totalCount.ToString();
+            Response.Headers["X-Page"] = page.ToString();
+            Response.Headers["X-Page-Size"] = pageSize.ToString();
 
             return Ok(new
             {
@@ -77,12 +96,12 @@ namespace sobee_API.Controllers
             );
 
             if (string.IsNullOrWhiteSpace(owner.UserId))
-                return Unauthorized(new { error = "Missing NameIdentifier claim." });
+                return Unauthorized(new ApiErrorResponse("Missing NameIdentifier claim.", "Unauthorized"));
 
             // Validate product exists
             var exists = await _db.Tproducts.AnyAsync(p => p.IntProductId == productId);
             if (!exists)
-                return NotFound(new { error = "Product not found.", productId });
+                return NotFound(new ApiErrorResponse("Product not found.", "NotFound", new { productId }));
 
             // Prevent duplicates
             var already = await _db.Tfavorites.AnyAsync(f => f.UserId == owner.UserId && f.IntProductId == productId);
@@ -124,13 +143,13 @@ namespace sobee_API.Controllers
             );
 
             if (string.IsNullOrWhiteSpace(owner.UserId))
-                return Unauthorized(new { error = "Missing NameIdentifier claim." });
+                return Unauthorized(new ApiErrorResponse("Missing NameIdentifier claim.", "Unauthorized"));
 
             var fav = await _db.Tfavorites
                 .FirstOrDefaultAsync(f => f.UserId == owner.UserId && f.IntProductId == productId);
 
             if (fav == null)
-                return NotFound(new { error = "Favorite not found.", productId });
+                return NotFound(new ApiErrorResponse("Favorite not found.", "NotFound", new { productId }));
 
             _db.Tfavorites.Remove(fav);
             await _db.SaveChangesAsync();

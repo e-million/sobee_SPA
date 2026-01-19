@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Sobee.Domain.Data;
 using Sobee.Domain.Entities.Products;
+using sobee_API.DTOs.Common;
 using sobee_API.DTOs.Products;
 
 namespace sobee_API.Controllers
@@ -34,10 +35,10 @@ namespace sobee_API.Controllers
             [FromQuery] string? sort = null)
         {
             if (page <= 0)
-                return BadRequest(new { error = "page must be >= 1" });
+                return BadRequest(new ApiErrorResponse("page must be >= 1", "ValidationError"));
 
             if (pageSize <= 0 || pageSize > 100)
-                return BadRequest(new { error = "pageSize must be between 1 and 100" });
+                return BadRequest(new ApiErrorResponse("pageSize must be between 1 and 100", "ValidationError"));
 
             bool admin = IsAdmin();
 
@@ -119,7 +120,7 @@ namespace sobee_API.Controllers
                 .FirstOrDefaultAsync(p => p.IntProductId == id);
 
             if (product == null)
-                return NotFound(new { error = "Product not found." });
+                return NotFound(new ApiErrorResponse("Product not found.", "NotFound"));
 
             var response = new
             {
@@ -134,7 +135,7 @@ namespace sobee_API.Controllers
                 categoryId = product.IntDrinkCategoryId,
                 cost = admin ? product.DecCost : null,
 
-                images = (product.TproductImages ?? new List<TproductImage>())
+                images = (product.TproductImages ?? [])
                     .OrderBy(i => i.IntProductImageId)
                     .Select(i => new
                     {
@@ -199,7 +200,7 @@ namespace sobee_API.Controllers
         {
             var productExists = await _db.Tproducts.AnyAsync(p => p.IntProductId == id);
             if (!productExists)
-                return NotFound(new { error = "Product not found." });
+                return NotFound(new ApiErrorResponse("Product not found.", "NotFound"));
 
             var image = new TproductImage
             {
@@ -227,7 +228,7 @@ namespace sobee_API.Controllers
         {
             var product = await _db.Tproducts.FirstOrDefaultAsync(p => p.IntProductId == id);
             if (product == null)
-                return NotFound(new { error = "Product not found." });
+                return NotFound(new ApiErrorResponse("Product not found.", "NotFound"));
 
             if (request.Name != null)
             {
@@ -285,7 +286,7 @@ namespace sobee_API.Controllers
                 .FirstOrDefaultAsync(p => p.IntProductId == id);
 
             if (product == null)
-                return NotFound(new { error = "Product not found." });
+                return NotFound(new ApiErrorResponse("Product not found.", "NotFound"));
 
             if (product.TproductImages != null && product.TproductImages.Count > 0)
                 _db.TproductImages.RemoveRange(product.TproductImages);
@@ -307,7 +308,7 @@ namespace sobee_API.Controllers
                 .FirstOrDefaultAsync(i => i.IntProductImageId == imageId && i.IntProductId == productId);
 
             if (image == null)
-                return NotFound(new { error = "Image not found for that product." });
+                return NotFound(new ApiErrorResponse("Image not found for that product.", "NotFound"));
 
             _db.TproductImages.Remove(image);
             await _db.SaveChangesAsync();

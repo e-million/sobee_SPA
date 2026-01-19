@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Sobee.Domain.Data;
+using sobee_API.DTOs.Common;
 
 namespace sobee_API.Controllers
 {
@@ -63,7 +64,7 @@ namespace sobee_API.Controllers
         public async Task<IActionResult> GetOrdersPerDay([FromQuery] int days = 30)
         {
             if (days <= 0 || days > 365)
-                return BadRequest(new { error = "Days must be between 1 and 365." });
+                return BadRequest(new ApiErrorResponse("Days must be between 1 and 365.", "ValidationError"));
 
             var fromDate = DateTime.UtcNow.Date.AddDays(-days);
 
@@ -90,7 +91,7 @@ namespace sobee_API.Controllers
         public async Task<IActionResult> GetLowStock([FromQuery] int threshold = 5)
         {
             if (threshold < 0)
-                return BadRequest(new { error = "Threshold cannot be negative." });
+                return BadRequest(new ApiErrorResponse("Threshold cannot be negative.", "ValidationError"));
 
             var products = await _db.Tproducts
                 .AsNoTracking()
@@ -114,7 +115,7 @@ namespace sobee_API.Controllers
         public async Task<IActionResult> GetTopProducts([FromQuery] int limit = 5)
         {
             if (limit <= 0 || limit > 50)
-                return BadRequest(new { error = "Limit must be between 1 and 50." });
+                return BadRequest(new ApiErrorResponse("Limit must be between 1 and 50.", "ValidationError"));
 
             var products = await _db.TorderItems
                 .AsNoTracking()

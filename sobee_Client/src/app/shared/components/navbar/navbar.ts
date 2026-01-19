@@ -1,4 +1,4 @@
-import { Component, DestroyRef, ElementRef, HostListener, ViewChild, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, HostListener, ViewChild, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -13,7 +13,8 @@ import { Product } from '../../../core/models';
   selector: 'app-navbar',
   imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: './navbar.html',
-  styleUrl: './navbar.css'
+  styleUrl: './navbar.css',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class Navbar {
   @ViewChild('desktopSearchContainer') desktopSearchContainer?: ElementRef<HTMLDivElement>;

@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { OrderService } from '../../core/services/order.service';
@@ -10,6 +10,7 @@ import { Order } from '../../core/models';
   imports: [CommonModule],
   templateUrl: './orders.html',
   styleUrl: './orders.css',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class Orders implements OnInit {
   orders = signal<Order[]>([]);

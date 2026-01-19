@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Sobee.Domain.Data;
 using Sobee.Domain.Entities.Promotions;
 using sobee_API.DTOs.Admin;
+using sobee_API.DTOs.Common;
 using System.Globalization;
 
 namespace sobee_API.Controllers
@@ -28,10 +29,10 @@ namespace sobee_API.Controllers
             [FromQuery] int pageSize = 20)
         {
             if (page <= 0)
-                return BadRequest(new { error = "page must be >= 1" });
+                return BadRequest(new ApiErrorResponse("page must be >= 1", "ValidationError"));
 
             if (pageSize <= 0 || pageSize > 100)
-                return BadRequest(new { error = "pageSize must be between 1 and 100" });
+                return BadRequest(new ApiErrorResponse("pageSize must be between 1 and 100", "ValidationError"));
 
             var query = _db.Tpromotions.AsNoTracking();
 
@@ -93,13 +94,13 @@ namespace sobee_API.Controllers
         {
             var validationError = ValidatePromoRequest(request.Code, request.DiscountPercentage, request.ExpirationDate);
             if (validationError != null)
-                return BadRequest(new { error = validationError });
+                return BadRequest(new ApiErrorResponse(validationError, "ValidationError"));
 
             var code = NormalizeCode(request.Code);
 
             var exists = await _db.Tpromotions.AnyAsync(p => p.StrPromoCode == code);
             if (exists)
-                return Conflict(new { error = "Promo code already exists." });
+                return Conflict(new ApiErrorResponse("Promo code already exists.", "Conflict"));
 
             var promo = new Tpromotion
             {
@@ -120,17 +121,17 @@ namespace sobee_API.Controllers
         {
             var promo = await _db.Tpromotions.FirstOrDefaultAsync(p => p.IntPromotionId == promoId);
             if (promo == null)
-                return NotFound(new { error = "Promo not found." });
+                return NotFound(new ApiErrorResponse("Promo not found.", "NotFound"));
 
             if (request.Code != null)
             {
                 var code = NormalizeCode(request.Code);
                 if (string.IsNullOrWhiteSpace(code))
-                    return BadRequest(new { error = "Promo code is required." });
+                    return BadRequest(new ApiErrorResponse("Promo code is required.", "ValidationError"));
 
                 var duplicate = await _db.Tpromotions.AnyAsync(p => p.IntPromotionId != promoId && p.StrPromoCode == code);
                 if (duplicate)
-                    return Conflict(new { error = "Promo code already exists." });
+                    return Conflict(new ApiErrorResponse("Promo code already exists.", "Conflict"));
 
                 promo.StrPromoCode = code;
             }
@@ -139,7 +140,7 @@ namespace sobee_API.Controllers
             {
                 var discount = request.DiscountPercentage.Value;
                 if (discount <= 0 || discount > 100)
-                    return BadRequest(new { error = "Discount percentage must be between 0 and 100." });
+                    return BadRequest(new ApiErrorResponse("Discount percentage must be between 0 and 100.", "ValidationError"));
 
                 promo.DecDiscountPercentage = discount;
                 promo.StrDiscountPercentage = FormatDiscountLabel(discount);
@@ -149,7 +150,7 @@ namespace sobee_API.Controllers
             {
                 var expirationDate = request.ExpirationDate.Value;
                 if (!IsValidExpirationDate(expirationDate))
-                    return BadRequest(new { error = "Expiration date must be in the future." });
+                    return BadRequest(new ApiErrorResponse("Expiration date must be in the future.", "ValidationError"));
 
                 promo.DtmExpirationDate = expirationDate;
             }
@@ -166,7 +167,7 @@ namespace sobee_API.Controllers
         {
             var promo = await _db.Tpromotions.FirstOrDefaultAsync(p => p.IntPromotionId == promoId);
             if (promo == null)
-                return NotFound(new { error = "Promo not found." });
+                return NotFound(new ApiErrorResponse("Promo not found.", "NotFound"));
 
             _db.Tpromotions.Remove(promo);
             await _db.SaveChangesAsync();

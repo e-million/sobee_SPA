@@ -10,7 +10,7 @@ namespace sobee_API.Controllers
     [ApiController]
     [Route("api/users")]
     [Authorize]
-    public class UsersController : ControllerBase
+    public class UsersController : ApiControllerBase
     {
         private readonly UserManager<ApplicationUser> _userManager;
 
@@ -160,13 +160,5 @@ namespace sobee_API.Controllers
             return "newPassword";
         }
 
-        private BadRequestObjectResult BadRequestError(string message, string? code = null, object? details = null)
-            => BadRequest(new ApiErrorResponse(message, code, details));
-
-        private ConflictObjectResult ConflictError(string message, string? code = null, object? details = null)
-            => Conflict(new ApiErrorResponse(message, code, details));
-
-        private UnauthorizedObjectResult UnauthorizedError(string message, string? code = null, object? details = null)
-            => Unauthorized(new ApiErrorResponse(message, code, details));
     }
 }

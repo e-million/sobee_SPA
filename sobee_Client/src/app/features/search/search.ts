@@ -1,4 +1,4 @@
-import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -14,7 +14,8 @@ import { Product } from '../../core/models';
   selector: 'app-search',
   imports: [CommonModule, FormsModule, RouterModule, MainLayout, ProductCard],
   templateUrl: './search.html',
-  styleUrl: './search.css'
+  styleUrl: './search.css',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class Search implements OnInit {
   products = signal<Product[]>([]);

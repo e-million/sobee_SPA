@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Sobee.Domain.Data;
 using Sobee.Domain.Identity;
 using sobee_API.DTOs.Admin;
+using sobee_API.DTOs.Common;
 using System.Security.Claims;
 
 namespace sobee_API.Controllers
@@ -30,10 +31,10 @@ namespace sobee_API.Controllers
             [FromQuery] int pageSize = 20)
         {
             if (page <= 0)
-                return BadRequest(new { error = "page must be >= 1" });
+                return BadRequest(new ApiErrorResponse("page must be >= 1", "ValidationError"));
 
             if (pageSize <= 0 || pageSize > 100)
-                return BadRequest(new { error = "pageSize must be between 1 and 100" });
+                return BadRequest(new ApiErrorResponse("pageSize must be between 1 and 100", "ValidationError"));
 
             var query = _identityDb.Users.AsNoTracking();
 
@@ -123,7 +124,7 @@ namespace sobee_API.Controllers
         {
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null)
-                return NotFound(new { error = "User not found." });
+                return NotFound(new ApiErrorResponse("User not found.", "NotFound"));
 
             var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier)
                 ?? User.FindFirstValue("sub");
@@ -132,7 +133,7 @@ namespace sobee_API.Controllers
                 !string.IsNullOrWhiteSpace(currentUserId) &&
                 string.Equals(currentUserId, userId, StringComparison.OrdinalIgnoreCase))
             {
-                return BadRequest(new { error = "You cannot remove your own admin access." });
+                return BadRequest(new ApiErrorResponse("You cannot remove your own admin access.", "ValidationError"));
             }
 
             var isAdmin = await _userManager.IsInRoleAsync(user, "Admin");
@@ -141,14 +142,14 @@ namespace sobee_API.Controllers
             {
                 var addAdmin = await _userManager.AddToRoleAsync(user, "Admin");
                 if (!addAdmin.Succeeded)
-                    return BadRequest(new { error = "Failed to add Admin role." });
+                    return BadRequest(new ApiErrorResponse("Failed to add Admin role.", "ValidationError"));
             }
 
             if (!request.IsAdmin && isAdmin)
             {
                 var removeAdmin = await _userManager.RemoveFromRoleAsync(user, "Admin");
                 if (!removeAdmin.Succeeded)
-                    return BadRequest(new { error = "Failed to remove Admin role." });
+                    return BadRequest(new ApiErrorResponse("Failed to remove Admin role.", "ValidationError"));
             }
 
             if (!await _userManager.IsInRoleAsync(user, "User"))
