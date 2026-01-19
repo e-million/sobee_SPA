@@ -1,7 +1,7 @@
 import { Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { AdminOrderService } from '../../../core/services/admin-order.service';
+import { AdminService } from '../../../core/services/admin.service';
 import { Order } from '../../../core/models';
 import { ToastService } from '../../../core/services/toast.service';
 
@@ -28,7 +28,7 @@ export class AdminOrders {
   ];
 
   constructor(
-    private adminOrderService: AdminOrderService,
+    private adminService: AdminService,
     private toastService: ToastService
   ) {}
 
@@ -42,7 +42,7 @@ export class AdminOrders {
     this.updating.set(true);
     this.error.set('');
 
-    this.adminOrderService.updateOrderStatus(orderIdNumber, { status: this.status }).subscribe({
+    this.adminService.updateOrderStatus(orderIdNumber, { status: this.status }).subscribe({
       next: (order) => {
         this.updatedOrder.set(order);
         this.toastService.success('Order status updated.');

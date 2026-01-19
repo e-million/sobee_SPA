@@ -17,8 +17,12 @@ import {
   AdminSummary,
   AdminTopProduct,
   AdminTopCustomer,
+  AdminUser,
   AdminWishlistProduct,
-  AdminWorstProduct
+  AdminWorstProduct,
+  Order,
+  PaginatedResponse,
+  UpdateOrderStatusRequest
 } from '../models';
 
 /**
@@ -30,6 +34,8 @@ import {
 export class AdminService {
   private readonly apiUrl = `${environment.apiUrl}/admin`;
   private readonly analyticsUrl = `${environment.apiUrl}/admin/analytics`;
+  private readonly ordersUrl = `${environment.apiUrl}/orders`;
+  private readonly usersUrl = `${this.apiUrl}/users`;
 
   constructor(private http: HttpClient) {}
 
@@ -212,5 +218,50 @@ export class AdminService {
   getMostWishlisted(limit: number = 5): Observable<AdminWishlistProduct[]> {
     const params = new HttpParams().set('limit', limit.toString());
     return this.http.get<AdminWishlistProduct[]>(`${this.analyticsUrl}/wishlist/top`, { params });
+  }
+
+  /**
+   * Update an order's status.
+   * @param orderId - Order identifier.
+   * @param request - Status update payload.
+   * @returns Observable of the updated Order.
+   */
+  updateOrderStatus(orderId: number, request: UpdateOrderStatusRequest): Observable<Order> {
+    return this.http.patch<Order>(`${this.ordersUrl}/${orderId}/status`, request);
+  }
+
+  /**
+   * Fetch a paginated list of users with optional search.
+   * @param params - Query options for search and pagination.
+   * @returns Observable of a paginated AdminUser response.
+   */
+  getUsers(params?: {
+    search?: string;
+    page?: number;
+    pageSize?: number;
+  }): Observable<PaginatedResponse<AdminUser>> {
+    let httpParams = new HttpParams();
+
+    if (params?.search) {
+      httpParams = httpParams.set('search', params.search);
+    }
+    if (params?.page) {
+      httpParams = httpParams.set('page', params.page.toString());
+    }
+    if (params?.pageSize) {
+      httpParams = httpParams.set('pageSize', params.pageSize.toString());
+    }
+
+    return this.http.get<PaginatedResponse<AdminUser>>(this.usersUrl, { params: httpParams });
+  }
+
+  /**
+   * Grant or revoke admin role for a user.
+   * @param userId - User identifier.
+   * @param isAdmin - True to grant admin access, false to revoke.
+   * @returns Observable of the updated AdminUser.
+   */
+  setAdmin(userId: string, isAdmin: boolean): Observable<AdminUser> {
+    return this.http.put<AdminUser>(`${this.usersUrl}/${userId}/admin`, { isAdmin });
   }
 }

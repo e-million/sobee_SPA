@@ -1,7 +1,7 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { AdminUserService } from '../../../core/services/admin-user.service';
+import { AdminService } from '../../../core/services/admin.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { AdminUser } from '../../../core/models';
 
@@ -23,7 +23,7 @@ export class AdminUsers implements OnInit {
   searchTerm = '';
 
   constructor(
-    private adminUserService: AdminUserService,
+    private adminService: AdminService,
     private toastService: ToastService
   ) {}
 
@@ -35,7 +35,7 @@ export class AdminUsers implements OnInit {
     this.loading.set(true);
     this.error.set('');
 
-    this.adminUserService.getUsers({
+    this.adminService.getUsers({
       search: this.searchTerm.trim() || undefined,
       page: this.page(),
       pageSize: this.pageSize()
@@ -65,7 +65,7 @@ export class AdminUsers implements OnInit {
 
     this.updatingUserId.set(user.id);
 
-    this.adminUserService.setAdmin(user.id, !user.isAdmin).subscribe({
+    this.adminService.setAdmin(user.id, !user.isAdmin).subscribe({
       next: (updated) => {
         this.users.update(users =>
           users.map(item => item.id === updated.id ? updated : item)

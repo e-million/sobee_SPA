@@ -5,12 +5,12 @@ export interface Product {
   name: string | null;
   description: string | null;
   price: number;
-  stockAmount?: number | null;
+  stockAmount: number | null;
   inStock: boolean;
   primaryImageUrl: string | null;
-  imageUrl?: string | null;
-  category?: string | null;
-  rating?: number | null;
+  imageUrl: string | null;
+  category: string | null;
+  rating: number | null;
 }
 
 export interface ProductDetails extends Product {
