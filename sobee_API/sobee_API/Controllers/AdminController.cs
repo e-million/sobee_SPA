@@ -30,13 +30,15 @@ namespace sobee_API.Controllers
         [HttpGet("summary")]
         public async Task<IActionResult> GetSummary()
         {
-            var totalOrders = await _db.Torders.CountAsync();
+            var totalOrders = await _db.Torders.AsNoTracking().CountAsync();
 
             var totalRevenue = await _db.Torders
+                .AsNoTracking()
                 .Where(o => o.DecTotalAmount != null)
                 .SumAsync(o => o.DecTotalAmount) ?? 0m;
 
             var totalDiscounts = await _db.Torders
+                .AsNoTracking()
                 .Where(o => o.DecDiscountAmount != null)
                 .SumAsync(o => o.DecDiscountAmount) ?? 0m;
 
@@ -66,8 +68,9 @@ namespace sobee_API.Controllers
             var fromDate = DateTime.UtcNow.Date.AddDays(-days);
 
             var data = await _db.Torders
-                .Where(o => o.DtmOrderDate >= fromDate)
-                .GroupBy(o => o.DtmOrderDate)
+                .AsNoTracking()
+                .Where(o => o.DtmOrderDate != null && o.DtmOrderDate >= fromDate)
+                .GroupBy(o => o.DtmOrderDate!.Value.Date)
                 .Select(g => new
                 {
                     date = g.Key,
@@ -90,6 +93,7 @@ namespace sobee_API.Controllers
                 return BadRequest(new { error = "Threshold cannot be negative." });
 
             var products = await _db.Tproducts
+                .AsNoTracking()
                 .Where(p => p.IntStockAmount <= threshold)
                 .OrderBy(p => p.IntStockAmount)
                 .Select(p => new
@@ -113,6 +117,7 @@ namespace sobee_API.Controllers
                 return BadRequest(new { error = "Limit must be between 1 and 50." });
 
             var products = await _db.TorderItems
+                .AsNoTracking()
                 .GroupBy(i => new
                 {
                     i.IntProductId,

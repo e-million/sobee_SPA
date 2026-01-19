@@ -48,6 +48,7 @@ namespace sobee_API.Controllers
             var query = _db.Torders
                 .Include(o => o.TorderItems)
                 .ThenInclude(oi => oi.IntProduct)
+                .AsNoTracking()
                 .AsQueryable();
 
             if (identity!.UserId != null)
@@ -68,22 +69,38 @@ namespace sobee_API.Controllers
         /// </summary>
         [HttpGet("my")]
         [Authorize]
-        public async Task<IActionResult> GetMyOrders()
+        public async Task<IActionResult> GetMyOrders([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
+            if (page <= 0)
+                return BadRequestError("page must be >= 1", "ValidationError");
+
+            if (pageSize <= 0 || pageSize > 100)
+                return BadRequestError("pageSize must be between 1 and 100", "ValidationError");
+
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
             if (string.IsNullOrWhiteSpace(userId))
                 return UnauthorizedError("Missing NameIdentifier claim.", "Unauthorized");
 
-            var orders = await _db.Torders
+            var baseQuery = _db.Torders
+                .AsNoTracking()
+                .Where(o => o.UserId == userId);
+
+            var totalCount = await baseQuery.CountAsync();
+
+            var orders = await baseQuery
+                .OrderByDescending(o => o.DtmOrderDate)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .Include(o => o.TorderItems)
                 .ThenInclude(oi => oi.IntProduct)
-                .Where(o => o.UserId == userId)
-                .OrderByDescending(o => o.DtmOrderDate)
-                .Select(o => ToOrderResponse(o))
                 .ToListAsync();
 
-            return Ok(orders);
+            Response.Headers["X-Total-Count"] = totalCount.ToString();
+            Response.Headers["X-Page"] = page.ToString();
+            Response.Headers["X-Page-Size"] = pageSize.ToString();
+
+            return Ok(orders.Select(ToOrderResponse));
         }
 
         /// <summary>

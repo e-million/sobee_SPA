@@ -36,37 +36,39 @@ namespace sobee_API.Controllers
             );
 
             var reviews = await _db.Treviews
+                .Include(r => r.TReviewReplies)
+                .AsNoTracking()
                 .Where(r => r.IntProductId == productId)
                 .OrderByDescending(r => r.DtmReviewDate)
-                .Select(r => new
-                {
-                    reviewId = r.IntReviewId,
-                    productId = r.IntProductId,
-                    rating = r.IntRating,
-                    reviewText = r.StrReviewText,
-                    created = r.DtmReviewDate,
-                    userId = r.UserId,
-                    sessionId = r.SessionId,
-                    replies = _db.TReviewReplies
-                        .Where(rr => rr.IntReviewId == r.IntReviewId)
-                        .OrderBy(rr => rr.created_at)
-                        .Select(rr => new
-                        {
-                            replyId = rr.IntReviewReplyID,
-                            reviewId = rr.IntReviewId,
-                            content = rr.content,
-                            created = rr.created_at,
-                            userId = rr.UserId
-                        })
-                        .ToList()
-                })
                 .ToListAsync();
+
+            var results = reviews.Select(r => new
+            {
+                reviewId = r.IntReviewId,
+                productId = r.IntProductId,
+                rating = r.IntRating,
+                reviewText = r.StrReviewText,
+                created = r.DtmReviewDate,
+                userId = r.UserId,
+                sessionId = r.SessionId,
+                replies = (r.TReviewReplies ?? [])
+                    .OrderBy(rr => rr.created_at)
+                    .Select(rr => new
+                    {
+                        replyId = rr.IntReviewReplyID,
+                        reviewId = rr.IntReviewId,
+                        content = rr.content,
+                        created = rr.created_at,
+                        userId = rr.UserId
+                    })
+                    .ToList()
+            }).ToList();
 
             return Ok(new
             {
                 productId,
-                count = reviews.Count,
-                reviews
+                count = results.Count,
+                reviews = results
             });
         }
 

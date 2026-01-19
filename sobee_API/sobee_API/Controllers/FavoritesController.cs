@@ -42,6 +42,7 @@ namespace sobee_API.Controllers
                 return Unauthorized(new { error = "Missing NameIdentifier claim." });
 
             var favorites = await _db.Tfavorites
+                .AsNoTracking()
                 .Where(f => f.UserId == owner.UserId)
                 .OrderByDescending(f => f.DtmDateAdded)
                 .Select(f => new

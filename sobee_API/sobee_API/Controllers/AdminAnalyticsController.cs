@@ -36,8 +36,28 @@ namespace sobee_API.Controllers
                 return BadRequest(new { error = "Granularity must be day, week, or month." });
             }
 
-            var orders = await _db.Torders
-                .Where(o => o.DtmOrderDate != null && o.DtmOrderDate >= start && o.DtmOrderDate <= end)
+            var ordersQuery = _db.Torders
+                .AsNoTracking()
+                .Where(o => o.DtmOrderDate != null && o.DtmOrderDate >= start && o.DtmOrderDate <= end);
+
+            if (normalizedGranularity == "day")
+            {
+                var grouped = await ordersQuery
+                    .GroupBy(o => o.DtmOrderDate!.Value.Date)
+                    .Select(g => new
+                    {
+                        date = g.Key,
+                        revenue = g.Sum(x => x.DecTotalAmount ?? 0m),
+                        orderCount = g.Count(),
+                        avgOrderValue = g.Count() == 0 ? 0m : g.Sum(x => x.DecTotalAmount ?? 0m) / g.Count()
+                    })
+                    .OrderBy(x => x.date)
+                    .ToListAsync();
+
+                return Ok(grouped);
+            }
+
+            var orders = await ordersQuery
                 .Select(o => new
                 {
                     date = o.DtmOrderDate!.Value,
@@ -45,7 +65,7 @@ namespace sobee_API.Controllers
                 })
                 .ToListAsync();
 
-            var grouped = orders
+            var groupedFallback = orders
                 .GroupBy(o => GetPeriodStart(o.date, normalizedGranularity))
                 .Select(g => new
                 {
@@ -57,13 +77,14 @@ namespace sobee_API.Controllers
                 .OrderBy(x => x.date)
                 .ToList();
 
-            return Ok(grouped);
+            return Ok(groupedFallback);
         }
 
         [HttpGet("orders/status")]
         public async Task<IActionResult> GetOrderStatusBreakdown()
         {
             var rawStatuses = await _db.Torders
+                .AsNoTracking()
                 .Select(o => o.StrOrderStatus)
                 .ToListAsync();
 
@@ -104,6 +125,7 @@ namespace sobee_API.Controllers
         public async Task<IActionResult> GetRatingDistribution()
         {
             var ratings = await _db.Treviews
+                .AsNoTracking()
                 .Select(r => r.IntRating)
                 .ToListAsync();
 
@@ -143,6 +165,7 @@ namespace sobee_API.Controllers
             }
 
             var reviews = await _db.Treviews
+                .AsNoTracking()
                 .OrderByDescending(r => r.DtmReviewDate)
                 .Take(limit)
                 .Select(r => new
@@ -170,6 +193,7 @@ namespace sobee_API.Controllers
             }
 
             var products = await _db.Tproducts
+                .AsNoTracking()
                 .Select(p => new
                 {
                     productId = p.IntProductId,
@@ -196,6 +220,7 @@ namespace sobee_API.Controllers
             }
 
             var productCounts = await _db.Tproducts
+                .AsNoTracking()
                 .Include(p => p.IntDrinkCategory)
                 .GroupBy(p => new
                 {
@@ -211,6 +236,7 @@ namespace sobee_API.Controllers
                 .ToListAsync();
 
             var sales = await _db.TorderItems
+                .AsNoTracking()
                 .Where(i => i.IntOrder != null
                     && i.IntOrder.DtmOrderDate != null
                     && i.IntOrder.DtmOrderDate >= start
@@ -327,6 +353,7 @@ namespace sobee_API.Controllers
             }
 
             var currentData = await _db.Torders
+                .AsNoTracking()
                 .Where(o => o.DtmOrderDate != null && o.DtmOrderDate >= start && o.DtmOrderDate <= end)
                 .Select(o => new
                 {
@@ -344,6 +371,7 @@ namespace sobee_API.Controllers
             var previousEnd = start;
 
             var previousData = await _db.Torders
+                .AsNoTracking()
                 .Where(o => o.DtmOrderDate != null && o.DtmOrderDate >= previousStart && o.DtmOrderDate < previousEnd)
                 .Select(o => new
                 {
@@ -374,6 +402,7 @@ namespace sobee_API.Controllers
             }
 
             var orders = await _db.Torders
+                .AsNoTracking()
                 .Where(o => o.UserId != null && o.DtmOrderDate != null)
                 .Select(o => new
                 {
@@ -435,9 +464,12 @@ namespace sobee_API.Controllers
                 return BadRequest(new { error = "Granularity must be day, week, or month." });
             }
 
-            var baselineCount = await _identityDb.Users.CountAsync(u => u.CreatedDate < start);
+            var baselineCount = await _identityDb.Users
+                .AsNoTracking()
+                .CountAsync(u => u.CreatedDate < start);
 
             var registrations = await _identityDb.Users
+                .AsNoTracking()
                 .Where(u => u.CreatedDate >= start && u.CreatedDate <= end)
                 .Select(u => u.CreatedDate)
                 .ToListAsync();
@@ -491,6 +523,7 @@ namespace sobee_API.Controllers
             }
 
             var baseQuery = _db.Torders
+                .AsNoTracking()
                 .Where(o => !string.IsNullOrEmpty(o.UserId));
 
             if (start != DateTime.MinValue || end != DateTime.MaxValue)
@@ -513,6 +546,7 @@ namespace sobee_API.Controllers
 
             var userIds = topCustomers.Select(x => x.userId).ToList();
             var users = await _identityDb.Users
+                .AsNoTracking()
                 .Where(u => userIds.Contains(u.Id))
                 .Select(u => new
                 {
@@ -555,6 +589,7 @@ namespace sobee_API.Controllers
             }
 
             var items = await _db.Tfavorites
+                .AsNoTracking()
                 .GroupBy(f => new { f.IntProductId, f.IntProduct.StrName })
                 .Select(g => new
                 {
