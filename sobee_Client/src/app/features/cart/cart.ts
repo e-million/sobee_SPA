@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -11,7 +11,8 @@ import { CartItem } from '../../core/models';
   selector: 'app-cart',
   imports: [CommonModule, FormsModule, RouterModule, MainLayout],
   templateUrl: './cart.html',
-  styleUrl: './cart.css'
+  styleUrl: './cart.css',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class Cart implements OnInit {
   loading = signal(true);

@@ -1,7 +1,8 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MainLayout } from '../../shared/layout/main-layout';
 import { ProductCard } from '../../shared/components/product-card/product-card';
 import { ProductService } from '../../core/services/product.service';
@@ -13,7 +14,8 @@ import { Product } from '../../core/models';
   selector: 'app-shop',
   imports: [CommonModule, RouterModule, FormsModule, MainLayout, ProductCard],
   templateUrl: './shop.html',
-  styleUrl: './shop.css'
+  styleUrl: './shop.css',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class Shop implements OnInit {
   products = signal<Product[]>([]);
@@ -36,6 +38,7 @@ export class Shop implements OnInit {
   selectedCategory = 'all';
   minPrice = '';
   maxPrice = '';
+  private readonly destroyRef = inject(DestroyRef);
 
   constructor(
     private productService: ProductService,
@@ -46,14 +49,16 @@ export class Shop implements OnInit {
   ) {}
 
   ngOnInit() {
-    this.route.queryParamMap.subscribe(params => {
-      this.selectedCategory = params.get('category') ?? 'all';
-      this.minPrice = params.get('minPrice') ?? '';
-      this.maxPrice = params.get('maxPrice') ?? '';
-      this.selectedSort = params.get('sort') ?? 'newest';
-      this.currentPage.set(1);
-      this.loadProducts();
-    });
+    this.route.queryParamMap
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(params => {
+        this.selectedCategory = params.get('category') ?? 'all';
+        this.minPrice = params.get('minPrice') ?? '';
+        this.maxPrice = params.get('maxPrice') ?? '';
+        this.selectedSort = params.get('sort') ?? 'newest';
+        this.currentPage.set(1);
+        this.loadProducts();
+      });
 
     this.loadCategories();
   }

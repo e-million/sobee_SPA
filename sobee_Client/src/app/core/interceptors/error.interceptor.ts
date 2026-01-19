@@ -6,6 +6,7 @@ import { ToastService } from '../services/toast.service';
 
 const RETRY_COUNT = 2;
 const RETRY_DELAY = 1000;
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 // Endpoints that should not trigger toasts (handled by components)
 const SILENT_ENDPOINTS = ['/login', '/register', '/refresh'];
@@ -17,10 +18,12 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const router = inject(Router);
   const toastService = inject(ToastService);
 
+  const shouldRetry = SAFE_METHODS.has(req.method);
+
   return next(req).pipe(
-    // Retry for transient errors
+    // Retry for transient errors (idempotent requests only)
     retry({
-      count: RETRY_COUNT,
+      count: shouldRetry ? RETRY_COUNT : 0,
       delay: (error: HttpErrorResponse, retryCount: number) => {
         if (RETRYABLE_STATUS_CODES.includes(error.status)) {
           return timer(RETRY_DELAY * retryCount);

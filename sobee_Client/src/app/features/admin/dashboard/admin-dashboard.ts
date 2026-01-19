@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AdminService } from '../../../core/services/admin.service';
 import { forkJoin } from 'rxjs';
@@ -25,7 +25,8 @@ import {
   selector: 'app-admin-dashboard',
   imports: [CommonModule],
   templateUrl: './admin-dashboard.html',
-  styleUrl: './admin-dashboard.css'
+  styleUrl: './admin-dashboard.css',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AdminDashboard implements OnInit {
   loading = signal(true);

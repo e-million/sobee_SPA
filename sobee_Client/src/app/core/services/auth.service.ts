@@ -19,8 +19,9 @@ interface MeResponse {
   providedIn: 'root'
 })
 export class AuthService {
-  private readonly apiUrl = environment.apiBaseUrl;
-  private readonly meUrl = `${environment.apiUrl}/me`;
+  private readonly apiBaseUrl = environment.apiBaseUrl;
+  private readonly apiUrl = environment.apiUrl;
+  private readonly meUrl = `${this.apiUrl}/me`;
   private readonly rolesStorageKey = 'userRoles';
   private readonly userIdStorageKey = 'userId';
 
@@ -63,7 +64,7 @@ export class AuthService {
    * Register a new user with profile information
    */
   register(request: RegisterRequest): Observable<AuthResponse | RegisterResponse> {
-    return this.http.post<AuthResponse | RegisterResponse>(`${this.apiUrl}/api/auth/register`, request).pipe(
+    return this.http.post<AuthResponse | RegisterResponse>(`${this.apiUrl}/auth/register`, request).pipe(
       tap(response => {
         const accessToken = (response as AuthResponse | null)?.accessToken;
         const refreshToken = (response as AuthResponse | null)?.refreshToken;
@@ -81,7 +82,7 @@ export class AuthService {
    * Login with email and password
    */
   login(request: LoginRequest): Observable<AuthResponse> {
-    return this.http.post<AuthResponse>(`${this.apiUrl}/login`, request).pipe(
+    return this.http.post<AuthResponse>(`${this.apiBaseUrl}/login`, request).pipe(
       tap(response => {
         // Store tokens in localStorage
         localStorage.setItem('accessToken', response.accessToken);
@@ -167,7 +168,7 @@ export class AuthService {
   refreshToken(): Observable<AuthResponse> {
     const refreshToken = this.getRefreshToken();
 
-    return this.http.post<AuthResponse>(`${this.apiUrl}/refresh`, { refreshToken }).pipe(
+    return this.http.post<AuthResponse>(`${this.apiBaseUrl}/refresh`, { refreshToken }).pipe(
       tap(response => {
         localStorage.setItem('accessToken', response.accessToken);
         localStorage.setItem('refreshToken', response.refreshToken);
@@ -180,14 +181,14 @@ export class AuthService {
    * Request a password reset email
    */
   forgotPassword(request: ForgotPasswordRequest): Observable<{ success: boolean }> {
-    return this.http.post<{ success: boolean }>(`${this.apiUrl}/api/auth/forgot-password`, request);
+    return this.http.post<{ success: boolean }>(`${this.apiUrl}/auth/forgot-password`, request);
   }
 
   /**
    * Reset password using a token
    */
   resetPassword(request: ResetPasswordRequest): Observable<AuthResponse> {
-    return this.http.post<AuthResponse>(`${this.apiUrl}/api/auth/reset-password`, request);
+    return this.http.post<AuthResponse>(`${this.apiUrl}/auth/reset-password`, request);
   }
 
   loadRoles(): Observable<string[]> {

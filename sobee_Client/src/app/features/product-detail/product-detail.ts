@@ -1,7 +1,8 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MainLayout } from '../../shared/layout/main-layout';
 import { ProductCard } from '../../shared/components/product-card/product-card';
 import { ProductService } from '../../core/services/product.service';
@@ -23,7 +24,8 @@ type ReviewSummary = {
   selector: 'app-product-detail',
   imports: [CommonModule, FormsModule, RouterModule, MainLayout, ProductCard],
   templateUrl: './product-detail.html',
-  styleUrl: './product-detail.css'
+  styleUrl: './product-detail.css',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ProductDetail implements OnInit {
   product = signal<Product | null>(null);
@@ -45,6 +47,7 @@ export class ProductDetail implements OnInit {
   replyOpenIds = signal<Set<number>>(new Set());
   replyDrafts = signal<Record<number, string>>({});
   replySubmitting = signal(false);
+  private readonly destroyRef = inject(DestroyRef);
 
   constructor(
     private route: ActivatedRoute,
@@ -58,25 +61,27 @@ export class ProductDetail implements OnInit {
   ) {}
 
   ngOnInit() {
-    this.route.paramMap.subscribe(params => {
-      const idParam = params.get('id');
-      const productId = Number(idParam);
+    this.route.paramMap
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(params => {
+        const idParam = params.get('id');
+        const productId = Number(idParam);
 
-      if (!idParam || Number.isNaN(productId)) {
-        this.notFound.set(true);
-        this.loading.set(false);
-        this.product.set(null);
-        this.relatedProducts.set([]);
-        this.error.set('');
-        this.reviews.set([]);
-        this.reviewSummary.set({ total: 0, average: 0, counts: [0, 0, 0, 0, 0] });
-        this.replyOpenIds.set(new Set());
-        this.replyDrafts.set({});
-        return;
-      }
+        if (!idParam || Number.isNaN(productId)) {
+          this.notFound.set(true);
+          this.loading.set(false);
+          this.product.set(null);
+          this.relatedProducts.set([]);
+          this.error.set('');
+          this.reviews.set([]);
+          this.reviewSummary.set({ total: 0, average: 0, counts: [0, 0, 0, 0, 0] });
+          this.replyOpenIds.set(new Set());
+          this.replyDrafts.set({});
+          return;
+        }
 
-      this.loadProduct(productId);
-    });
+        this.loadProduct(productId);
+      });
   }
 
   loadProduct(productId: number) {

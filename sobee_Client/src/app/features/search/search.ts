@@ -1,7 +1,8 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MainLayout } from '../../shared/layout/main-layout';
 import { ProductCard } from '../../shared/components/product-card/product-card';
 import { ProductService } from '../../core/services/product.service';
@@ -19,6 +20,7 @@ export class Search implements OnInit {
   products = signal<Product[]>([]);
   loading = signal(false);
   searchTerm = '';
+  private readonly destroyRef = inject(DestroyRef);
 
   constructor(
     private route: ActivatedRoute,
@@ -29,11 +31,13 @@ export class Search implements OnInit {
   ) {}
 
   ngOnInit() {
-    this.route.queryParamMap.subscribe(params => {
-      const term = params.get('q') ?? '';
-      this.searchTerm = term;
-      this.loadResults(term);
-    });
+    this.route.queryParamMap
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(params => {
+        const term = params.get('q') ?? '';
+        this.searchTerm = term;
+        this.loadResults(term);
+      });
   }
 
   loadResults(term: string) {

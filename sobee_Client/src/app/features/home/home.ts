@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { MainLayout } from '../../shared/layout/main-layout';
@@ -12,7 +12,8 @@ import { Product } from '../../core/models';
   selector: 'app-home',
   imports: [CommonModule, RouterModule, MainLayout, ProductCard],
   templateUrl: './home.html',
-  styleUrl: './home.css'
+  styleUrl: './home.css',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class Home implements OnInit {
   featuredProducts = signal<Product[]>([]);
