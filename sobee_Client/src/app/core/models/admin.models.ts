@@ -82,6 +82,7 @@ export interface AdminInventorySummary {
   inStockCount: number;
   lowStockCount: number;
   outOfStockCount: number;
+  totalStockValue: number;
 }
 
 export interface AdminCustomerBreakdown {
@@ -91,12 +92,50 @@ export interface AdminCustomerBreakdown {
   returningCustomerRevenue: number;
 }
 
+export interface AdminCategoryPerformance {
+  categoryId: number | null;
+  categoryName: string;
+  productCount: number;
+  unitsSold: number;
+  revenue: number;
+}
+
+export interface AdminFulfillmentMetrics {
+  avgHoursToShip: number;
+  avgHoursToDeliver: number;
+  trend: number;
+}
+
+export interface AdminCustomerGrowthPoint {
+  date: string;
+  newRegistrations: number;
+  cumulativeTotal: number;
+}
+
+export interface AdminTopCustomer {
+  userId: string;
+  email: string | null;
+  name: string | null;
+  totalSpent: number;
+  orderCount: number;
+  lastOrderDate: string | null;
+}
+
+export interface AdminWishlistProduct {
+  productId: number;
+  name: string;
+  wishlistCount: number;
+}
+
 export interface AdminProduct {
   id: number;
   name: string;
   description: string | null;
   price: number;
+  cost?: number | null;
   stockAmount: number | null;
+  category?: string | null;
+  categoryId?: number | null;
   primaryImageUrl?: string | null;
 }
 
@@ -104,12 +143,16 @@ export interface CreateAdminProductRequest {
   name: string;
   description?: string | null;
   price: number;
+  cost?: number | null;
   stockAmount: number;
+  categoryId?: number | null;
 }
 
 export interface UpdateAdminProductRequest {
   name?: string | null;
   description?: string | null;
   price?: number | null;
+  cost?: number | null;
   stockAmount?: number | null;
+  categoryId?: number | null;
 }

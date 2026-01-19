@@ -3,7 +3,10 @@ import { CommonModule } from '@angular/common';
 import { AdminService } from '../../../core/services/admin.service';
 import { forkJoin } from 'rxjs';
 import {
+  AdminCategoryPerformance,
   AdminCustomerBreakdown,
+  AdminCustomerGrowthPoint,
+  AdminFulfillmentMetrics,
   AdminInventorySummary,
   AdminLowStockProduct,
   AdminOrderStatusBreakdown,
@@ -13,6 +16,8 @@ import {
   AdminReviewSummary,
   AdminSummary,
   AdminTopProduct,
+  AdminTopCustomer,
+  AdminWishlistProduct,
   AdminWorstProduct
 } from '../../../core/models';
 
@@ -37,6 +42,11 @@ export class AdminDashboard implements OnInit {
   worstProducts = signal<AdminWorstProduct[]>([]);
   inventorySummary = signal<AdminInventorySummary | null>(null);
   customerBreakdown = signal<AdminCustomerBreakdown | null>(null);
+  categoryPerformance = signal<AdminCategoryPerformance[]>([]);
+  fulfillmentMetrics = signal<AdminFulfillmentMetrics | null>(null);
+  customerGrowth = signal<AdminCustomerGrowthPoint[]>([]);
+  topCustomers = signal<AdminTopCustomer[]>([]);
+  mostWishlisted = signal<AdminWishlistProduct[]>([]);
 
   constructor(private adminService: AdminService) {}
 
@@ -60,7 +70,12 @@ export class AdminDashboard implements OnInit {
       recentReviews: this.adminService.getRecentReviews(6),
       worstProducts: this.adminService.getWorstProducts(5),
       inventorySummary: this.adminService.getInventorySummary(5),
-      customerBreakdown: this.adminService.getCustomerBreakdown(range.start, range.end)
+      categoryPerformance: this.adminService.getCategoryPerformance(range.start, range.end),
+      fulfillmentMetrics: this.adminService.getFulfillmentMetrics(range.start, range.end),
+      customerBreakdown: this.adminService.getCustomerBreakdown(range.start, range.end),
+      customerGrowth: this.adminService.getCustomerGrowth(range.start, range.end, 'day'),
+      topCustomers: this.adminService.getTopCustomers(5, range.start, range.end),
+      mostWishlisted: this.adminService.getMostWishlisted(5)
     }).subscribe({
       next: (response) => {
         this.summary.set(response.summary);
@@ -73,7 +88,12 @@ export class AdminDashboard implements OnInit {
         this.recentReviews.set(response.recentReviews);
         this.worstProducts.set(response.worstProducts);
         this.inventorySummary.set(response.inventorySummary);
+        this.categoryPerformance.set(response.categoryPerformance);
+        this.fulfillmentMetrics.set(response.fulfillmentMetrics);
         this.customerBreakdown.set(response.customerBreakdown);
+        this.customerGrowth.set(response.customerGrowth);
+        this.topCustomers.set(response.topCustomers);
+        this.mostWishlisted.set(response.mostWishlisted);
         this.loading.set(false);
       },
       error: () => {
@@ -185,6 +205,54 @@ export class AdminDashboard implements OnInit {
       return 0;
     }
     return Math.round((count / total) * 100);
+  }
+
+  getMaxCategoryRevenue(): number {
+    const data = this.categoryPerformance();
+    return data.length === 0 ? 0 : Math.max(...data.map(item => item.revenue));
+  }
+
+  getCategoryBarWidth(revenue: number): number {
+    const max = this.getMaxCategoryRevenue();
+    if (max === 0) {
+      return 0;
+    }
+    return Math.round((revenue / max) * 100);
+  }
+
+  formatTrend(trend: number | null | undefined): string {
+    if (trend === null || trend === undefined) {
+      return '0%';
+    }
+    const sign = trend > 0 ? '+' : '';
+    return `${sign}${trend.toFixed(2)}%`;
+  }
+
+  getMaxNewRegistrations(): number {
+    const data = this.customerGrowth();
+    return data.length === 0 ? 0 : Math.max(...data.map(item => item.newRegistrations));
+  }
+
+  getCustomerGrowthBarWidth(count: number): number {
+    const max = this.getMaxNewRegistrations();
+    if (max === 0) {
+      return 0;
+    }
+    return Math.round((count / max) * 100);
+  }
+
+  getTopCustomerLabel(customer: AdminTopCustomer): string {
+    if (customer.name) {
+      return customer.name;
+    }
+    if (customer.email) {
+      return customer.email;
+    }
+    return `User ${customer.userId.slice(0, 8)}`;
+  }
+
+  formatWishlistName(name: string): string {
+    return name || 'Unnamed product';
   }
 
   truncateComment(comment: string, maxLength: number = 120): string {

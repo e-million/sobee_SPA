@@ -12,10 +12,12 @@ namespace sobee_API.Controllers
     public class AdminAnalyticsController : ControllerBase
     {
         private readonly SobeecoredbContext _db;
+        private readonly ApplicationDbContext _identityDb;
 
-        public AdminAnalyticsController(SobeecoredbContext db)
+        public AdminAnalyticsController(SobeecoredbContext db, ApplicationDbContext identityDb)
         {
             _db = db;
+            _identityDb = identityDb;
         }
 
         [HttpGet("revenue")]
@@ -183,6 +185,112 @@ namespace sobee_API.Controllers
             return Ok(products);
         }
 
+        [HttpGet("products/categories")]
+        public async Task<IActionResult> GetCategoryPerformance(
+            [FromQuery] DateTime? startDate,
+            [FromQuery] DateTime? endDate)
+        {
+            if (!TryNormalizeDateRange(startDate, endDate, out var start, out var end, out var error))
+            {
+                return BadRequest(new { error });
+            }
+
+            var productCounts = await _db.Tproducts
+                .Include(p => p.IntDrinkCategory)
+                .GroupBy(p => new
+                {
+                    p.IntDrinkCategoryId,
+                    categoryName = p.IntDrinkCategory != null ? p.IntDrinkCategory.StrName : null
+                })
+                .Select(g => new
+                {
+                    categoryId = g.Key.IntDrinkCategoryId,
+                    categoryName = g.Key.categoryName,
+                    productCount = g.Count()
+                })
+                .ToListAsync();
+
+            var sales = await _db.TorderItems
+                .Where(i => i.IntOrder != null
+                    && i.IntOrder.DtmOrderDate != null
+                    && i.IntOrder.DtmOrderDate >= start
+                    && i.IntOrder.DtmOrderDate <= end)
+                .Select(i => new
+                {
+                    categoryId = i.IntProduct.IntDrinkCategoryId,
+                    categoryName = i.IntProduct.IntDrinkCategory != null ? i.IntProduct.IntDrinkCategory.StrName : null,
+                    unitsSold = i.IntQuantity ?? 0,
+                    revenue = (i.IntQuantity ?? 0) * (i.MonPricePerUnit ?? 0m)
+                })
+                .ToListAsync();
+
+            var salesLookup = sales
+                .GroupBy(item => new { item.categoryId, item.categoryName })
+                .ToDictionary(
+                    g => g.Key,
+                    g => new
+                    {
+                        unitsSold = g.Sum(x => x.unitsSold),
+                        revenue = g.Sum(x => x.revenue)
+                    });
+
+            var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var results = new List<CategoryPerformanceRow>();
+
+            foreach (var item in productCounts)
+            {
+                var key = new
+                {
+                    categoryId = item.categoryId,
+                    categoryName = item.categoryName
+                };
+                var displayName = string.IsNullOrWhiteSpace(item.categoryName)
+                    ? "Uncategorized"
+                    : item.categoryName!;
+
+                salesLookup.TryGetValue(key, out var salesData);
+
+                results.Add(new CategoryPerformanceRow
+                {
+                    CategoryId = item.categoryId,
+                    CategoryName = displayName,
+                    ProductCount = item.productCount,
+                    UnitsSold = salesData?.unitsSold ?? 0,
+                    Revenue = salesData?.revenue ?? 0m
+                });
+
+                seenKeys.Add($"{item.categoryId ?? 0}:{displayName}");
+            }
+
+            foreach (var entry in salesLookup)
+            {
+                var displayName = string.IsNullOrWhiteSpace(entry.Key.categoryName)
+                    ? "Uncategorized"
+                    : entry.Key.categoryName!;
+                var identity = $"{entry.Key.categoryId ?? 0}:{displayName}";
+                if (seenKeys.Contains(identity))
+                {
+                    continue;
+                }
+
+                results.Add(new CategoryPerformanceRow
+                {
+                    CategoryId = entry.Key.categoryId,
+                    CategoryName = displayName,
+                    ProductCount = 0,
+                    UnitsSold = entry.Value.unitsSold,
+                    Revenue = entry.Value.revenue
+                });
+            }
+
+            var ordered = results
+                .OrderByDescending(item => item.Revenue)
+                .ThenBy(item => item.CategoryName)
+                .ToList();
+
+            return Ok(ordered);
+        }
+
         [HttpGet("inventory/summary")]
         public async Task<IActionResult> GetInventorySummary([FromQuery] int lowStockThreshold = 5)
         {
@@ -195,13 +303,63 @@ namespace sobee_API.Controllers
             var outOfStockCount = await _db.Tproducts.CountAsync(p => p.IntStockAmount <= 0);
             var inStockCount = await _db.Tproducts.CountAsync(p => p.IntStockAmount > 0);
             var lowStockCount = await _db.Tproducts.CountAsync(p => p.IntStockAmount > 0 && p.IntStockAmount <= lowStockThreshold);
+            var totalStockValue = await _db.Tproducts
+                .SumAsync(p => (p.DecCost ?? 0m) * p.IntStockAmount);
 
             return Ok(new
             {
                 totalProducts,
                 inStockCount,
                 lowStockCount,
-                outOfStockCount
+                outOfStockCount,
+                totalStockValue
+            });
+        }
+
+        [HttpGet("orders/fulfillment")]
+        public async Task<IActionResult> GetFulfillmentMetrics(
+            [FromQuery] DateTime? startDate,
+            [FromQuery] DateTime? endDate)
+        {
+            if (!TryNormalizeDateRange(startDate, endDate, out var start, out var end, out var error))
+            {
+                return BadRequest(new { error });
+            }
+
+            var currentData = await _db.Torders
+                .Where(o => o.DtmOrderDate != null && o.DtmOrderDate >= start && o.DtmOrderDate <= end)
+                .Select(o => new
+                {
+                    orderDate = o.DtmOrderDate!.Value,
+                    shippedDate = o.DtmShippedDate,
+                    deliveredDate = o.DtmDeliveredDate
+                })
+                .ToListAsync();
+
+            var avgHoursToShip = CalculateAverageHours(currentData.Select(item => (item.orderDate, item.shippedDate)));
+            var avgHoursToDeliver = CalculateAverageHours(currentData.Select(item => (item.orderDate, item.deliveredDate)));
+
+            var periodDays = Math.Max(1, (end - start).TotalDays);
+            var previousStart = start.AddDays(-periodDays);
+            var previousEnd = start;
+
+            var previousData = await _db.Torders
+                .Where(o => o.DtmOrderDate != null && o.DtmOrderDate >= previousStart && o.DtmOrderDate < previousEnd)
+                .Select(o => new
+                {
+                    orderDate = o.DtmOrderDate!.Value,
+                    shippedDate = o.DtmShippedDate
+                })
+                .ToListAsync();
+
+            var previousAvgShip = CalculateAverageHours(previousData.Select(item => (item.orderDate, item.shippedDate)));
+            var trend = previousAvgShip <= 0 ? 0 : Math.Round(((avgHoursToShip - previousAvgShip) / previousAvgShip) * 100, 2);
+
+            return Ok(new
+            {
+                avgHoursToShip = Math.Round(avgHoursToShip, 2),
+                avgHoursToDeliver = Math.Round(avgHoursToDeliver, 2),
+                trend
             });
         }
 
@@ -261,6 +419,156 @@ namespace sobee_API.Controllers
             });
         }
 
+        [HttpGet("customers/growth")]
+        public async Task<IActionResult> GetCustomerGrowth(
+            [FromQuery] DateTime? startDate,
+            [FromQuery] DateTime? endDate,
+            [FromQuery] string granularity = "day")
+        {
+            if (!TryNormalizeDateRange(startDate, endDate, out var start, out var end, out var error))
+            {
+                return BadRequest(new { error });
+            }
+
+            if (!TryNormalizeGranularity(granularity, out var normalizedGranularity))
+            {
+                return BadRequest(new { error = "Granularity must be day, week, or month." });
+            }
+
+            var baselineCount = await _identityDb.Users.CountAsync(u => u.CreatedDate < start);
+
+            var registrations = await _identityDb.Users
+                .Where(u => u.CreatedDate >= start && u.CreatedDate <= end)
+                .Select(u => u.CreatedDate)
+                .ToListAsync();
+
+            var grouped = registrations
+                .GroupBy(date => GetPeriodStart(date, normalizedGranularity))
+                .Select(g => new
+                {
+                    date = g.Key,
+                    newRegistrations = g.Count()
+                })
+                .OrderBy(x => x.date)
+                .ToList();
+
+            var runningTotal = baselineCount;
+            var result = new List<object>(grouped.Count);
+
+            foreach (var entry in grouped)
+            {
+                runningTotal += entry.newRegistrations;
+                result.Add(new
+                {
+                    date = entry.date,
+                    newRegistrations = entry.newRegistrations,
+                    cumulativeTotal = runningTotal
+                });
+            }
+
+            return Ok(result);
+        }
+
+        [HttpGet("customers/top")]
+        public async Task<IActionResult> GetTopCustomers(
+            [FromQuery] int limit = 5,
+            [FromQuery] DateTime? startDate = null,
+            [FromQuery] DateTime? endDate = null)
+        {
+            if (limit <= 0 || limit > 50)
+            {
+                return BadRequest(new { error = "Limit must be between 1 and 50." });
+            }
+
+            DateTime start = DateTime.MinValue;
+            DateTime end = DateTime.MaxValue;
+            if (startDate != null || endDate != null)
+            {
+                if (!TryNormalizeDateRange(startDate, endDate, out start, out end, out var error))
+                {
+                    return BadRequest(new { error });
+                }
+            }
+
+            var baseQuery = _db.Torders
+                .Where(o => !string.IsNullOrEmpty(o.UserId));
+
+            if (start != DateTime.MinValue || end != DateTime.MaxValue)
+            {
+                baseQuery = baseQuery.Where(o => o.DtmOrderDate != null && o.DtmOrderDate >= start && o.DtmOrderDate <= end);
+            }
+
+            var topCustomers = await baseQuery
+                .GroupBy(o => o.UserId!)
+                .Select(g => new
+                {
+                    userId = g.Key,
+                    totalSpent = g.Sum(o => o.DecTotalAmount ?? 0m),
+                    orderCount = g.Count(),
+                    lastOrderDate = g.Max(o => o.DtmOrderDate)
+                })
+                .OrderByDescending(x => x.totalSpent)
+                .Take(limit)
+                .ToListAsync();
+
+            var userIds = topCustomers.Select(x => x.userId).ToList();
+            var users = await _identityDb.Users
+                .Where(u => userIds.Contains(u.Id))
+                .Select(u => new
+                {
+                    u.Id,
+                    u.Email,
+                    u.strFirstName,
+                    u.strLastName
+                })
+                .ToListAsync();
+
+            var userLookup = users.ToDictionary(u => u.Id, u => u);
+
+            var response = topCustomers.Select(customer =>
+            {
+                userLookup.TryGetValue(customer.userId, out var user);
+                var name = user == null
+                    ? null
+                    : string.Join(" ", new[] { user.strFirstName, user.strLastName }.Where(part => !string.IsNullOrWhiteSpace(part)));
+
+                return new
+                {
+                    userId = customer.userId,
+                    email = user?.Email,
+                    name = string.IsNullOrWhiteSpace(name) ? null : name,
+                    totalSpent = customer.totalSpent,
+                    orderCount = customer.orderCount,
+                    lastOrderDate = customer.lastOrderDate
+                };
+            });
+
+            return Ok(response);
+        }
+
+        [HttpGet("wishlist/top")]
+        public async Task<IActionResult> GetMostWishlisted([FromQuery] int limit = 5)
+        {
+            if (limit <= 0 || limit > 50)
+            {
+                return BadRequest(new { error = "Limit must be between 1 and 50." });
+            }
+
+            var items = await _db.Tfavorites
+                .GroupBy(f => new { f.IntProductId, f.IntProduct.StrName })
+                .Select(g => new
+                {
+                    productId = g.Key.IntProductId,
+                    name = g.Key.StrName,
+                    wishlistCount = g.Count()
+                })
+                .OrderByDescending(x => x.wishlistCount)
+                .Take(limit)
+                .ToListAsync();
+
+            return Ok(items);
+        }
+
         private static bool TryNormalizeDateRange(
             DateTime? startDate,
             DateTime? endDate,
@@ -301,6 +609,25 @@ namespace sobee_API.Controllers
         {
             var diff = (7 + ((int)date.DayOfWeek - (int)DayOfWeek.Monday)) % 7;
             return date.Date.AddDays(-diff);
+        }
+
+        private static double CalculateAverageHours(IEnumerable<(DateTime OrderDate, DateTime? EndDate)> rows)
+        {
+            var durations = rows
+                .Where(row => row.EndDate != null)
+                .Select(row => (row.EndDate!.Value - row.OrderDate).TotalHours)
+                .ToList();
+
+            return durations.Count == 0 ? 0 : durations.Average();
+        }
+
+        private sealed class CategoryPerformanceRow
+        {
+            public int? CategoryId { get; init; }
+            public string CategoryName { get; init; } = "Uncategorized";
+            public int ProductCount { get; init; }
+            public int UnitsSold { get; init; }
+            public decimal Revenue { get; init; }
         }
     }
 }

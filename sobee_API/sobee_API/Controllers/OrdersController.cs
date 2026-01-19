@@ -430,6 +430,21 @@ namespace sobee_API.Controllers
 
             // Status change only. Stock already decremented at checkout.
             order.StrOrderStatus = newStatus;
+            if (string.Equals(newStatus, OrderStatuses.Shipped, StringComparison.OrdinalIgnoreCase)
+                && order.DtmShippedDate == null)
+            {
+                order.DtmShippedDate = DateTime.UtcNow;
+            }
+
+            if (string.Equals(newStatus, OrderStatuses.Delivered, StringComparison.OrdinalIgnoreCase)
+                && order.DtmDeliveredDate == null)
+            {
+                order.DtmDeliveredDate = DateTime.UtcNow;
+                if (order.DtmShippedDate == null)
+                {
+                    order.DtmShippedDate = order.DtmDeliveredDate;
+                }
+            }
             await _db.SaveChangesAsync();
 
             return Ok(ToOrderResponse(order));

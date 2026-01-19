@@ -222,6 +222,12 @@ public partial class SobeecoredbContext : DbContext {
 			entity.Property(e => e.DtmOrderDate)
 				.HasColumnType("datetime")
 				.HasColumnName("dtmOrderDate");
+			entity.Property(e => e.DtmShippedDate)
+				.HasColumnType("datetime")
+				.HasColumnName("dtmShippedDate");
+			entity.Property(e => e.DtmDeliveredDate)
+				.HasColumnType("datetime")
+				.HasColumnName("dtmDeliveredDate");
 			entity.Property(e => e.IntPaymentMethodId).HasColumnName("intPaymentMethodID");
 			entity.Property(e => e.IntShippingStatusId).HasColumnName("intShippingStatusID");
 			entity.Property(e => e.SessionId)
@@ -362,6 +368,9 @@ public partial class SobeecoredbContext : DbContext {
 			entity.Property(e => e.DecPrice)
 				.HasColumnType("decimal(18, 2)")
 				.HasColumnName("decPrice");
+			entity.Property(e => e.DecCost)
+				.HasColumnType("decimal(18, 2)")
+				.HasColumnName("decCost");
 			entity.Property(e => e.strDescription)
 				.HasMaxLength(255)
 				.IsUnicode(false)
@@ -373,6 +382,14 @@ public partial class SobeecoredbContext : DbContext {
             entity.Property(e => e.IntStockAmount)
 			  .HasColumnName("IntStockAmount")
 			  .HasDefaultValue(0);
+			entity.Property(e => e.IntDrinkCategoryId)
+				.HasColumnName("intDrinkCategoryID");
+
+			entity.HasOne(d => d.IntDrinkCategory)
+				.WithMany(p => p.Tproducts)
+				.HasForeignKey(d => d.IntDrinkCategoryId)
+				.OnDelete(DeleteBehavior.SetNull)
+				.HasConstraintName("TProducts_TDrinkCategories_FK");
 
         });
 

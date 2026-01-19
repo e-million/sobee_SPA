@@ -28,6 +28,7 @@ namespace sobee_API.Controllers
         [HttpGet]
         public async Task<IActionResult> GetProducts(
             [FromQuery] string? q,
+            [FromQuery] string? category,
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 20,
             [FromQuery] string? sort = null)
@@ -42,7 +43,8 @@ namespace sobee_API.Controllers
 
             IQueryable<Tproduct> query = _db.Tproducts
                 .AsNoTracking()
-                .Include(p => p.TproductImages);
+                .Include(p => p.TproductImages)
+                .Include(p => p.IntDrinkCategory);
 
             // Search (name + description)
             if (!string.IsNullOrWhiteSpace(q))
@@ -51,6 +53,14 @@ namespace sobee_API.Controllers
                 query = query.Where(p =>
                     p.StrName.Contains(term) ||
                     p.strDescription.Contains(term));
+            }
+
+            if (!string.IsNullOrWhiteSpace(category))
+            {
+                var categoryTerm = category.Trim();
+                query = query.Where(p =>
+                    p.IntDrinkCategory != null &&
+                    p.IntDrinkCategory.StrName == categoryTerm);
             }
 
             // Sorting
@@ -74,11 +84,14 @@ namespace sobee_API.Controllers
                 Name = p.StrName,
                 Description = p.strDescription,
                 Price = p.DecPrice,
+                Cost = admin ? p.DecCost : null,
 
                 InStock = p.IntStockAmount > 0,
                 PrimaryImageUrl = GetPrimaryImageUrl(p),
 
-                StockAmount = admin ? p.IntStockAmount : null
+                StockAmount = admin ? p.IntStockAmount : null,
+                Category = p.IntDrinkCategory?.StrName,
+                CategoryId = p.IntDrinkCategoryId
             }).ToList();
 
             return Ok(new
@@ -102,6 +115,7 @@ namespace sobee_API.Controllers
             var product = await _db.Tproducts
                 .AsNoTracking()
                 .Include(p => p.TproductImages)
+                .Include(p => p.IntDrinkCategory)
                 .FirstOrDefaultAsync(p => p.IntProductId == id);
 
             if (product == null)
@@ -116,6 +130,9 @@ namespace sobee_API.Controllers
 
                 inStock = product.IntStockAmount > 0,
                 stockAmount = admin ? product.IntStockAmount : (int?)null,
+                category = product.IntDrinkCategory?.StrName,
+                categoryId = product.IntDrinkCategoryId,
+                cost = admin ? product.DecCost : null,
 
                 images = (product.TproductImages ?? new List<TproductImage>())
                     .OrderBy(i => i.IntProductImageId)
@@ -146,7 +163,9 @@ namespace sobee_API.Controllers
                 StrName = request.Name.Trim(),
                 strDescription = request.Description?.Trim() ?? "",
                 DecPrice = request.Price,
-                IntStockAmount = request.StockAmount
+                DecCost = request.Cost,
+                IntStockAmount = request.StockAmount,
+                IntDrinkCategoryId = request.CategoryId
             };
 
             _db.Tproducts.Add(product);
@@ -158,7 +177,9 @@ namespace sobee_API.Controllers
                 name = product.StrName,
                 description = product.strDescription,
                 price = product.DecPrice,
-                stockAmount = product.IntStockAmount
+                stockAmount = product.IntStockAmount,
+                cost = product.DecCost,
+                categoryId = product.IntDrinkCategoryId
             });
         }
 
@@ -223,9 +244,19 @@ namespace sobee_API.Controllers
                 product.DecPrice = request.Price.Value;
             }
 
+            if (request.Cost.HasValue)
+            {
+                product.DecCost = request.Cost.Value;
+            }
+
             if (request.StockAmount.HasValue)
             {
                 product.IntStockAmount = request.StockAmount.Value;
+            }
+
+            if (request.CategoryId.HasValue)
+            {
+                product.IntDrinkCategoryId = request.CategoryId.Value;
             }
 
             await _db.SaveChangesAsync();
@@ -236,7 +267,9 @@ namespace sobee_API.Controllers
                 name = product.StrName,
                 description = product.strDescription,
                 price = product.DecPrice,
-                stockAmount = product.IntStockAmount
+                stockAmount = product.IntStockAmount,
+                cost = product.DecCost,
+                categoryId = product.IntDrinkCategoryId
             });
         }
 

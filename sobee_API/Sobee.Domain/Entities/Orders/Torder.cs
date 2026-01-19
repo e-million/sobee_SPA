@@ -11,6 +11,10 @@ public partial class Torder {
 
     public DateTime? DtmOrderDate { get; set; }
 
+    public DateTime? DtmShippedDate { get; set; }
+
+    public DateTime? DtmDeliveredDate { get; set; }
+
     public decimal? DecTotalAmount { get; set; }
 
     public int? IntShippingStatusId { get; set; }
