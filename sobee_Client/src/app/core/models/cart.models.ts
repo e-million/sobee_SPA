@@ -5,6 +5,7 @@ export interface CartProduct {
   name: string | null;
   description: string | null;
   price: number;
+  primaryImageUrl?: string | null;
 }
 
 export interface CartItem {

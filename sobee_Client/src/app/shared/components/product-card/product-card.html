@@ -7,6 +7,10 @@
     <img
       [src]="productImage"
       [alt]="product.name ?? 'Sobee product'"
+      width="320"
+      height="320"
+      loading="lazy"
+      decoding="async"
       class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
     />
     @if (isOutOfStock) {
@@ -68,7 +72,7 @@
         <button
           (click)="decrementQuantity()"
           [disabled]="quantity() <= 1 || isOutOfStock"
-          class="w-8 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-l-lg transition-colors"
+          class="w-8 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-l-lg transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1"
         >
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M20 12H4" />
@@ -78,7 +82,7 @@
         <button
           (click)="incrementQuantity()"
           [disabled]="quantity() >= maxQuantity || isOutOfStock"
-          class="w-8 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-r-lg transition-colors"
+          class="w-8 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-r-lg transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1"
         >
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />

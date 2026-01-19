@@ -50,9 +50,21 @@
               @for (item of cart.items; track item.cartItemId) {
                 <div class="card p-4">
                   <div class="flex flex-col sm:flex-row gap-4">
-                    <div class="w-24 h-24 bg-slate-100 rounded-lg flex items-center justify-center text-xs text-slate-400">
-                      No image
-                    </div>
+                    @if (item.product?.primaryImageUrl) {
+                      <img
+                        [src]="item.product?.primaryImageUrl"
+                        [alt]="item.product?.name ?? 'Product image'"
+                        width="96"
+                        height="96"
+                        loading="lazy"
+                        decoding="async"
+                        class="w-24 h-24 rounded-lg object-cover"
+                      />
+                    } @else {
+                      <div class="w-24 h-24 bg-slate-100 rounded-lg flex items-center justify-center text-xs text-slate-400">
+                        No image
+                      </div>
+                    }
 
                     <div class="flex-1">
                       <div class="flex items-start justify-between gap-4">
@@ -86,7 +98,7 @@
                             type="button"
                             (click)="updateQuantity(item, (item.quantity ?? 1) - 1)"
                             [disabled]="(item.quantity ?? 1) <= 1 || isItemBusy(item.cartItemId)"
-                            class="w-8 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-l-lg transition-colors"
+                            class="w-8 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-l-lg transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1"
                           >
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                               <path stroke-linecap="round" stroke-linejoin="round" d="M20 12H4" />
@@ -97,7 +109,7 @@
                             type="button"
                             (click)="updateQuantity(item, (item.quantity ?? 1) + 1)"
                             [disabled]="(item.quantity ?? 1) >= 10 || isItemBusy(item.cartItemId)"
-                            class="w-8 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-r-lg transition-colors"
+                            class="w-8 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-r-lg transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1"
                           >
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                               <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
@@ -159,9 +171,10 @@
                     </button>
                   </div>
                 } @else {
-                  <label class="text-sm font-medium text-slate-700">Promo code</label>
+                  <label for="promo-code" class="text-sm font-medium text-slate-700">Promo code</label>
                   <div class="mt-2 flex items-center gap-2">
                     <input
+                      id="promo-code"
                       type="text"
                       [(ngModel)]="promoCode"
                       placeholder="Enter code"

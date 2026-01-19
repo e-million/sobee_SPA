@@ -460,6 +460,7 @@ namespace sobee_API.Controllers
             return await _db.TshoppingCarts
                 .Include(c => c.TcartItems)
                     .ThenInclude(i => i.IntProduct)
+                        .ThenInclude(p => p.TproductImages)
                 .FirstAsync(c => c.IntShoppingCartId == cartId);
         }
 
@@ -476,7 +477,8 @@ namespace sobee_API.Controllers
                     Id = i.IntProduct.IntProductId,
                     Name = i.IntProduct.StrName,
                     Description = i.IntProduct.strDescription,
-                    Price = i.IntProduct.DecPrice
+                    Price = i.IntProduct.DecPrice,
+                    PrimaryImageUrl = GetPrimaryImageUrl(i.IntProduct)
                 },
                 LineTotal = (i.IntQuantity ?? 0) * (i.IntProduct?.DecPrice ?? 0m)
             }).ToList();
@@ -536,6 +538,17 @@ namespace sobee_API.Controllers
                 return (null, 0m);
 
             return (promo.StrPromoCode, promo.DecDiscountPercentage);
+        }
+
+        private static string? GetPrimaryImageUrl(Sobee.Domain.Entities.Products.Tproduct product)
+        {
+            if (product.TproductImages == null || product.TproductImages.Count == 0)
+                return null;
+
+            return product.TproductImages
+                .OrderBy(i => i.IntProductImageId)
+                .Select(i => i.StrProductImageUrl)
+                .FirstOrDefault();
         }
 
         private IActionResult StockConflict(int productId, int availableStock, int requested)
