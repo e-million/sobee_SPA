@@ -1,3 +1,4 @@
+using System;
 using Microsoft.EntityFrameworkCore;
 using Sobee.Domain.Data;
 
@@ -17,6 +18,15 @@ public sealed class AdminDashboardRepository : IAdminDashboardRepository
 
     public async Task<decimal> GetTotalRevenueAsync()
     {
+        if (IsSqlite())
+        {
+            var totals = await _db.Torders
+                .AsNoTracking()
+                .Select(o => o.DecTotalAmount ?? 0m)
+                .ToListAsync();
+            return totals.Sum();
+        }
+
         return await _db.Torders
             .AsNoTracking()
             .Where(o => o.DecTotalAmount != null)
@@ -25,6 +35,15 @@ public sealed class AdminDashboardRepository : IAdminDashboardRepository
 
     public async Task<decimal> GetTotalDiscountsAsync()
     {
+        if (IsSqlite())
+        {
+            var totals = await _db.Torders
+                .AsNoTracking()
+                .Select(o => o.DecDiscountAmount ?? 0m)
+                .ToListAsync();
+            return totals.Sum();
+        }
+
         return await _db.Torders
             .AsNoTracking()
             .Where(o => o.DecDiscountAmount != null)
@@ -33,6 +52,28 @@ public sealed class AdminDashboardRepository : IAdminDashboardRepository
 
     public async Task<IReadOnlyList<AdminOrderDayRecord>> GetOrdersPerDayAsync(DateTime fromDate)
     {
+        if (IsSqlite())
+        {
+            var orders = await _db.Torders
+                .AsNoTracking()
+                .Where(o => o.DtmOrderDate != null && o.DtmOrderDate >= fromDate)
+                .Select(o => new
+                {
+                    Date = o.DtmOrderDate!.Value.Date,
+                    Total = o.DecTotalAmount ?? 0m
+                })
+                .ToListAsync();
+
+            return orders
+                .GroupBy(o => o.Date)
+                .Select(g => new AdminOrderDayRecord(
+                    g.Key,
+                    g.Count(),
+                    g.Sum(x => x.Total)))
+                .OrderBy(x => x.Date)
+                .ToList();
+        }
+
         return await _db.Torders
             .AsNoTracking()
             .Where(o => o.DtmOrderDate != null && o.DtmOrderDate >= fromDate)
@@ -60,6 +101,32 @@ public sealed class AdminDashboardRepository : IAdminDashboardRepository
 
     public async Task<IReadOnlyList<AdminTopProductRecord>> GetTopProductsAsync(int limit)
     {
+        if (IsSqlite())
+        {
+            var items = await _db.TorderItems
+                .AsNoTracking()
+                .Where(i => i.IntProductId != null)
+                .Select(i => new
+                {
+                    ProductId = i.IntProductId!.Value,
+                    Name = i.IntProduct.StrName,
+                    Quantity = i.IntQuantity ?? 0,
+                    Revenue = (i.IntQuantity ?? 0) * (i.MonPricePerUnit ?? 0m)
+                })
+                .ToListAsync();
+
+            return items
+                .GroupBy(i => new { i.ProductId, i.Name })
+                .Select(g => new AdminTopProductRecord(
+                    g.Key.ProductId,
+                    g.Key.Name,
+                    g.Sum(x => x.Quantity),
+                    g.Sum(x => x.Revenue)))
+                .OrderByDescending(x => x.QuantitySold)
+                .Take(limit)
+                .ToList();
+        }
+
         return await _db.TorderItems
             .AsNoTracking()
             .GroupBy(i => new
@@ -76,4 +143,7 @@ public sealed class AdminDashboardRepository : IAdminDashboardRepository
             .Take(limit)
             .ToListAsync();
     }
+
+    private bool IsSqlite()
+        => _db.Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true;
 }

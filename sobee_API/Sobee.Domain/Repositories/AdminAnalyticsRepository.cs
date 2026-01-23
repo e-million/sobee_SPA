@@ -1,3 +1,4 @@
+using System;
 using Microsoft.EntityFrameworkCore;
 using Sobee.Domain.Data;
 
@@ -14,6 +15,29 @@ public sealed class AdminAnalyticsRepository : IAdminAnalyticsRepository
 
     public async Task<IReadOnlyList<AdminRevenueRow>> GetRevenueByDayAsync(DateTime start, DateTime end)
     {
+        if (IsSqlite())
+        {
+            var orders = await _db.Torders
+                .AsNoTracking()
+                .Where(o => o.DtmOrderDate != null && o.DtmOrderDate >= start && o.DtmOrderDate <= end)
+                .Select(o => new
+                {
+                    Date = o.DtmOrderDate!.Value.Date,
+                    Total = o.DecTotalAmount ?? 0m
+                })
+                .ToListAsync();
+
+            return orders
+                .GroupBy(o => o.Date)
+                .Select(g => new AdminRevenueRow(
+                    g.Key,
+                    g.Sum(x => x.Total),
+                    g.Count(),
+                    g.Count() == 0 ? 0m : g.Sum(x => x.Total) / g.Count()))
+                .OrderBy(x => x.Date)
+                .ToList();
+        }
+
         return await _db.Torders
             .AsNoTracking()
             .Where(o => o.DtmOrderDate != null && o.DtmOrderDate >= start && o.DtmOrderDate <= end)
@@ -74,6 +98,46 @@ public sealed class AdminAnalyticsRepository : IAdminAnalyticsRepository
 
     public async Task<IReadOnlyList<AdminWorstProductRecord>> GetWorstProductsAsync(int limit)
     {
+        if (IsSqlite())
+        {
+            var products = await _db.Tproducts
+                .AsNoTracking()
+                .Select(p => new { p.IntProductId, p.StrName })
+                .ToListAsync();
+
+            var items = await _db.TorderItems
+                .AsNoTracking()
+                .Where(i => i.IntProductId != null)
+                .Select(i => new
+                {
+                    ProductId = i.IntProductId!.Value,
+                    Quantity = i.IntQuantity ?? 0,
+                    Revenue = (i.IntQuantity ?? 0) * (i.MonPricePerUnit ?? 0m)
+                })
+                .ToListAsync();
+
+            var totals = items
+                .GroupBy(i => i.ProductId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => new { Units = g.Sum(x => x.Quantity), Revenue = g.Sum(x => x.Revenue) });
+
+            return products
+                .Select(p =>
+                {
+                    totals.TryGetValue(p.IntProductId, out var data);
+                    return new AdminWorstProductRecord(
+                        p.IntProductId,
+                        p.StrName,
+                        data?.Units ?? 0,
+                        data?.Revenue ?? 0m);
+                })
+                .OrderBy(p => p.UnitsSold)
+                .ThenBy(p => p.Name)
+                .Take(limit)
+                .ToList();
+        }
+
         return await _db.Tproducts
             .AsNoTracking()
             .Select(p => new AdminWorstProductRecord(
@@ -106,6 +170,33 @@ public sealed class AdminAnalyticsRepository : IAdminAnalyticsRepository
 
     public async Task<IReadOnlyList<AdminCategorySalesRecord>> GetCategorySalesAsync(DateTime start, DateTime end)
     {
+        if (IsSqlite())
+        {
+            var items = await _db.TorderItems
+                .AsNoTracking()
+                .Where(i => i.IntOrder != null
+                    && i.IntOrder.DtmOrderDate != null
+                    && i.IntOrder.DtmOrderDate >= start
+                    && i.IntOrder.DtmOrderDate <= end)
+                .Select(i => new
+                {
+                    categoryId = i.IntProduct.IntDrinkCategoryId,
+                    categoryName = i.IntProduct.IntDrinkCategory != null ? i.IntProduct.IntDrinkCategory.StrName : null,
+                    unitsSold = i.IntQuantity ?? 0,
+                    revenue = (i.IntQuantity ?? 0) * (i.MonPricePerUnit ?? 0m)
+                })
+                .ToListAsync();
+
+            return items
+                .GroupBy(item => new { item.categoryId, item.categoryName })
+                .Select(g => new AdminCategorySalesRecord(
+                    g.Key.categoryId,
+                    g.Key.categoryName,
+                    g.Sum(x => x.unitsSold),
+                    g.Sum(x => x.revenue)))
+                .ToList();
+        }
+
         return await _db.TorderItems
             .AsNoTracking()
             .Where(i => i.IntOrder != null
@@ -134,7 +225,7 @@ public sealed class AdminAnalyticsRepository : IAdminAnalyticsRepository
         var outOfStockCount = await _db.Tproducts.CountAsync(p => p.IntStockAmount <= 0);
         var inStockCount = await _db.Tproducts.CountAsync(p => p.IntStockAmount > 0);
         var lowStockCount = await _db.Tproducts.CountAsync(p => p.IntStockAmount > 0 && p.IntStockAmount <= lowStockThreshold);
-        var isSqlite = _db.Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true;
+        var isSqlite = IsSqlite();
         decimal totalStockValue;
 
         if (isSqlite)
@@ -185,6 +276,22 @@ public sealed class AdminAnalyticsRepository : IAdminAnalyticsRepository
 
     public async Task<IReadOnlyList<AdminUserRevenueRecord>> GetUserRevenueInRangeAsync(DateTime start, DateTime end)
     {
+        if (IsSqlite())
+        {
+            var orders = await _db.Torders
+                .AsNoTracking()
+                .Where(o => o.UserId != null && o.DtmOrderDate != null && o.DtmOrderDate >= start && o.DtmOrderDate <= end)
+                .Select(o => new { o.UserId, Total = o.DecTotalAmount ?? 0m })
+                .ToListAsync();
+
+            return orders
+                .GroupBy(o => o.UserId!)
+                .Select(g => new AdminUserRevenueRecord(
+                    g.Key,
+                    g.Sum(x => x.Total)))
+                .ToList();
+        }
+
         return await _db.Torders
             .AsNoTracking()
             .Where(o => o.UserId != null && o.DtmOrderDate != null && o.DtmOrderDate >= start && o.DtmOrderDate <= end)
@@ -208,6 +315,29 @@ public sealed class AdminAnalyticsRepository : IAdminAnalyticsRepository
             query = query.Where(o => o.DtmOrderDate != null && o.DtmOrderDate >= effectiveStart && o.DtmOrderDate <= effectiveEnd);
         }
 
+        if (IsSqlite())
+        {
+            var orders = await query
+                .Select(o => new
+                {
+                    o.UserId,
+                    Total = o.DecTotalAmount ?? 0m,
+                    o.DtmOrderDate
+                })
+                .ToListAsync();
+
+            return orders
+                .GroupBy(o => o.UserId!)
+                .Select(g => new AdminTopCustomerRecord(
+                    g.Key,
+                    g.Sum(x => x.Total),
+                    g.Count(),
+                    g.Max(x => x.DtmOrderDate)))
+                .OrderByDescending(x => x.TotalSpent)
+                .Take(limit)
+                .ToList();
+        }
+
         return await query
             .GroupBy(o => o.UserId!)
             .Select(g => new AdminTopCustomerRecord(
@@ -222,6 +352,24 @@ public sealed class AdminAnalyticsRepository : IAdminAnalyticsRepository
 
     public async Task<IReadOnlyList<AdminWishlistedRecord>> GetMostWishlistedAsync(int limit)
     {
+        if (IsSqlite())
+        {
+            var favorites = await _db.Tfavorites
+                .AsNoTracking()
+                .Select(f => new { f.IntProductId, f.IntProduct.StrName })
+                .ToListAsync();
+
+            return favorites
+                .GroupBy(f => new { f.IntProductId, f.StrName })
+                .Select(g => new AdminWishlistedRecord(
+                    g.Key.IntProductId,
+                    g.Key.StrName,
+                    g.Count()))
+                .OrderByDescending(x => x.WishlistCount)
+                .Take(limit)
+                .ToList();
+        }
+
         return await _db.Tfavorites
             .AsNoTracking()
             .GroupBy(f => new { f.IntProductId, f.IntProduct.StrName })
@@ -233,4 +381,7 @@ public sealed class AdminAnalyticsRepository : IAdminAnalyticsRepository
             .Take(limit)
             .ToListAsync();
     }
+
+    private bool IsSqlite()
+        => _db.Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true;
 }
