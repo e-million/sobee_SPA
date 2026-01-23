@@ -1,11 +1,18 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using sobee_API.Contracts;
 using sobee_API.Domain;
 using sobee_API.DTOs.Common;
 using sobee_API.Extensions;
 
 namespace sobee_API.Controllers
 {
+    [ProducesResponseType(typeof(ValidationErrorResponseContract), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiErrorResponseContract), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiErrorResponseContract), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiErrorResponseContract), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiErrorResponseContract), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ApiErrorResponseContract), StatusCodes.Status500InternalServerError)]
     public abstract class ApiControllerBase : ControllerBase
     {
         protected BadRequestObjectResult BadRequestError(string message, string? code = null, object? details = null)
