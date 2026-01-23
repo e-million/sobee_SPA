@@ -28,14 +28,13 @@ public sealed class CartRepository : ICartRepository
     public async Task<TshoppingCart> CreateAsync(TshoppingCart cart)
     {
         _db.TshoppingCarts.Add(cart);
-        await _db.SaveChangesAsync();
         return cart;
     }
 
     public async Task UpdateAsync(TshoppingCart cart)
     {
         _db.TshoppingCarts.Update(cart);
-        await _db.SaveChangesAsync();
+        await Task.CompletedTask;
     }
 
     public async Task<TcartItem?> FindCartItemAsync(int cartId, int productId)
@@ -53,19 +52,19 @@ public sealed class CartRepository : ICartRepository
     public async Task AddCartItemAsync(TcartItem item)
     {
         _db.TcartItems.Add(item);
-        await _db.SaveChangesAsync();
+        await Task.CompletedTask;
     }
 
     public async Task UpdateCartItemAsync(TcartItem item)
     {
         _db.TcartItems.Update(item);
-        await _db.SaveChangesAsync();
+        await Task.CompletedTask;
     }
 
     public async Task RemoveCartItemAsync(TcartItem item)
     {
         _db.TcartItems.Remove(item);
-        await _db.SaveChangesAsync();
+        await Task.CompletedTask;
     }
 
     public async Task ClearCartItemsAsync(int cartId)
@@ -80,7 +79,7 @@ public sealed class CartRepository : ICartRepository
         }
 
         _db.TcartItems.RemoveRange(items);
-        await _db.SaveChangesAsync();
+        await Task.CompletedTask;
     }
 
     public async Task<TshoppingCart> LoadCartWithItemsAsync(int cartId)
