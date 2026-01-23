@@ -1,23 +1,22 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Sobee.Domain.Data;
-using sobee_API.DTOs.Common;
+using sobee_API.Domain;
 using sobee_API.DTOs.Reviews;
 using sobee_API.Services;
+using sobee_API.Services.Interfaces;
 
 namespace sobee_API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class ReviewsController : ControllerBase
+    public class ReviewsController : ApiControllerBase
     {
-        private readonly SobeecoredbContext _db;
+        private readonly IReviewService _reviewService;
         private readonly RequestIdentityResolver _identity;
 
-        public ReviewsController(SobeecoredbContext db, RequestIdentityResolver identity)
+        public ReviewsController(IReviewService reviewService, RequestIdentityResolver identity)
         {
-            _db = db;
+            _reviewService = reviewService;
             _identity = identity;
         }
 
@@ -30,12 +29,6 @@ namespace sobee_API.Controllers
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 20)
         {
-            if (page <= 0)
-                return BadRequest(new ApiErrorResponse("page must be >= 1", "ValidationError"));
-
-            if (pageSize <= 0 || pageSize > 100)
-                return BadRequest(new ApiErrorResponse("pageSize must be between 1 and 100", "ValidationError"));
-
             // Public endpoint: do not create guest sessions.
             _ = await _identity.ResolveAsync(
                 User,
@@ -45,80 +38,17 @@ namespace sobee_API.Controllers
                 allowAuthenticatedGuestSession: false
             );
 
-            var baseQuery = _db.Treviews
-                .AsNoTracking()
-                .Where(r => r.IntProductId == productId);
-
-            var totalCount = await baseQuery.CountAsync();
-
-            var ratingGroups = await baseQuery
-                .GroupBy(r => r.IntRating)
-                .Select(g => new { rating = g.Key, count = g.Count() })
-                .ToListAsync();
-
-            var ratingCounts = new int[5];
-            foreach (var group in ratingGroups)
+            var result = await _reviewService.GetReviewsAsync(productId, page, pageSize);
+            if (!result.Success)
             {
-                if (group.rating >= 1 && group.rating <= 5)
-                {
-                    ratingCounts[group.rating - 1] = group.count;
-                }
+                return FromServiceResult(result);
             }
 
-            var totalRating = ratingGroups
-                .Where(g => g.rating >= 1 && g.rating <= 5)
-                .Sum(g => g.rating * g.count);
+            Response.Headers["X-Total-Count"] = result.Value!.TotalCount.ToString();
+            Response.Headers["X-Page"] = result.Value.Page.ToString();
+            Response.Headers["X-Page-Size"] = result.Value.PageSize.ToString();
 
-            var averageRating = totalCount == 0 ? 0m : (decimal)totalRating / totalCount;
-
-            var reviews = await baseQuery
-                .Include(r => r.TReviewReplies)
-                .OrderByDescending(r => r.DtmReviewDate)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
-
-            var results = reviews.Select(r => new
-            {
-                reviewId = r.IntReviewId,
-                productId = r.IntProductId,
-                rating = r.IntRating,
-                reviewText = r.StrReviewText,
-                created = r.DtmReviewDate,
-                userId = r.UserId,
-                sessionId = r.SessionId,
-                replies = (r.TReviewReplies ?? [])
-                    .OrderBy(rr => rr.created_at)
-                    .Select(rr => new
-                    {
-                        replyId = rr.IntReviewReplyID,
-                        reviewId = rr.IntReviewId,
-                        content = rr.content,
-                        created = rr.created_at,
-                        userId = rr.UserId
-                    })
-                    .ToList()
-            }).ToList();
-
-            Response.Headers["X-Total-Count"] = totalCount.ToString();
-            Response.Headers["X-Page"] = page.ToString();
-            Response.Headers["X-Page-Size"] = pageSize.ToString();
-
-            return Ok(new
-            {
-                productId,
-                page,
-                pageSize,
-                totalCount,
-                count = results.Count,
-                summary = new
-                {
-                    total = totalCount,
-                    average = averageRating,
-                    counts = ratingCounts
-                },
-                reviews = results
-            });
+            return Ok(result.Value);
         }
 
         /// <summary>
@@ -129,47 +59,18 @@ namespace sobee_API.Controllers
         public async Task<IActionResult> Create(int productId, [FromBody] CreateReviewRequest request)
         {
             // Do not auto-create guest sessions here (prevents GuestSessions table abuse).
-            var owner = await _identity.ResolveAsync(
-                User,
-                Request,
-                Response,
-                allowCreateGuestSession: false,
-                allowAuthenticatedGuestSession: false
-            );
-
-            // Must be either authenticated OR a valid existing guest session.
-            if (string.IsNullOrWhiteSpace(owner.UserId))
-                return Unauthorized(new ApiErrorResponse("Missing NameIdentifier claim.", "Unauthorized"));
-
-            // Validate product exists
-            var productExists = await _db.Tproducts.AnyAsync(p => p.IntProductId == productId);
-            if (!productExists)
-                return NotFound(new ApiErrorResponse("Product not found.", "NotFound", new { productId }));
-
-            var review = new Sobee.Domain.Entities.Reviews.Treview
+            var (identity, errorResult) = await ResolveIdentityAsync();
+            if (errorResult != null)
             {
-                IntProductId = productId,
-                StrReviewText = request.ReviewText!,
-                IntRating = request.Rating,
-                DtmReviewDate = DateTime.UtcNow,
-                UserId = owner.UserId,
-                SessionId = owner.GuestSessionId
-            };
+                return errorResult;
+            }
 
-            _db.Treviews.Add(review);
-            await _db.SaveChangesAsync();
-
-            return Ok(new
-            {
-                message = "Review created.",
-                reviewId = review.IntReviewId,
-                productId = review.IntProductId,
-                rating = review.IntRating,
-                reviewText = review.StrReviewText,
-                created = review.DtmReviewDate,
-                userId = review.UserId,
-                sessionId = review.SessionId
-            });
+            var result = await _reviewService.CreateReviewAsync(
+                productId,
+                identity!.UserId,
+                identity.GuestSessionId,
+                request);
+            return FromServiceResult(result);
         }
 
         /// <summary>
@@ -179,47 +80,18 @@ namespace sobee_API.Controllers
         [Authorize]
         public async Task<IActionResult> Reply(int reviewId, [FromBody] CreateReplyRequest request)
         {
-            var owner = await _identity.ResolveAsync(
-                User,
-                Request,
-                Response,
-                allowCreateGuestSession: false,
-                allowAuthenticatedGuestSession: false
-            );
-
-            if (string.IsNullOrWhiteSpace(owner.UserId))
-                return Unauthorized(new ApiErrorResponse("Missing NameIdentifier claim.", "Unauthorized"));
-
-            var review = await _db.Treviews.FirstOrDefaultAsync(r => r.IntReviewId == reviewId);
-            if (review == null)
-                return NotFound(new ApiErrorResponse("Review not found.", "NotFound", new { reviewId }));
-
-            var isAdmin = User.IsInRole("Admin");
-            var isOwner = !string.IsNullOrWhiteSpace(review.UserId) && review.UserId == owner.UserId;
-
-            if (!isAdmin && !isOwner)
-                return StatusCode(StatusCodes.Status403Forbidden, new ApiErrorResponse("Forbidden.", "Forbidden"));
-
-            var reply = new Sobee.Domain.Entities.Reviews.TReviewReplies
+            var (identity, errorResult) = await ResolveIdentityAsync();
+            if (errorResult != null)
             {
-                IntReviewId = reviewId,
-                content = request.Content!,
-                created_at = DateTime.UtcNow,
-                UserId = owner.UserId
-            };
+                return errorResult;
+            }
 
-            _db.TReviewReplies.Add(reply);
-            await _db.SaveChangesAsync();
-
-            return Ok(new
-            {
-                message = "Reply created.",
-                replyId = reply.IntReviewReplyID,
-                reviewId = reply.IntReviewId,
-                content = reply.content,
-                created = reply.created_at,
-                userId = reply.UserId
-            });
+            var result = await _reviewService.CreateReplyAsync(
+                reviewId,
+                identity!.UserId,
+                User.IsInRole("Admin"),
+                request);
+            return FromServiceResult(result);
         }
 
         /// <summary>
@@ -229,37 +101,17 @@ namespace sobee_API.Controllers
         [Authorize] // keep destructive actions authenticated
         public async Task<IActionResult> DeleteReview(int reviewId)
         {
-            var owner = await _identity.ResolveAsync(
-                User,
-                Request,
-                Response,
-                allowCreateGuestSession: false,
-                allowAuthenticatedGuestSession: false
-            );
+            var (identity, errorResult) = await ResolveIdentityAsync();
+            if (errorResult != null)
+            {
+                return errorResult;
+            }
 
-            if (string.IsNullOrWhiteSpace(owner.UserId))
-                return Unauthorized(new ApiErrorResponse("Missing NameIdentifier claim.", "Unauthorized"));
-
-            var review = await _db.Treviews.FirstOrDefaultAsync(r => r.IntReviewId == reviewId);
-            if (review == null)
-                return NotFound(new ApiErrorResponse("Review not found.", "NotFound", new { reviewId }));
-
-            // Owner check or Admin role
-            var isAdmin = User.IsInRole("Admin");
-            var isOwner = !string.IsNullOrWhiteSpace(review.UserId) && review.UserId == owner.UserId;
-
-            if (!isOwner && !isAdmin)
-                return StatusCode(StatusCodes.Status403Forbidden, new ApiErrorResponse("Forbidden.", "Forbidden"));
-
-            // Remove replies first (if FK doesn't cascade)
-            var replies = await _db.TReviewReplies.Where(rr => rr.IntReviewId == reviewId).ToListAsync();
-            if (replies.Count > 0)
-                _db.TReviewReplies.RemoveRange(replies);
-
-            _db.Treviews.Remove(review);
-            await _db.SaveChangesAsync();
-
-            return Ok(new { message = "Review deleted.", reviewId });
+            var result = await _reviewService.DeleteReviewAsync(
+                reviewId,
+                identity!.UserId,
+                User.IsInRole("Admin"));
+            return FromServiceResult(result);
         }
 
         /// <summary>
@@ -269,31 +121,60 @@ namespace sobee_API.Controllers
         [Authorize]
         public async Task<IActionResult> DeleteReply(int replyId)
         {
-            var owner = await _identity.ResolveAsync(
+            var (identity, errorResult) = await ResolveIdentityAsync();
+            if (errorResult != null)
+            {
+                return errorResult;
+            }
+
+            var result = await _reviewService.DeleteReplyAsync(
+                replyId,
+                identity!.UserId,
+                User.IsInRole("Admin"));
+            return FromServiceResult(result);
+        }
+
+        private async Task<(RequestIdentity? identity, IActionResult? errorResult)> ResolveIdentityAsync()
+        {
+            var identity = await _identity.ResolveAsync(
                 User,
                 Request,
                 Response,
                 allowCreateGuestSession: false,
-                allowAuthenticatedGuestSession: false
-            );
+                allowAuthenticatedGuestSession: false);
 
-            if (string.IsNullOrWhiteSpace(owner.UserId))
-                return Unauthorized(new ApiErrorResponse("Missing NameIdentifier claim.", "Unauthorized"));
+            if (identity.HasError)
+            {
+                if (identity.ErrorCode == "MissingNameIdentifier")
+                {
+                    return (null, UnauthorizedError(identity.ErrorMessage ?? "Unauthorized", "Unauthorized"));
+                }
 
-            var reply = await _db.TReviewReplies.FirstOrDefaultAsync(r => r.IntReviewReplyID == replyId);
-            if (reply == null)
-                return NotFound(new ApiErrorResponse("Reply not found.", "NotFound", new { replyId }));
+                return (null, BadRequestError(identity.ErrorMessage ?? "Invalid request", "ValidationError"));
+            }
 
-            var isAdmin = User.IsInRole("Admin");
-            var isOwner = !string.IsNullOrWhiteSpace(reply.UserId) && reply.UserId == owner.UserId;
+            return (identity, null);
+        }
 
-            if (!isOwner && !isAdmin)
-                return StatusCode(StatusCodes.Status403Forbidden, new ApiErrorResponse("Forbidden.", "Forbidden"));
+        private IActionResult FromServiceResult<T>(ServiceResult<T> result)
+        {
+            if (result.Success)
+            {
+                return Ok(result.Value);
+            }
 
-            _db.TReviewReplies.Remove(reply);
-            await _db.SaveChangesAsync();
+            var code = result.ErrorCode ?? "ServerError";
+            var message = result.ErrorMessage ?? "An unexpected error occurred.";
 
-            return Ok(new { message = "Reply deleted.", replyId });
+            return code switch
+            {
+                "NotFound" => NotFoundError(message, code, result.ErrorData),
+                "ValidationError" => BadRequestError(message, code, result.ErrorData),
+                "Unauthorized" => UnauthorizedError(message, code, result.ErrorData),
+                "Forbidden" => ForbiddenError(message, code, result.ErrorData),
+                "Conflict" => ConflictError(message, code, result.ErrorData),
+                _ => ServerError(message, code, result.ErrorData)
+            };
         }
     }
 }

@@ -40,7 +40,8 @@ public sealed class FavoriteService : IFavoriteService
         {
             UserId = userId,
             Count = items.Count,
-            Favorites = items.Select(MapFavorite).ToList()
+            Favorites = items.Select(MapFavorite).ToList(),
+            TotalCount = totalCount
         };
 
         return ServiceResult<FavoriteListResponseDto>.Ok(response);

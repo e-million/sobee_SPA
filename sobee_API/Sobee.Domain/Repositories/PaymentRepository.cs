@@ -20,6 +20,14 @@ public sealed class PaymentRepository : IPaymentRepository
             .FirstOrDefaultAsync(pm => pm.IntPaymentMethodId == paymentMethodId);
     }
 
+    public async Task<IReadOnlyList<TpaymentMethod>> GetMethodsAsync()
+    {
+        return await _db.TpaymentMethods
+            .AsNoTracking()
+            .OrderBy(pm => pm.IntPaymentMethodId)
+            .ToListAsync();
+    }
+
     public async Task AddAsync(Tpayment payment)
     {
         _db.Tpayments.Add(payment);

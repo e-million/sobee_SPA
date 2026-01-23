@@ -1,25 +1,21 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Sobee.Domain.Data;
-using Sobee.Domain.Entities.Cart; // if needed by your project; safe to remove if unused
-using Sobee.Domain.Entities.Products;
-using sobee_API.DTOs.Common;
+using sobee_API.Domain;
 using sobee_API.Services;
-using System.Security.Claims;
+using sobee_API.Services.Interfaces;
 
 namespace sobee_API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class FavoritesController : ControllerBase
+    public class FavoritesController : ApiControllerBase
     {
-        private readonly SobeecoredbContext _db;
+        private readonly IFavoriteService _favoriteService;
         private readonly RequestIdentityResolver _identity;
 
-        public FavoritesController(SobeecoredbContext db, RequestIdentityResolver identity)
+        public FavoritesController(IFavoriteService favoriteService, RequestIdentityResolver identity)
         {
-            _db = db;
+            _favoriteService = favoriteService;
             _identity = identity;
         }
 
@@ -32,52 +28,24 @@ namespace sobee_API.Controllers
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 20)
         {
-            if (page <= 0)
-                return BadRequest(new ApiErrorResponse("page must be >= 1", "ValidationError"));
-
-            if (pageSize <= 0 || pageSize > 100)
-                return BadRequest(new ApiErrorResponse("pageSize must be between 1 and 100", "ValidationError"));
-
             // Auth-only endpoint: do not create guest sessions.
-            var owner = await _identity.ResolveAsync(
-                User,
-                Request,
-                Response,
-                allowCreateGuestSession: false,
-                allowAuthenticatedGuestSession: false
-            );
+            var (identity, errorResult) = await ResolveIdentityAsync();
+            if (errorResult != null)
+            {
+                return errorResult;
+            }
 
-            if (string.IsNullOrWhiteSpace(owner.UserId))
-                return Unauthorized(new ApiErrorResponse("Missing NameIdentifier claim.", "Unauthorized"));
+            var result = await _favoriteService.GetFavoritesAsync(identity!.UserId, page, pageSize);
+            if (!result.Success)
+            {
+                return FromServiceResult(result);
+            }
 
-            var query = _db.Tfavorites
-                .AsNoTracking()
-                .Where(f => f.UserId == owner.UserId);
-
-            var totalCount = await query.CountAsync();
-
-            var favorites = await query
-                .OrderByDescending(f => f.DtmDateAdded)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .Select(f => new
-                {
-                    favoriteId = f.IntFavoriteId,
-                    productId = f.IntProductId,
-                    added = f.DtmDateAdded
-                })
-                .ToListAsync();
-
-            Response.Headers["X-Total-Count"] = totalCount.ToString();
+            Response.Headers["X-Total-Count"] = result.Value!.TotalCount.ToString();
             Response.Headers["X-Page"] = page.ToString();
             Response.Headers["X-Page-Size"] = pageSize.ToString();
 
-            return Ok(new
-            {
-                userId = owner.UserId,
-                count = favorites.Count,
-                favorites
-            });
+            return Ok(result.Value);
         }
 
         /// <summary>
@@ -87,44 +55,14 @@ namespace sobee_API.Controllers
         [Authorize]
         public async Task<IActionResult> AddFavorite(int productId)
         {
-            var owner = await _identity.ResolveAsync(
-                User,
-                Request,
-                Response,
-                allowCreateGuestSession: false,
-                allowAuthenticatedGuestSession: false
-            );
-
-            if (string.IsNullOrWhiteSpace(owner.UserId))
-                return Unauthorized(new ApiErrorResponse("Missing NameIdentifier claim.", "Unauthorized"));
-
-            // Validate product exists
-            var exists = await _db.Tproducts.AnyAsync(p => p.IntProductId == productId);
-            if (!exists)
-                return NotFound(new ApiErrorResponse("Product not found.", "NotFound", new { productId }));
-
-            // Prevent duplicates
-            var already = await _db.Tfavorites.AnyAsync(f => f.UserId == owner.UserId && f.IntProductId == productId);
-            if (already)
-                return Ok(new { message = "Already favorited.", productId });
-
-            var fav = new Sobee.Domain.Entities.Reviews.Tfavorite
+            var (identity, errorResult) = await ResolveIdentityAsync();
+            if (errorResult != null)
             {
-                IntProductId = productId,
-                DtmDateAdded = DateTime.UtcNow,
-                UserId = owner.UserId
-            };
+                return errorResult;
+            }
 
-            _db.Tfavorites.Add(fav);
-            await _db.SaveChangesAsync();
-
-            return Ok(new
-            {
-                message = "Favorited.",
-                favoriteId = fav.IntFavoriteId,
-                productId = fav.IntProductId,
-                added = fav.DtmDateAdded
-            });
+            var result = await _favoriteService.AddFavoriteAsync(identity!.UserId, productId);
+            return FromServiceResult(result);
         }
 
         /// <summary>
@@ -134,27 +72,57 @@ namespace sobee_API.Controllers
         [Authorize]
         public async Task<IActionResult> RemoveFavorite(int productId)
         {
-            var owner = await _identity.ResolveAsync(
+            var (identity, errorResult) = await ResolveIdentityAsync();
+            if (errorResult != null)
+            {
+                return errorResult;
+            }
+
+            var result = await _favoriteService.RemoveFavoriteAsync(identity!.UserId, productId);
+            return FromServiceResult(result);
+        }
+
+        private async Task<(RequestIdentity? identity, IActionResult? errorResult)> ResolveIdentityAsync()
+        {
+            var identity = await _identity.ResolveAsync(
                 User,
                 Request,
                 Response,
                 allowCreateGuestSession: false,
-                allowAuthenticatedGuestSession: false
-            );
+                allowAuthenticatedGuestSession: false);
 
-            if (string.IsNullOrWhiteSpace(owner.UserId))
-                return Unauthorized(new ApiErrorResponse("Missing NameIdentifier claim.", "Unauthorized"));
+            if (identity.HasError)
+            {
+                if (identity.ErrorCode == "MissingNameIdentifier")
+                {
+                    return (null, UnauthorizedError(identity.ErrorMessage ?? "Unauthorized", "Unauthorized"));
+                }
 
-            var fav = await _db.Tfavorites
-                .FirstOrDefaultAsync(f => f.UserId == owner.UserId && f.IntProductId == productId);
+                return (null, BadRequestError(identity.ErrorMessage ?? "Invalid request", "ValidationError"));
+            }
 
-            if (fav == null)
-                return NotFound(new ApiErrorResponse("Favorite not found.", "NotFound", new { productId }));
+            return (identity, null);
+        }
 
-            _db.Tfavorites.Remove(fav);
-            await _db.SaveChangesAsync();
+        private IActionResult FromServiceResult<T>(ServiceResult<T> result)
+        {
+            if (result.Success)
+            {
+                return Ok(result.Value);
+            }
 
-            return Ok(new { message = "Unfavorited.", productId });
+            var code = result.ErrorCode ?? "ServerError";
+            var message = result.ErrorMessage ?? "An unexpected error occurred.";
+
+            return code switch
+            {
+                "NotFound" => NotFoundError(message, code, result.ErrorData),
+                "ValidationError" => BadRequestError(message, code, result.ErrorData),
+                "Unauthorized" => UnauthorizedError(message, code, result.ErrorData),
+                "Forbidden" => ForbiddenError(message, code, result.ErrorData),
+                "Conflict" => ConflictError(message, code, result.ErrorData),
+                _ => ServerError(message, code, result.ErrorData)
+            };
         }
     }
 }

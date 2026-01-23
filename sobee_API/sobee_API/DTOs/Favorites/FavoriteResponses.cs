@@ -7,6 +7,9 @@ namespace sobee_API.DTOs.Favorites
         public string UserId { get; set; } = string.Empty;
         public int Count { get; set; }
         public List<FavoriteItemDto> Favorites { get; set; } = new();
+
+        [JsonIgnore]
+        public int TotalCount { get; set; }
     }
 
     public sealed class FavoriteItemDto

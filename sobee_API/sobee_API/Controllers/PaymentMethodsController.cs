@@ -1,19 +1,19 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Sobee.Domain.Data;
+using sobee_API.Domain;
+using sobee_API.Services.Interfaces;
 
 namespace sobee_API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class PaymentMethodsController : ControllerBase
+    public class PaymentMethodsController : ApiControllerBase
     {
-        private readonly SobeecoredbContext _db;
+        private readonly IPaymentMethodService _paymentMethodService;
 
-        public PaymentMethodsController(SobeecoredbContext db)
+        public PaymentMethodsController(IPaymentMethodService paymentMethodService)
         {
-            _db = db;
+            _paymentMethodService = paymentMethodService;
         }
 
         /// <summary>
@@ -24,16 +24,29 @@ namespace sobee_API.Controllers
         [Authorize] // keep it auth-only for now; easy to relax later
         public async Task<IActionResult> GetPaymentMethods()
         {
-            var methods = await _db.TpaymentMethods
-                .AsNoTracking()
-                .Select(pm => new
-                {
-                    paymentMethodId = pm.IntPaymentMethodId,
-                    description = pm.StrDescription
-                })
-                .ToListAsync();
+            var result = await _paymentMethodService.GetPaymentMethodsAsync();
+            return FromServiceResult(result);
+        }
 
-            return Ok(methods);
+        private IActionResult FromServiceResult<T>(ServiceResult<T> result)
+        {
+            if (result.Success)
+            {
+                return Ok(result.Value);
+            }
+
+            var code = result.ErrorCode ?? "ServerError";
+            var message = result.ErrorMessage ?? "An unexpected error occurred.";
+
+            return code switch
+            {
+                "NotFound" => NotFoundError(message, code, result.ErrorData),
+                "ValidationError" => BadRequestError(message, code, result.ErrorData),
+                "Unauthorized" => UnauthorizedError(message, code, result.ErrorData),
+                "Forbidden" => ForbiddenError(message, code, result.ErrorData),
+                "Conflict" => ConflictError(message, code, result.ErrorData),
+                _ => ServerError(message, code, result.ErrorData)
+            };
         }
     }
 }

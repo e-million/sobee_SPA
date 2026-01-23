@@ -364,6 +364,12 @@ public class OrderServiceTests
             return Task.FromResult(method);
         }
 
+        public Task<IReadOnlyList<TpaymentMethod>> GetMethodsAsync()
+        {
+            IReadOnlyList<TpaymentMethod> methods = _methods.ToList();
+            return Task.FromResult(methods);
+        }
+
         public Task AddAsync(Tpayment payment)
         {
             _payments.Add(payment);
