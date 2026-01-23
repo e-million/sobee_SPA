@@ -19,9 +19,11 @@ using Serilog.Events;
 using Serilog.Formatting.Compact;
 using Sobee.Domain.Data;
 using Sobee.Domain.Identity;
+using Sobee.Domain.Repositories;
 using sobee_API.DTOs.Common;
 using sobee_API.Middleware;
 using sobee_API.Services;
+using sobee_API.Services.Interfaces;
 using System.Diagnostics.Metrics;
 using System.Linq;
 using System.Security.Claims;
@@ -115,6 +117,8 @@ namespace sobee_API
 
             builder.Services.AddScoped<GuestSessionService>();
             builder.Services.AddScoped<RequestIdentityResolver>();
+            builder.Services.AddScoped<ICartRepository, CartRepository>();
+            builder.Services.AddScoped<ICartService, CartService>();
 
             var rateLimitMeter = new Meter("sobee_API.RateLimiting");
             var rateLimitCounter = rateLimitMeter.CreateCounter<long>("rate_limit_rejections");
