@@ -2,6 +2,12 @@ import { ChangeDetectionStrategy, Component, OnInit, signal } from '@angular/cor
 import { CommonModule } from '@angular/common';
 import { AdminService } from '../../../core/services/admin.service';
 import { forkJoin } from 'rxjs';
+import { DateFormatPipe } from '../../../shared/pipes/date-format.pipe';
+import { PeriodLabelPipe } from '../../../shared/pipes/period-label.pipe';
+import { TrendFormatPipe } from '../../../shared/pipes/trend-format.pipe';
+import { TruncatePipe } from '../../../shared/pipes/truncate.pipe';
+import { UserIdFormatPipe } from '../../../shared/pipes/user-id-format.pipe';
+import { WishlistNamePipe } from '../../../shared/pipes/wishlist-name.pipe';
 import {
   AdminCategoryPerformance,
   AdminCustomerBreakdown,
@@ -23,7 +29,15 @@ import {
 
 @Component({
   selector: 'app-admin-dashboard',
-  imports: [CommonModule],
+  imports: [
+    CommonModule,
+    DateFormatPipe,
+    PeriodLabelPipe,
+    TrendFormatPipe,
+    TruncatePipe,
+    UserIdFormatPipe,
+    WishlistNamePipe
+  ],
   templateUrl: './admin-dashboard.html',
   styleUrl: './admin-dashboard.css',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -138,22 +152,6 @@ export class AdminDashboard implements OnInit {
     return Math.round((revenue / max) * 100);
   }
 
-  formatDate(dateString: string): string {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  }
-
-  formatPeriodLabel(dateString: string): string {
-    const date = new Date(dateString);
-    if (this.revenueGranularity() === 'month') {
-      return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-    }
-    if (this.revenueGranularity() === 'week') {
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    }
-    return this.formatDate(dateString);
-  }
-
   getOrderStatusItems(): { label: string; count: number }[] {
     const data = this.orderStatus();
     if (!data) {
@@ -221,14 +219,6 @@ export class AdminDashboard implements OnInit {
     return Math.round((revenue / max) * 100);
   }
 
-  formatTrend(trend: number | null | undefined): string {
-    if (trend === null || trend === undefined) {
-      return '0%';
-    }
-    const sign = trend > 0 ? '+' : '';
-    return `${sign}${trend.toFixed(2)}%`;
-  }
-
   getMaxNewRegistrations(): number {
     const data = this.customerGrowth();
     return data.length === 0 ? 0 : Math.max(...data.map(item => item.newRegistrations));
@@ -250,27 +240,6 @@ export class AdminDashboard implements OnInit {
       return customer.email;
     }
     return `User ${customer.userId.slice(0, 8)}`;
-  }
-
-  formatWishlistName(name: string): string {
-    return name || 'Unnamed product';
-  }
-
-  truncateComment(comment: string, maxLength: number = 120): string {
-    if (!comment) {
-      return '';
-    }
-    if (comment.length <= maxLength) {
-      return comment;
-    }
-    return `${comment.slice(0, maxLength).trim()}...`;
-  }
-
-  formatUserId(userId: string | null): string {
-    if (!userId) {
-      return 'User';
-    }
-    return userId.length > 8 ? `${userId.slice(0, 8)}...` : userId;
   }
 
   private getDateRange(days: number): { start: string; end: string } {

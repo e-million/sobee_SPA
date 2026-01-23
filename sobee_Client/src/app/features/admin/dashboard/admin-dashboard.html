@@ -138,7 +138,7 @@
           <div class="space-y-3">
             @for (item of revenueByPeriod(); track item.date) {
               <div class="flex items-center gap-3">
-                <span class="w-24 text-xs text-slate-500">{{ formatPeriodLabel(item.date) }}</span>
+                <span class="w-24 text-xs text-slate-500">{{ item.date | periodLabel: revenueGranularity() }}</span>
                 <div class="flex-1 h-2 rounded-full bg-slate-200 overflow-hidden">
                   <div class="h-full bg-emerald-500" [style.width.%]="getRevenueBarWidth(item.revenue)"></div>
                 </div>
@@ -230,13 +230,13 @@
                 <div class="flex items-center justify-between">
                   <div>
                     <p class="text-sm font-semibold text-slate-800">{{ review.productName }}</p>
-                    <p class="text-xs text-slate-500">Review #{{ review.reviewId }} - {{ formatDate(review.createdAt) }}</p>
+                    <p class="text-xs text-slate-500">Review #{{ review.reviewId }} - {{ review.createdAt | dateFormat }}</p>
                   </div>
                   <span class="text-xs font-semibold text-amber-600">{{ review.rating }}/5</span>
                 </div>
-                <p class="text-sm text-slate-600 mt-2">{{ truncateComment(review.comment) }}</p>
+                <p class="text-sm text-slate-600 mt-2">{{ review.comment | truncate }}</p>
                 <p class="text-xs text-slate-400 mt-2">
-                  {{ formatUserId(review.userId) }}
+                  {{ review.userId | userIdFormat }}
                   @if (review.hasReplies) { - replied }
                 </p>
               </div>
@@ -263,7 +263,7 @@
           <div class="space-y-3">
             @for (item of customerGrowth(); track item.date) {
               <div class="flex items-center gap-3">
-                <span class="w-16 text-xs text-slate-500">{{ formatDate(item.date) }}</span>
+                <span class="w-16 text-xs text-slate-500">{{ item.date | dateFormat }}</span>
                 <div class="flex-1 h-2 rounded-full bg-slate-200 overflow-hidden">
                   <div class="h-full bg-sky-500" [style.width.%]="getCustomerGrowthBarWidth(item.newRegistrations)"></div>
                 </div>
@@ -295,7 +295,7 @@
                   <p class="text-sm font-medium text-slate-800">{{ getTopCustomerLabel(customer) }}</p>
                   <p class="text-xs text-slate-500">
                     {{ customer.orderCount }} orders
-                    @if (customer.lastOrderDate) { - last {{ formatDate(customer.lastOrderDate) }} }
+                    @if (customer.lastOrderDate) { - last {{ customer.lastOrderDate | dateFormat }} }
                   </p>
                 </div>
                 <span class="text-xs font-semibold text-slate-700">
@@ -375,7 +375,7 @@
               [class.text-emerald-600]="(fulfillmentMetrics()?.trend ?? 0) < 0"
               [class.text-rose-600]="(fulfillmentMetrics()?.trend ?? 0) > 0"
               [class.text-slate-500]="(fulfillmentMetrics()?.trend ?? 0) === 0">
-              {{ formatTrend(fulfillmentMetrics()?.trend) }}
+              {{ fulfillmentMetrics()?.trend | trendFormat }}
             </span>
           </p>
         }
@@ -400,7 +400,7 @@
         <div class="space-y-3">
           @for (item of ordersPerDay(); track item.date) {
             <div class="flex items-center gap-3">
-              <span class="w-16 text-xs text-slate-500">{{ formatDate(item.date) }}</span>
+              <span class="w-16 text-xs text-slate-500">{{ item.date | dateFormat }}</span>
               <div class="flex-1 h-2 rounded-full bg-slate-200 overflow-hidden">
                 <div class="h-full bg-primary-500" [style.width.%]="getOrderBarWidth(item.count)"></div>
               </div>
@@ -482,7 +482,7 @@
             @for (item of mostWishlisted(); track item.productId) {
               <div class="flex items-center justify-between">
                 <div>
-                  <p class="text-sm font-medium text-slate-800">{{ formatWishlistName(item.name) }}</p>
+                  <p class="text-sm font-medium text-slate-800">{{ item.name | wishlistName }}</p>
                   <p class="text-xs text-slate-500">{{ item.wishlistCount }} saves</p>
                 </div>
                 <span class="text-xs text-slate-600">#{{ item.productId }}</span>
