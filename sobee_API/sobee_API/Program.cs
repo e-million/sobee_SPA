@@ -119,6 +119,8 @@ namespace sobee_API
             builder.Services.AddScoped<RequestIdentityResolver>();
             builder.Services.AddScoped<ICartRepository, CartRepository>();
             builder.Services.AddScoped<ICartService, CartService>();
+            builder.Services.AddScoped<IPromoRepository, PromoRepository>();
+            builder.Services.AddScoped<IProductRepository, ProductRepository>();
 
             var rateLimitMeter = new Meter("sobee_API.RateLimiting");
             var rateLimitCounter = rateLimitMeter.CreateCounter<long>("rate_limit_rejections");

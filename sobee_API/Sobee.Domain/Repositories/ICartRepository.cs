@@ -13,6 +13,7 @@ public interface ICartRepository
     Task AddCartItemAsync(TcartItem item);
     Task UpdateCartItemAsync(TcartItem item);
     Task RemoveCartItemAsync(TcartItem item);
+    Task RemoveCartAsync(TshoppingCart cart);
     Task ClearCartItemsAsync(int cartId);
     Task<TshoppingCart> LoadCartWithItemsAsync(int cartId);
     Task SaveChangesAsync();

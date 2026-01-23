@@ -67,6 +67,12 @@ public sealed class CartRepository : ICartRepository
         await Task.CompletedTask;
     }
 
+    public async Task RemoveCartAsync(TshoppingCart cart)
+    {
+        _db.TshoppingCarts.Remove(cart);
+        await Task.CompletedTask;
+    }
+
     public async Task ClearCartItemsAsync(int cartId)
     {
         var items = await _db.TcartItems

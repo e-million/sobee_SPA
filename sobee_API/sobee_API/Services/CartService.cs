@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-using Sobee.Domain.Data;
 using Sobee.Domain.Entities.Cart;
 using Sobee.Domain.Entities.Promotions;
 using Sobee.Domain.Repositories;
@@ -12,14 +10,20 @@ namespace sobee_API.Services;
 
 public sealed class CartService : ICartService
 {
-    private readonly SobeecoredbContext _db;
     private readonly ICartRepository _cartRepository;
+    private readonly IProductRepository _productRepository;
+    private readonly IPromoRepository _promoRepository;
     private readonly GuestSessionService _guestSessionService;
 
-    public CartService(SobeecoredbContext db, ICartRepository cartRepository, GuestSessionService guestSessionService)
+    public CartService(
+        ICartRepository cartRepository,
+        IProductRepository productRepository,
+        IPromoRepository promoRepository,
+        GuestSessionService guestSessionService)
     {
-        _db = db;
         _cartRepository = cartRepository;
+        _productRepository = productRepository;
+        _promoRepository = promoRepository;
         _guestSessionService = guestSessionService;
     }
 
@@ -39,8 +43,7 @@ public sealed class CartService : ICartService
         bool canMergeGuestSession,
         AddCartItemRequest request)
     {
-        var product = await _db.Tproducts
-            .FirstOrDefaultAsync(p => p.IntProductId == request.ProductId);
+        var product = await _productRepository.FindByIdAsync(request.ProductId);
 
         if (product == null)
         {
@@ -123,8 +126,9 @@ public sealed class CartService : ICartService
         }
         else
         {
-            var product = await _db.Tproducts
-                .FirstOrDefaultAsync(p => p.IntProductId == item.IntProductId);
+            var product = item.IntProductId.HasValue
+                ? await _productRepository.FindByIdAsync(item.IntProductId.Value)
+                : null;
 
             if (product == null)
             {
@@ -212,18 +216,14 @@ public sealed class CartService : ICartService
 
         var trimmedCode = promoCode.Trim();
 
-        var promo = await _db.Tpromotions.FirstOrDefaultAsync(p =>
-            p.StrPromoCode == trimmedCode &&
-            p.DtmExpirationDate > DateTime.UtcNow);
+        var promo = await _promoRepository.FindActiveByCodeAsync(trimmedCode, DateTime.UtcNow);
 
         if (promo == null)
         {
             return Validation<PromoAppliedResponseDto>("InvalidPromo", "Invalid or expired promo code.", null);
         }
 
-        var alreadyApplied = await _db.TpromoCodeUsageHistories.AnyAsync(p =>
-            p.IntShoppingCartId == cart.IntShoppingCartId &&
-            p.PromoCode == trimmedCode);
+        var alreadyApplied = await _promoRepository.UsageExistsAsync(cart.IntShoppingCartId, trimmedCode);
 
         if (alreadyApplied)
         {
@@ -233,14 +233,14 @@ public sealed class CartService : ICartService
                 new { promoCode = trimmedCode });
         }
 
-        _db.TpromoCodeUsageHistories.Add(new TpromoCodeUsageHistory
+        await _promoRepository.AddUsageAsync(new TpromoCodeUsageHistory
         {
             IntShoppingCartId = cart.IntShoppingCartId,
             PromoCode = trimmedCode,
             UsedDateTime = DateTime.UtcNow
         });
 
-        await _cartRepository.SaveChangesAsync();
+        await _promoRepository.SaveChangesAsync();
 
         return ServiceResult<PromoAppliedResponseDto>.Ok(new PromoAppliedResponseDto
         {
@@ -258,9 +258,7 @@ public sealed class CartService : ICartService
             return NotFound<MessageResponseDto>("Cart not found.", null);
         }
 
-        var promos = await _db.TpromoCodeUsageHistories
-            .Where(p => p.IntShoppingCartId == cart.IntShoppingCartId)
-            .ToListAsync();
+        var promos = await _promoRepository.GetUsagesForCartAsync(cart.IntShoppingCartId);
 
         if (promos.Count == 0)
         {
@@ -270,8 +268,8 @@ public sealed class CartService : ICartService
                 null);
         }
 
-        _db.TpromoCodeUsageHistories.RemoveRange(promos);
-        await _cartRepository.SaveChangesAsync();
+        await _promoRepository.RemoveUsagesAsync(promos);
+        await _promoRepository.SaveChangesAsync();
 
         return ServiceResult<MessageResponseDto>.Ok(new MessageResponseDto
         {
@@ -349,7 +347,7 @@ public sealed class CartService : ICartService
             }
 
             userCart.DtmDateLastUpdated = DateTime.UtcNow;
-            _db.TshoppingCarts.Remove(sessionCart);
+            await _cartRepository.RemoveCartAsync(sessionCart);
 
             await _cartRepository.SaveChangesAsync();
             await RotateGuestSessionAsync(sessionId);
@@ -439,23 +437,7 @@ public sealed class CartService : ICartService
 
     private async Task<(string? Code, decimal DiscountPercentage)> GetActivePromoForCartAsync(int cartId)
     {
-        var promo = await _db.TpromoCodeUsageHistories
-            .Join(_db.Tpromotions,
-                usage => usage.PromoCode,
-                promo => promo.StrPromoCode,
-                (usage, promo) => new { usage, promo })
-            .Where(x => x.usage.IntShoppingCartId == cartId &&
-                        x.promo.DtmExpirationDate > DateTime.UtcNow)
-            .OrderByDescending(x => x.usage.UsedDateTime)
-            .Select(x => new { x.promo.StrPromoCode, x.promo.DecDiscountPercentage })
-            .FirstOrDefaultAsync();
-
-        if (promo == null)
-        {
-            return (null, 0m);
-        }
-
-        return (promo.StrPromoCode, promo.DecDiscountPercentage);
+        return await _promoRepository.GetActivePromoForCartAsync(cartId, DateTime.UtcNow);
     }
 
     private static string? GetPrimaryImageUrl(Sobee.Domain.Entities.Products.Tproduct product)
