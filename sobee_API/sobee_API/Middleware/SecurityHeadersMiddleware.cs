@@ -7,7 +7,7 @@ namespace sobee_API.Middleware
         public SecurityHeadersMiddleware(RequestDelegate next)
         {
             _next = next;
-        }
+        } 
 
         public Task InvokeAsync(HttpContext context)
         {
