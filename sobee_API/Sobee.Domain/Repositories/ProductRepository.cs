@@ -15,10 +15,15 @@ public sealed class ProductRepository : IProductRepository
         _db = db;
     }
 
-    public async Task<Tproduct?> FindByIdAsync(int productId)
+    public async Task<Tproduct?> FindByIdAsync(int productId, bool track = true)
     {
-        return await _db.Tproducts
-            .FirstOrDefaultAsync(p => p.IntProductId == productId);
+        var query = _db.Tproducts.AsQueryable();
+        if (!track)
+        {
+            query = query.AsNoTracking();
+        }
+
+        return await query.FirstOrDefaultAsync(p => p.IntProductId == productId);
     }
 
     public async Task<IReadOnlyList<Tproduct>> GetByIdsAsync(IEnumerable<int> productIds, bool track = true)

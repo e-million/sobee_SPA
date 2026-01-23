@@ -4,7 +4,7 @@ namespace Sobee.Domain.Repositories;
 
 public interface IProductRepository
 {
-    Task<Tproduct?> FindByIdAsync(int productId);
+    Task<Tproduct?> FindByIdAsync(int productId, bool track = true);
     Task<IReadOnlyList<Tproduct>> GetByIdsAsync(IEnumerable<int> productIds, bool track = true);
     Task<(IReadOnlyList<Tproduct> Items, int TotalCount)> GetProductsAsync(
         string? query,

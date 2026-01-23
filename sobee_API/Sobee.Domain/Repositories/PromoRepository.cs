@@ -16,6 +16,7 @@ public sealed class PromoRepository : IPromoRepository
     public async Task<Tpromotion?> FindActiveByCodeAsync(string promoCode, DateTime utcNow)
     {
         return await _db.Tpromotions
+            .AsNoTracking()
             .FirstOrDefaultAsync(p =>
                 p.StrPromoCode == promoCode &&
                 p.DtmExpirationDate > utcNow);
@@ -23,14 +24,17 @@ public sealed class PromoRepository : IPromoRepository
 
     public async Task<bool> UsageExistsAsync(int cartId, string promoCode)
     {
-        return await _db.TpromoCodeUsageHistories.AnyAsync(p =>
-            p.IntShoppingCartId == cartId &&
-            p.PromoCode == promoCode);
+        return await _db.TpromoCodeUsageHistories
+            .AsNoTracking()
+            .AnyAsync(p =>
+                p.IntShoppingCartId == cartId &&
+                p.PromoCode == promoCode);
     }
 
     public async Task<IReadOnlyList<TpromoCodeUsageHistory>> GetUsagesForCartAsync(int cartId)
     {
         return await _db.TpromoCodeUsageHistories
+            .AsNoTracking()
             .Where(p => p.IntShoppingCartId == cartId)
             .ToListAsync();
     }
@@ -50,7 +54,8 @@ public sealed class PromoRepository : IPromoRepository
     public async Task<(string? Code, decimal DiscountPercentage)> GetActivePromoForCartAsync(int cartId, DateTime utcNow)
     {
         var promo = await _db.TpromoCodeUsageHistories
-            .Join(_db.Tpromotions,
+            .AsNoTracking()
+            .Join(_db.Tpromotions.AsNoTracking(),
                 usage => usage.PromoCode,
                 promotion => promotion.StrPromoCode,
                 (usage, promotion) => new { usage, promotion })

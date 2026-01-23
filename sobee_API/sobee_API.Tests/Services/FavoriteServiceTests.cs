@@ -158,7 +158,7 @@ public class FavoriteServiceTests
             _productIds.Add(productId);
         }
 
-        public Task<Tproduct?> FindByIdAsync(int productId)
+        public Task<Tproduct?> FindByIdAsync(int productId, bool track = true)
             => Task.FromResult<Tproduct?>(null);
 
         public Task<IReadOnlyList<Tproduct>> GetByIdsAsync(IEnumerable<int> productIds, bool track = true)

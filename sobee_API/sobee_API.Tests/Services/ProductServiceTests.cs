@@ -255,7 +255,7 @@ public class ProductServiceTests
             return image;
         }
 
-        public Task<Tproduct?> FindByIdAsync(int productId)
+        public Task<Tproduct?> FindByIdAsync(int productId, bool track = true)
             => Task.FromResult(_products.FirstOrDefault(p => p.IntProductId == productId));
 
         public Task<IReadOnlyList<Tproduct>> GetByIdsAsync(IEnumerable<int> productIds, bool track = true)

@@ -55,7 +55,7 @@ public sealed class CartService : ICartService
         bool canMergeGuestSession,
         AddCartItemRequest request)
     {
-        var product = await _productRepository.FindByIdAsync(request.ProductId);
+        var product = await _productRepository.FindByIdAsync(request.ProductId, track: false);
 
         if (product == null)
         {
@@ -139,7 +139,7 @@ public sealed class CartService : ICartService
         else
         {
             var product = item.IntProductId.HasValue
-                ? await _productRepository.FindByIdAsync(item.IntProductId.Value)
+                ? await _productRepository.FindByIdAsync(item.IntProductId.Value, track: false)
                 : null;
 
             if (product == null)
