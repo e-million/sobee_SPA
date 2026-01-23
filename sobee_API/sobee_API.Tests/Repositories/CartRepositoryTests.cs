@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using System.Linq;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -85,7 +86,7 @@ public class CartRepositoryTests
 
         var loaded = await context.Repository.LoadCartWithItemsAsync(cart.IntShoppingCartId);
         loaded.TcartItems.Should().HaveCount(1);
-        loaded.TcartItems[0].IntQuantity.Should().Be(2);
+        loaded.TcartItems.First().IntQuantity.Should().Be(2);
     }
 
     [Fact]
