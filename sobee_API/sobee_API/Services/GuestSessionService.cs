@@ -1,7 +1,6 @@
-﻿using System.Security.Cryptography;
-using Microsoft.EntityFrameworkCore;
-using Sobee.Domain.Data;
+using System.Security.Cryptography;
 using Sobee.Domain.Entities.Cart;
+using Sobee.Domain.Repositories;
 
 namespace sobee_API.Services;
 
@@ -11,12 +10,12 @@ public class GuestSessionService
     public const string SessionSecretHeaderName = "X-Session-Secret";
     private static readonly TimeSpan SessionLifetime = TimeSpan.FromDays(7);
 
-    private readonly SobeecoredbContext _db;
+    private readonly IGuestSessionRepository _repository;
     private readonly ILogger<GuestSessionService> _logger;
 
-    public GuestSessionService(SobeecoredbContext db, ILogger<GuestSessionService> logger)
+    public GuestSessionService(IGuestSessionRepository repository, ILogger<GuestSessionService> logger)
     {
-        _db = db;
+        _repository = repository;
         _logger = logger;
     }
 
@@ -37,15 +36,12 @@ public class GuestSessionService
         // Only accept a guest session when both session id + secret match a live record.
         if (!string.IsNullOrWhiteSpace(sessionId) && !string.IsNullOrWhiteSpace(secret))
         {
-            var existing = await _db.GuestSessions
-                .FirstOrDefaultAsync(s => s.SessionId == sessionId
-                                          && s.Secret == secret
-                                          && s.ExpiresAtUtc > now);
+            var existing = await _repository.FindValidAsync(sessionId, secret, now, track: true);
 
             if (existing != null)
             {
                 existing.LastSeenAtUtc = now;
-                await _db.SaveChangesAsync();
+                await _repository.SaveChangesAsync();
 
                 return GuestSessionResolution.Validated(existing.SessionId, existing.Secret);
             }
@@ -67,8 +63,8 @@ public class GuestSessionService
             ExpiresAtUtc = now.Add(SessionLifetime)
         };
 
-        _db.GuestSessions.Add(newSession);
-        await _db.SaveChangesAsync();
+        await _repository.AddAsync(newSession);
+        await _repository.SaveChangesAsync();
 
         response.Headers[SessionIdHeaderName] = newSessionId;
         response.Headers[SessionSecretHeaderName] = newSecret;
@@ -78,14 +74,14 @@ public class GuestSessionService
 
     public async Task InvalidateAsync(string sessionId)
     {
-        var existing = await _db.GuestSessions.FirstOrDefaultAsync(s => s.SessionId == sessionId);
+        var existing = await _repository.FindByIdAsync(sessionId, track: true);
         if (existing == null)
         {
             return;
         }
 
-        _db.GuestSessions.Remove(existing);
-        await _db.SaveChangesAsync();
+        await _repository.RemoveAsync(existing);
+        await _repository.SaveChangesAsync();
     }
 
     private static string? GetHeaderValue(HttpRequest request, string headerName)

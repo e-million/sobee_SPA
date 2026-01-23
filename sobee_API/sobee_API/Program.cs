@@ -121,6 +121,7 @@ namespace sobee_API
             builder.Services.AddScoped<ICartService, CartService>();
             builder.Services.AddScoped<IPromoRepository, PromoRepository>();
             builder.Services.AddScoped<IProductRepository, ProductRepository>();
+            builder.Services.AddScoped<IGuestSessionRepository, GuestSessionRepository>();
             builder.Services.AddScoped<IReviewRepository, ReviewRepository>();
             builder.Services.AddScoped<IFavoriteRepository, FavoriteRepository>();
             builder.Services.AddScoped<IOrderRepository, OrderRepository>();

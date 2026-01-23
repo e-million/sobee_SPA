@@ -375,8 +375,9 @@ public class CartServiceTests
             PromoRepository = new FakePromoRepository();
             CartRepository = new FakeCartRepository(ProductRepository.FindById);
 
+            var guestSessionRepository = new GuestSessionRepository(_dbContext);
             var guestSessionService = new GuestSessionService(
-                _dbContext,
+                guestSessionRepository,
                 NullLogger<GuestSessionService>.Instance);
 
             Service = new CartService(
