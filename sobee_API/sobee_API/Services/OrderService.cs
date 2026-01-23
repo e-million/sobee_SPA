@@ -4,6 +4,7 @@ using System.Linq;
 using sobee_API.Constants;
 using sobee_API.Domain;
 using sobee_API.DTOs.Orders;
+using sobee_API.Mapping;
 using sobee_API.Services.Interfaces;
 using Sobee.Domain.Entities.Orders;
 using Sobee.Domain.Entities.Payments;
@@ -38,7 +39,7 @@ public sealed class OrderService : IOrderService
             return NotFound<OrderResponse>("Order not found.", new { orderId });
         }
 
-        return ServiceResult<OrderResponse>.Ok(ToOrderResponse(order));
+        return ServiceResult<OrderResponse>.Ok(order.ToOrderResponse());
     }
 
     public async Task<ServiceResult<(IReadOnlyList<OrderResponse> Orders, int TotalCount)>> GetUserOrdersAsync(
@@ -58,7 +59,7 @@ public sealed class OrderService : IOrderService
 
         var totalCount = await _orderRepository.CountUserOrdersAsync(userId);
         var orders = await _orderRepository.GetUserOrdersAsync(userId, page, pageSize);
-        var mapped = orders.Select(ToOrderResponse).ToList();
+        var mapped = orders.Select(order => order.ToOrderResponse()).ToList();
 
         return ServiceResult<(IReadOnlyList<OrderResponse>, int)>.Ok((mapped, totalCount));
     }
@@ -190,7 +191,7 @@ public sealed class OrderService : IOrderService
                 return ServiceResult<OrderResponse>.Fail("ServerError", "Checkout failed.", null);
             }
 
-            return ServiceResult<OrderResponse>.Ok(ToOrderResponse(created));
+            return ServiceResult<OrderResponse>.Ok(created.ToOrderResponse());
         }
         catch
         {
@@ -221,7 +222,7 @@ public sealed class OrderService : IOrderService
         order.StrOrderStatus = OrderStatuses.Cancelled;
         await _orderRepository.SaveChangesAsync();
 
-        return ServiceResult<OrderResponse>.Ok(ToOrderResponse(order));
+        return ServiceResult<OrderResponse>.Ok(order.ToOrderResponse());
     }
 
     public async Task<ServiceResult<OrderResponse>> PayOrderAsync(
@@ -279,7 +280,7 @@ public sealed class OrderService : IOrderService
                 return ServiceResult<OrderResponse>.Fail("ServerError", "Payment failed.", null);
             }
 
-            return ServiceResult<OrderResponse>.Ok(ToOrderResponse(updated));
+            return ServiceResult<OrderResponse>.Ok(updated.ToOrderResponse());
         }
         catch
         {
@@ -332,48 +333,7 @@ public sealed class OrderService : IOrderService
 
         await _orderRepository.SaveChangesAsync();
 
-        return ServiceResult<OrderResponse>.Ok(ToOrderResponse(order));
-    }
-
-    private static OrderResponse ToOrderResponse(Torder order)
-    {
-        var ownerType = !string.IsNullOrWhiteSpace(order.UserId) ? "user" : "guest";
-
-        var response = new OrderResponse
-        {
-            OrderId = order.IntOrderId,
-            OrderDate = order.DtmOrderDate,
-            TotalAmount = order.DecTotalAmount,
-            OrderStatus = order.StrOrderStatus,
-            OwnerType = ownerType,
-            UserId = order.UserId,
-            GuestSessionId = order.SessionId,
-            SubtotalAmount = order.DecSubtotalAmount,
-            DiscountAmount = order.DecDiscountAmount,
-            DiscountPercentage = order.DecDiscountPercentage,
-            PromoCode = order.StrPromoCode
-        };
-
-        if (order.TorderItems != null)
-        {
-            foreach (var item in order.TorderItems)
-            {
-                var qty = item.IntQuantity ?? 0;
-                var unit = item.MonPricePerUnit ?? (item.IntProduct?.DecPrice ?? 0m);
-
-                response.Items.Add(new OrderItemResponse
-                {
-                    OrderItemId = item.IntOrderItemId,
-                    ProductId = item.IntProductId,
-                    ProductName = item.IntProduct?.StrName,
-                    UnitPrice = unit,
-                    Quantity = qty,
-                    LineTotal = qty * unit
-                });
-            }
-        }
-
-        return response;
+        return ServiceResult<OrderResponse>.Ok(order.ToOrderResponse());
     }
 
     private static ServiceResult<T> NotFound<T>(string message, object? data)

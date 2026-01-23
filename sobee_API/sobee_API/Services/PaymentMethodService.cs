@@ -1,5 +1,6 @@
 using sobee_API.Domain;
 using sobee_API.DTOs.Payments;
+using sobee_API.Mapping;
 using sobee_API.Services.Interfaces;
 using Sobee.Domain.Repositories;
 
@@ -18,11 +19,7 @@ public sealed class PaymentMethodService : IPaymentMethodService
     {
         var methods = await _paymentRepository.GetMethodsAsync();
         var response = methods
-            .Select(method => new PaymentMethodResponseDto
-            {
-                PaymentMethodId = method.IntPaymentMethodId,
-                Description = method.StrDescription
-            })
+            .Select(method => method.ToPaymentMethodResponseDto())
             .ToList();
 
         return ServiceResult<IReadOnlyList<PaymentMethodResponseDto>>.Ok(response);

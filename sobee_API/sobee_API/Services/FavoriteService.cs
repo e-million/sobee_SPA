@@ -1,5 +1,6 @@
 using sobee_API.Domain;
 using sobee_API.DTOs.Favorites;
+using sobee_API.Mapping;
 using sobee_API.Services.Interfaces;
 using Sobee.Domain.Entities.Reviews;
 using Sobee.Domain.Repositories;
@@ -40,7 +41,7 @@ public sealed class FavoriteService : IFavoriteService
         {
             UserId = userId,
             Count = items.Count,
-            Favorites = items.Select(MapFavorite).ToList(),
+            Favorites = items.Select(favorite => favorite.ToFavoriteItemDto()).ToList(),
             TotalCount = totalCount
         };
 
@@ -111,14 +112,6 @@ public sealed class FavoriteService : IFavoriteService
             ProductId = productId
         });
     }
-
-    private static FavoriteItemDto MapFavorite(Tfavorite favorite)
-        => new()
-        {
-            FavoriteId = favorite.IntFavoriteId,
-            ProductId = favorite.IntProductId,
-            Added = favorite.DtmDateAdded
-        };
 
     private static ServiceResult<T> NotFound<T>(string message, object? data)
         => ServiceResult<T>.Fail("NotFound", message, data);

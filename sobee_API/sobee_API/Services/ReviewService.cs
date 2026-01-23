@@ -1,5 +1,6 @@
 using sobee_API.Domain;
 using sobee_API.DTOs.Reviews;
+using sobee_API.Mapping;
 using sobee_API.Services.Interfaces;
 using Sobee.Domain.Entities.Reviews;
 using Sobee.Domain.Repositories;
@@ -62,7 +63,7 @@ public sealed class ReviewService : IReviewService
 
         foreach (var review in reviews)
         {
-            response.Reviews.Add(MapReview(review));
+            response.Reviews.Add(review.ToReviewResponseDto());
         }
 
         return ServiceResult<ReviewListResponseDto>.Ok(response);
@@ -232,37 +233,6 @@ public sealed class ReviewService : IReviewService
             Message = "Reply deleted.",
             ReplyId = replyId
         });
-    }
-
-    private static ReviewResponseDto MapReview(Treview review)
-    {
-        var response = new ReviewResponseDto
-        {
-            ReviewId = review.IntReviewId,
-            ProductId = review.IntProductId,
-            Rating = review.IntRating,
-            ReviewText = review.StrReviewText,
-            Created = review.DtmReviewDate,
-            UserId = review.UserId,
-            SessionId = review.SessionId
-        };
-
-        if (review.TReviewReplies != null)
-        {
-            response.Replies = review.TReviewReplies
-                .OrderBy(reply => reply.created_at)
-                .Select(reply => new ReviewReplyDto
-                {
-                    ReplyId = reply.IntReviewReplyID,
-                    ReviewId = reply.IntReviewId,
-                    Content = reply.content,
-                    Created = reply.created_at,
-                    UserId = reply.UserId
-                })
-                .ToList();
-        }
-
-        return response;
     }
 
     private static ServiceResult<T> NotFound<T>(string message, object? data)

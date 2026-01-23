@@ -3,6 +3,7 @@ using System.Linq;
 using sobee_API.Domain;
 using sobee_API.DTOs.Cart;
 using sobee_API.DTOs.Products;
+using sobee_API.Mapping;
 using sobee_API.Services.Interfaces;
 using Sobee.Domain.Entities.Products;
 using Sobee.Domain.Repositories;
@@ -49,19 +50,7 @@ public sealed class ProductService : IProductService
             Page = page,
             PageSize = pageSize,
             TotalCount = totalCount,
-            Items = items.Select(p => new ProductListDto
-            {
-                Id = p.IntProductId,
-                Name = p.StrName,
-                Description = p.strDescription,
-                Price = p.DecPrice,
-                Cost = isAdmin ? p.DecCost : null,
-                InStock = p.IntStockAmount > 0,
-                PrimaryImageUrl = GetPrimaryImageUrl(p),
-                StockAmount = isAdmin ? p.IntStockAmount : null,
-                Category = p.IntDrinkCategory?.StrName,
-                CategoryId = p.IntDrinkCategoryId
-            }).ToList()
+            Items = items.Select(p => p.ToProductListDto(isAdmin)).ToList()
         };
 
         return ServiceResult<ProductListResponseDto>.Ok(response);
@@ -75,7 +64,7 @@ public sealed class ProductService : IProductService
             return NotFound<ProductDetailDto>("Product not found.", null);
         }
 
-        return ServiceResult<ProductDetailDto>.Ok(ToProductDetail(product, isAdmin));
+        return ServiceResult<ProductDetailDto>.Ok(product.ToProductDetailDto(isAdmin));
     }
 
     public async Task<ServiceResult<ProductDetailDto>> CreateProductAsync(CreateProductRequest request)
@@ -93,7 +82,7 @@ public sealed class ProductService : IProductService
         await _productRepository.AddAsync(product);
         await _productRepository.SaveChangesAsync();
 
-        return ServiceResult<ProductDetailDto>.Ok(ToProductDetail(product, isAdmin: true));
+        return ServiceResult<ProductDetailDto>.Ok(product.ToProductDetailDto(isAdmin: true));
     }
 
     public async Task<ServiceResult<ProductDetailDto>> UpdateProductAsync(int productId, UpdateProductRequest request)
@@ -136,7 +125,7 @@ public sealed class ProductService : IProductService
 
         await _productRepository.SaveChangesAsync();
 
-        return ServiceResult<ProductDetailDto>.Ok(ToProductDetail(product, isAdmin: true));
+        return ServiceResult<ProductDetailDto>.Ok(product.ToProductDetailDto(isAdmin: true));
     }
 
     public async Task<ServiceResult<MessageResponseDto>> DeleteProductAsync(int productId)
@@ -178,12 +167,7 @@ public sealed class ProductService : IProductService
         await _productRepository.AddImageAsync(image);
         await _productRepository.SaveChangesAsync();
 
-        return ServiceResult<ProductImageResponseDto>.Ok(new ProductImageResponseDto
-        {
-            Id = image.IntProductImageId,
-            ProductId = image.IntProductId,
-            Url = image.StrProductImageUrl
-        });
+        return ServiceResult<ProductImageResponseDto>.Ok(image.ToProductImageResponseDto());
     }
 
     public async Task<ServiceResult<MessageResponseDto>> DeleteProductImageAsync(int productId, int imageId)
@@ -198,43 +182,6 @@ public sealed class ProductService : IProductService
         await _productRepository.SaveChangesAsync();
 
         return ServiceResult<MessageResponseDto>.Ok(new MessageResponseDto { Message = "Image deleted." });
-    }
-
-    private static ProductDetailDto ToProductDetail(Tproduct product, bool isAdmin)
-    {
-        return new ProductDetailDto
-        {
-            Id = product.IntProductId,
-            Name = product.StrName,
-            Description = product.strDescription,
-            Price = product.DecPrice,
-            InStock = product.IntStockAmount > 0,
-            StockAmount = isAdmin ? product.IntStockAmount : null,
-            Category = product.IntDrinkCategory?.StrName,
-            CategoryId = product.IntDrinkCategoryId,
-            Cost = isAdmin ? product.DecCost : null,
-            Images = (product.TproductImages ?? new List<TproductImage>())
-                .OrderBy(i => i.IntProductImageId)
-                .Select(i => new ProductImageDto
-                {
-                    Id = i.IntProductImageId,
-                    Url = i.StrProductImageUrl
-                })
-                .ToList()
-        };
-    }
-
-    private static string? GetPrimaryImageUrl(Tproduct product)
-    {
-        if (product.TproductImages == null || product.TproductImages.Count == 0)
-        {
-            return null;
-        }
-
-        return product.TproductImages
-            .OrderBy(i => i.IntProductImageId)
-            .Select(i => i.StrProductImageUrl)
-            .FirstOrDefault();
     }
 
     private static ServiceResult<T> NotFound<T>(string message, object? data)
