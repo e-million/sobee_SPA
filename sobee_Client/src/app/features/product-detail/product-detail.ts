@@ -21,6 +21,24 @@ type ReviewSummary = {
   counts: number[];
 };
 
+interface ReviewsState {
+  reviews: Review[];
+  summary: ReviewSummary;
+  page: number;
+  totalCount: number;
+  loading: boolean;
+  error: string;
+}
+
+const INITIAL_REVIEWS_STATE: ReviewsState = {
+  reviews: [],
+  summary: { total: 0, average: 0, counts: [0, 0, 0, 0, 0] },
+  page: 1,
+  totalCount: 0,
+  loading: false,
+  error: ''
+};
+
 @Component({
   selector: 'app-product-detail',
   imports: [CommonModule, FormsModule, RouterModule, MainLayout, ProductCard, StarRatingPipe],
@@ -36,13 +54,8 @@ export class ProductDetail implements OnInit {
   error = signal('');
   quantity = signal(1);
   activeTab = signal<ProductTab>('description');
-  reviews = signal<Review[]>([]);
-  reviewSummary = signal<ReviewSummary>({ total: 0, average: 0, counts: [0, 0, 0, 0, 0] });
-  reviewsPage = signal(1);
-  reviewsTotalCount = signal(0);
+  reviewsState = signal<ReviewsState>(INITIAL_REVIEWS_STATE);
   readonly reviewsPageSize = 5;
-  reviewsLoading = signal(false);
-  reviewsError = signal('');
   reviewRating = signal(5);
   reviewText = signal('');
   reviewSubmitting = signal(false);
@@ -77,10 +90,7 @@ export class ProductDetail implements OnInit {
           this.product.set(null);
           this.relatedProducts.set([]);
           this.error.set('');
-          this.reviews.set([]);
-          this.reviewSummary.set({ total: 0, average: 0, counts: [0, 0, 0, 0, 0] });
-          this.reviewsPage.set(1);
-          this.reviewsTotalCount.set(0);
+          this.reviewsState.set(INITIAL_REVIEWS_STATE);
           this.replyOpenIds.set(new Set());
           this.replyDrafts.set({});
           return;
@@ -103,11 +113,7 @@ export class ProductDetail implements OnInit {
         this.loading.set(false);
         this.quantity.set(1);
         this.activeTab.set('description');
-        this.reviews.set([]);
-        this.reviewSummary.set({ total: 0, average: 0, counts: [0, 0, 0, 0, 0] });
-        this.reviewsPage.set(1);
-        this.reviewsTotalCount.set(0);
-        this.reviewsError.set('');
+        this.reviewsState.set(INITIAL_REVIEWS_STATE);
         this.reviewText.set('');
         this.reviewRating.set(5);
         this.isFavorite.set(false);
@@ -215,18 +221,18 @@ export class ProductDetail implements OnInit {
 
     const text = this.reviewText().trim();
     if (!text) {
-      this.reviewsError.set('Please add a review message.');
+      this.reviewsState.update(state => ({ ...state, error: 'Please add a review message.' }));
       return;
     }
 
     const rating = this.reviewRating();
     if (rating < 1 || rating > 5) {
-      this.reviewsError.set('Select a rating between 1 and 5.');
+      this.reviewsState.update(state => ({ ...state, error: 'Select a rating between 1 and 5.' }));
       return;
     }
 
     this.reviewSubmitting.set(true);
-    this.reviewsError.set('');
+    this.reviewsState.update(state => ({ ...state, error: '' }));
 
     this.reviewService.createReview(product.id, {
       rating,
@@ -241,7 +247,10 @@ export class ProductDetail implements OnInit {
       },
       error: () => {
         this.reviewSubmitting.set(false);
-        this.reviewsError.set('Unable to submit review. Make sure you are signed in.');
+        this.reviewsState.update(state => ({
+          ...state,
+          error: 'Unable to submit review. Make sure you are signed in.'
+        }));
       }
     });
   }
@@ -336,56 +345,60 @@ export class ProductDetail implements OnInit {
 
   submitReply(review: Review) {
     if (!this.canReply(review)) {
-      this.reviewsError.set('You are not allowed to reply to this review.');
+      this.reviewsState.update(state => ({ ...state, error: 'You are not allowed to reply to this review.' }));
       return;
     }
 
     const content = this.getReplyDraft(review.reviewId).trim();
     if (!content) {
-      this.reviewsError.set('Please enter a reply.');
+      this.reviewsState.update(state => ({ ...state, error: 'Please enter a reply.' }));
       return;
     }
 
     this.replySubmitting.set(true);
-    this.reviewsError.set('');
+    this.reviewsState.update(state => ({ ...state, error: '' }));
 
     this.reviewService.createReply(review.reviewId, { content }).subscribe({
       next: () => {
         this.replySubmitting.set(false);
         this.setReplyDraft(review.reviewId, '');
         this.toggleReply(review.reviewId);
-        this.loadReviews(review.productId, this.reviewsPage());
+        this.loadReviews(review.productId, this.reviewsState().page);
         this.toastService.success('Reply posted.');
       },
       error: () => {
         this.replySubmitting.set(false);
-        this.reviewsError.set('Unable to post reply.');
+        this.reviewsState.update(state => ({ ...state, error: 'Unable to post reply.' }));
       }
     });
   }
 
-  private loadReviews(productId: number, page = this.reviewsPage()) {
-    this.reviewsLoading.set(true);
-    this.reviewsError.set('');
-    this.reviewsPage.set(page);
+  private loadReviews(productId: number, page = this.reviewsState().page) {
+    this.reviewsState.update(state => ({
+      ...state,
+      loading: true,
+      error: '',
+      page
+    }));
 
     this.reviewService.getReviews(productId, page, this.reviewsPageSize).subscribe({
       next: (response) => {
-        this.reviews.set(response.reviews);
         const totalCount = response.totalCount ?? response.summary?.total ?? response.reviews.length;
-        this.reviewsTotalCount.set(totalCount);
-        if (response.summary) {
-          this.reviewSummary.set(response.summary);
-        } else {
-          this.reviewSummary.set(this.buildReviewSummary(response.reviews));
-        }
-        this.reviewsLoading.set(false);
+        const summary = response.summary ?? this.buildReviewSummary(response.reviews);
+        this.reviewsState.update(state => ({
+          ...state,
+          reviews: response.reviews,
+          summary,
+          totalCount,
+          loading: false
+        }));
       },
       error: () => {
-        this.reviewsError.set('Unable to load reviews.');
-        this.reviewSummary.set({ total: 0, average: 0, counts: [0, 0, 0, 0, 0] });
-        this.reviewsTotalCount.set(0);
-        this.reviewsLoading.set(false);
+        this.reviewsState.set({
+          ...INITIAL_REVIEWS_STATE,
+          page,
+          error: 'Unable to load reviews.'
+        });
       }
     });
   }
@@ -425,7 +438,7 @@ export class ProductDetail implements OnInit {
   }
 
   getReviewRatingRows(): { label: string; count: number; stars: number }[] {
-    const summary = this.reviewSummary();
+    const summary = this.reviewsState().summary;
     return [5, 4, 3, 2, 1].map(stars => ({
       stars,
       label: `${stars} star${stars === 1 ? '' : 's'}`,
@@ -434,7 +447,7 @@ export class ProductDetail implements OnInit {
   }
 
   getReviewRatingWidth(count: number): number {
-    const total = this.reviewSummary().total;
+    const total = this.reviewsState().summary.total;
     if (total === 0) {
       return 0;
     }
@@ -442,7 +455,7 @@ export class ProductDetail implements OnInit {
   }
 
   get reviewsTotalPages(): number {
-    const total = this.reviewsTotalCount();
+    const total = this.reviewsState().totalCount;
     if (total === 0) {
       return 1;
     }
@@ -450,19 +463,19 @@ export class ProductDetail implements OnInit {
   }
 
   get reviewsRangeStart(): number {
-    const total = this.reviewsTotalCount();
+    const total = this.reviewsState().totalCount;
     if (total === 0) {
       return 0;
     }
-    return (this.reviewsPage() - 1) * this.reviewsPageSize + 1;
+    return (this.reviewsState().page - 1) * this.reviewsPageSize + 1;
   }
 
   get reviewsRangeEnd(): number {
-    const total = this.reviewsTotalCount();
+    const total = this.reviewsState().totalCount;
     if (total === 0) {
       return 0;
     }
-    return Math.min(total, this.reviewsPage() * this.reviewsPageSize);
+    return Math.min(total, this.reviewsState().page * this.reviewsPageSize);
   }
 
   goToReviewPage(page: number) {
@@ -473,7 +486,7 @@ export class ProductDetail implements OnInit {
 
     const totalPages = this.reviewsTotalPages;
     const nextPage = Math.max(1, Math.min(totalPages, page));
-    if (nextPage === this.reviewsPage()) {
+    if (nextPage === this.reviewsState().page) {
       return;
     }
 
