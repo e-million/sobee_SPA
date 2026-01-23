@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using sobee_API.Domain;
 using sobee_API.DTOs.Common;
+using sobee_API.Extensions;
 
 namespace sobee_API.Controllers
 {
@@ -29,27 +30,6 @@ namespace sobee_API.Controllers
             => StatusCode(StatusCodes.Status500InternalServerError, new ApiErrorResponse(message, code, details));
 
         protected IActionResult FromServiceResult<T>(ServiceResult<T> result)
-        {
-            if (result.Success)
-            {
-                return Ok(result.Value);
-            }
-
-            var code = result.ErrorCode ?? "ServerError";
-            var message = result.ErrorMessage ?? "An unexpected error occurred.";
-
-            return code switch
-            {
-                "NotFound" => NotFoundError(message, code, result.ErrorData),
-                "ValidationError" => BadRequestError(message, code, result.ErrorData),
-                "InvalidPromo" => BadRequestError(message, code, result.ErrorData),
-                "Unauthorized" => UnauthorizedError(message, code, result.ErrorData),
-                "Forbidden" => ForbiddenError(message, code, result.ErrorData),
-                "Conflict" => ConflictError(message, code, result.ErrorData),
-                "InsufficientStock" => ConflictError(message, code, result.ErrorData),
-                "InvalidStatusTransition" => ConflictError(message, code, result.ErrorData),
-                _ => ServerError(message, code, result.ErrorData)
-            };
-        }
+            => result.ToActionResult(this);
     }
 }
