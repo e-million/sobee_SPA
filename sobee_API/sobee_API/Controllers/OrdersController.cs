@@ -6,6 +6,7 @@ using Sobee.Domain.Data;
 using Sobee.Domain.Entities.Cart;
 using Sobee.Domain.Entities.Orders;
 using sobee_API.Constants;
+using sobee_API.Domain;
 using sobee_API.DTOs.Common;
 using sobee_API.DTOs.Orders;
 using sobee_API.Services;
@@ -133,7 +134,7 @@ namespace sobee_API.Controllers
                 return BadRequestError("Cart is empty.", "ValidationError");
 
             // Compute totals (also validates items exist)
-            decimal subtotal = 0m;
+            var lineItems = new List<CartLineItem>();
 
             foreach (var item in cart.TcartItems)
             {
@@ -151,8 +152,10 @@ namespace sobee_API.Controllers
                         "ValidationError",
                         new { cartItemId = item.IntCartItemId });
 
-                subtotal += qty * item.IntProduct.DecPrice;
+                lineItems.Add(new CartLineItem(qty, item.IntProduct.DecPrice));
             }
+
+            var subtotal = CartCalculator.CalculateSubtotal(lineItems);
 
             // Promo discount (cart-scoped)
             decimal discount = 0m;
@@ -170,13 +173,10 @@ namespace sobee_API.Controllers
 
             if (promo != null)
             {
-                discount = subtotal * (promo.DecDiscountPercentage / 100m);
-                if (discount < 0) discount = 0;
-                if (discount > subtotal) discount = subtotal;
+                discount = PromoCalculator.CalculateDiscount(subtotal, promo.DecDiscountPercentage);
             }
 
-            decimal total = subtotal - discount;
-            if (total < 0) total = 0;
+            decimal total = CartCalculator.CalculateTotal(subtotal, discount);
 
             // Transaction: validate stock + decrement stock + create order + clear cart
             using var tx = await _db.Database.BeginTransactionAsync();
@@ -189,7 +189,8 @@ namespace sobee_API.Controllers
                     var qty = cartItem.IntQuantity ?? 0;
                     var product = cartItem.IntProduct!;
 
-                    if (product.IntStockAmount < qty)
+                    var stockCheck = StockValidator.Validate(product.IntStockAmount, qty);
+                    if (!stockCheck.IsValid)
                     {
                         return ConflictError(
                             "Insufficient stock.",
@@ -306,7 +307,7 @@ namespace sobee_API.Controllers
                 ? OrderStatuses.Pending
                 : OrderStatuses.Normalize(order.StrOrderStatus);
 
-            if (!OrderStatuses.IsCancellable(currentStatus))
+            if (!OrderStatusMachine.IsCancellable(currentStatus))
             {
                 return ConflictError(
                     "Order cannot be cancelled in its current status.",
@@ -360,7 +361,7 @@ namespace sobee_API.Controllers
 
             var targetStatus = OrderStatuses.Paid;
 
-            if (!OrderStatuses.CanTransition(currentStatus, targetStatus))
+            if (!OrderStatusMachine.CanTransition(currentStatus, targetStatus))
             {
                 return ConflictError(
                     "Invalid status transition.",
@@ -431,7 +432,7 @@ namespace sobee_API.Controllers
                 ? OrderStatuses.Pending
                 : OrderStatuses.Normalize(order.StrOrderStatus);
 
-            if (!OrderStatuses.CanTransition(currentStatus, newStatus))
+            if (!OrderStatusMachine.CanTransition(currentStatus, newStatus))
             {
                 return ConflictError(
                     "Invalid status transition.",

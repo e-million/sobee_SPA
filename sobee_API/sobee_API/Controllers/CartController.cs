@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Sobee.Domain.Data;
 using Sobee.Domain.Entities.Cart;
 using Sobee.Domain.Entities.Promotions;
+using sobee_API.Domain;
 using sobee_API.DTOs;
 using sobee_API.DTOs.Cart;
 using sobee_API.DTOs.Common;
@@ -81,7 +82,8 @@ namespace sobee_API.Controllers
             if (existingItem == null)
             {
                 // Stock check for new item
-                if (request.Quantity > product.IntStockAmount)
+                var stockCheck = StockValidator.Validate(product.IntStockAmount, request.Quantity);
+                if (!stockCheck.IsValid)
                     return StockConflict(product.IntProductId, product.IntStockAmount, request.Quantity);
 
                 var newItem = new TcartItem
@@ -99,7 +101,8 @@ namespace sobee_API.Controllers
                 var newQuantity = (existingItem.IntQuantity ?? 0) + request.Quantity;
 
                 // Stock check for increment
-                if (newQuantity > product.IntStockAmount)
+                var stockCheck = StockValidator.Validate(product.IntStockAmount, newQuantity);
+                if (!stockCheck.IsValid)
                     return StockConflict(product.IntProductId, product.IntStockAmount, newQuantity);
 
                 existingItem.IntQuantity = newQuantity;
@@ -203,7 +206,8 @@ namespace sobee_API.Controllers
                         new { productId = item.IntProductId }
                     );
 
-                if (request.Quantity > product.IntStockAmount)
+                var stockCheck = StockValidator.Validate(product.IntStockAmount, request.Quantity);
+                if (!stockCheck.IsValid)
                     return StockConflict(product.IntProductId, product.IntStockAmount, request.Quantity);
 
                 item.IntQuantity = request.Quantity;
@@ -489,22 +493,17 @@ namespace sobee_API.Controllers
                 LineTotal = (i.IntQuantity ?? 0) * (i.IntProduct?.DecPrice ?? 0m)
             }).ToList();
 
-            var subtotal = items.Sum(x => x.LineTotal);
+            var lineItems = cart.TcartItems
+                .Select(i => new CartLineItem(i.IntQuantity ?? 0, i.IntProduct?.DecPrice ?? 0m));
+            var subtotal = CartCalculator.CalculateSubtotal(lineItems);
 
             // -------------------------------------------------
             // Promo (cart-scoped, most recently applied)
             // -------------------------------------------------
             var promo = await GetActivePromoForCartAsync(cart.IntShoppingCartId);
 
-            var discountAmount = 0m;
-            if (promo.DiscountPercentage > 0 && subtotal > 0)
-            {
-                discountAmount = subtotal * (promo.DiscountPercentage / 100m);
-            }
-
-            var total = subtotal - discountAmount;
-            if (total < 0)
-                total = 0;
+            var discountAmount = PromoCalculator.CalculateDiscount(subtotal, promo.DiscountPercentage);
+            var total = CartCalculator.CalculateTotal(subtotal, discountAmount);
 
             return new CartResponseDto
             {
