@@ -417,6 +417,21 @@ public class CartServiceTests
         public Task<Tproduct?> FindByIdAsync(int productId)
             => Task.FromResult(_products.TryGetValue(productId, out var product) ? product : null);
 
+        public Task<IReadOnlyList<Tproduct>> GetByIdsAsync(IEnumerable<int> productIds, bool track = true)
+        {
+            IReadOnlyList<Tproduct> products = productIds
+                .Distinct()
+                .Select(id => _products.TryGetValue(id, out var product) ? product : null)
+                .Where(product => product != null)
+                .Cast<Tproduct>()
+                .ToList();
+
+            return Task.FromResult(products);
+        }
+
+        public Task SaveChangesAsync()
+            => Task.CompletedTask;
+
         public Tproduct? FindById(int productId)
             => _products.TryGetValue(productId, out var product) ? product : null;
     }

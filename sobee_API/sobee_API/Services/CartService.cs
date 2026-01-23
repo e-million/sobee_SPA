@@ -37,6 +37,18 @@ public sealed class CartService : ICartService
         return ServiceResult<CartResponseDto>.Ok(response);
     }
 
+    public async Task<ServiceResult<CartResponseDto>> GetExistingCartAsync(string? userId, string? sessionId)
+    {
+        var cart = await FindCartAsync(userId, sessionId);
+        if (cart == null)
+        {
+            return Validation<CartResponseDto>("ValidationError", "No cart found for this owner.", null);
+        }
+
+        var response = await ProjectCartAsync(cart, userId, sessionId);
+        return ServiceResult<CartResponseDto>.Ok(response);
+    }
+
     public async Task<ServiceResult<CartResponseDto>> AddItemAsync(
         string? userId,
         string? sessionId,
