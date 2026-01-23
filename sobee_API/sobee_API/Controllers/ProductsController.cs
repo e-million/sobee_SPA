@@ -64,20 +64,38 @@ namespace sobee_API.Controllers
                     p.IntDrinkCategory.StrName == categoryTerm);
             }
 
-            // Sorting
-            query = sort switch
-            {
-                "priceAsc" => query.OrderBy(p => p.DecPrice),
-                "priceDesc" => query.OrderByDescending(p => p.DecPrice),
-                _ => query.OrderBy(p => p.IntProductId)
-            };
-
             var totalCount = await query.CountAsync();
 
-            var products = await query
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
+            var isSqlite = _db.Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true;
+            var requiresClientSort = isSqlite && (sort == "priceAsc" || sort == "priceDesc");
+            List<Tproduct> products;
+
+            if (requiresClientSort)
+            {
+                // SQLite cannot order by decimal columns; sort in memory when needed.
+                var allProducts = await query.ToListAsync();
+                var ordered = sort == "priceAsc"
+                    ? allProducts.OrderBy(p => p.DecPrice).ThenBy(p => p.IntProductId)
+                    : allProducts.OrderByDescending(p => p.DecPrice).ThenBy(p => p.IntProductId);
+                products = ordered
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToList();
+            }
+            else
+            {
+                query = sort switch
+                {
+                    "priceAsc" => query.OrderBy(p => p.DecPrice),
+                    "priceDesc" => query.OrderByDescending(p => p.DecPrice),
+                    _ => query.OrderBy(p => p.IntProductId)
+                };
+
+                products = await query
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToListAsync();
+            }
 
             var items = products.Select(p => new ProductListDto
             {

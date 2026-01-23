@@ -330,8 +330,23 @@ namespace sobee_API.Controllers
             var outOfStockCount = await _db.Tproducts.CountAsync(p => p.IntStockAmount <= 0);
             var inStockCount = await _db.Tproducts.CountAsync(p => p.IntStockAmount > 0);
             var lowStockCount = await _db.Tproducts.CountAsync(p => p.IntStockAmount > 0 && p.IntStockAmount <= lowStockThreshold);
-            var totalStockValue = await _db.Tproducts
-                .SumAsync(p => (p.DecCost ?? 0m) * p.IntStockAmount);
+            var isSqlite = _db.Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true;
+            decimal totalStockValue;
+
+            if (isSqlite)
+            {
+                // SQLite cannot SUM over decimal expressions; aggregate in memory for tests.
+                var products = await _db.Tproducts
+                    .AsNoTracking()
+                    .Select(p => new { p.DecCost, p.IntStockAmount })
+                    .ToListAsync();
+                totalStockValue = products.Sum(p => (p.DecCost ?? 0m) * p.IntStockAmount);
+            }
+            else
+            {
+                totalStockValue = await _db.Tproducts
+                    .SumAsync(p => (p.DecCost ?? 0m) * p.IntStockAmount);
+            }
 
             return Ok(new
             {

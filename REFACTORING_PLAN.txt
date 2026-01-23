@@ -676,5 +676,23 @@ COMPONENTS TO UPDATE IMPORTS (after service merge):
 
 
 ===============================================================================
+             BACKEND LAYERED REFACTOR - PHASE 0 TEST GATES
+===============================================================================
+Reference documents:
+- PHASE0_TEST_PLAN.md
+- PHASE0_RESPONSE_SCHEMAS.md
+
+Phase 0 Coverage (Baseline Behavior Lock)
+- Cart: CART-001..CART-011
+- Orders/Checkout: ORDER-001..ORDER-010
+- Products: PROD-001..PROD-012
+- Smoke: SMOKE-001..SMOKE-009
+
+Exit Gate
+- All Phase 0 tests pass (see sobee_API.Tests/Tests/Phase0*.cs)
+- Response shapes match PHASE0_RESPONSE_SCHEMAS.md
+
+
+===============================================================================
                                END OF PLAN
 ===============================================================================

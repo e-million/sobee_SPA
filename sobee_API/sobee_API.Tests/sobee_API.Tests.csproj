@@ -19,4 +19,8 @@
   <ItemGroup>
     <ProjectReference Include="..\sobee_API\sobee_API.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="TestResults\TestResults\" />
+  </ItemGroup>
 </Project>
