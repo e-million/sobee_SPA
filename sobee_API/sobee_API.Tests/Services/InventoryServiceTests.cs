@@ -95,6 +95,45 @@ public class InventoryServiceTests
             return Task.FromResult(products);
         }
 
+        public Task<(IReadOnlyList<Tproduct> Items, int TotalCount)> GetProductsAsync(
+            string? query,
+            string? category,
+            int page,
+            int pageSize,
+            string? sort,
+            bool track = false)
+        {
+            IReadOnlyList<Tproduct> products = _products.Values.ToList();
+            return Task.FromResult((products, products.Count));
+        }
+
+        public Task<Tproduct?> FindByIdWithImagesAsync(int productId, bool track = false)
+            => FindByIdAsync(productId);
+
+        public Task<bool> ExistsAsync(int productId)
+            => Task.FromResult(_products.ContainsKey(productId));
+
+        public Task<TproductImage?> FindImageAsync(int productId, int imageId)
+            => Task.FromResult<TproductImage?>(null);
+
+        public Task AddAsync(Tproduct product)
+        {
+            _products[product.IntProductId] = product;
+            return Task.CompletedTask;
+        }
+
+        public Task AddImageAsync(TproductImage image)
+            => Task.CompletedTask;
+
+        public Task RemoveAsync(Tproduct product)
+        {
+            _products.Remove(product.IntProductId);
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveImageAsync(TproductImage image)
+            => Task.CompletedTask;
+
         public Task SaveChangesAsync()
             => Task.CompletedTask;
     }
