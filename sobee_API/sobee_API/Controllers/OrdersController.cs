@@ -1,15 +1,11 @@
 ﻿// FILE: sobee_API/sobee_API/Controllers/OrdersController.cs
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Sobee.Domain.Data;
-using Sobee.Domain.Entities.Cart;
-using Sobee.Domain.Entities.Orders;
 using sobee_API.Constants;
 using sobee_API.Domain;
-using sobee_API.DTOs.Common;
 using sobee_API.DTOs.Orders;
 using sobee_API.Services;
+using sobee_API.Services.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,12 +18,12 @@ namespace sobee_API.Controllers
     [Route("api/[controller]")]
     public class OrdersController : ApiControllerBase
     {
-        private readonly SobeecoredbContext _db;
         private readonly RequestIdentityResolver _identityResolver;
+        private readonly IOrderService _orderService;
 
-        public OrdersController(SobeecoredbContext db, RequestIdentityResolver identityResolver)
+        public OrdersController(IOrderService orderService, RequestIdentityResolver identityResolver)
         {
-            _db = db;
+            _orderService = orderService;
             _identityResolver = identityResolver;
         }
 
@@ -46,22 +42,8 @@ namespace sobee_API.Controllers
             if (errorResult != null)
                 return errorResult;
 
-            var query = _db.Torders
-                .Include(o => o.TorderItems)
-                .ThenInclude(oi => oi.IntProduct)
-                .AsNoTracking()
-                .AsQueryable();
-
-            if (identity!.UserId != null)
-                query = query.Where(o => o.UserId == identity.UserId);
-            else
-                query = query.Where(o => o.SessionId == identity.GuestSessionId);
-
-            var order = await query.FirstOrDefaultAsync(o => o.IntOrderId == orderId);
-            if (order == null)
-                return NotFoundError("Order not found.", "NotFound", new { orderId });
-
-            return Ok(ToOrderResponse(order));
+            var result = await _orderService.GetOrderAsync(identity!.UserId, identity.GuestSessionId, orderId);
+            return FromServiceResult(result);
         }
 
 
@@ -72,36 +54,22 @@ namespace sobee_API.Controllers
         [Authorize]
         public async Task<IActionResult> GetMyOrders([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            if (page <= 0)
-                return BadRequestError("page must be >= 1", "ValidationError");
-
-            if (pageSize <= 0 || pageSize > 100)
-                return BadRequestError("pageSize must be between 1 and 100", "ValidationError");
-
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
             if (string.IsNullOrWhiteSpace(userId))
                 return UnauthorizedError("Missing NameIdentifier claim.", "Unauthorized");
 
-            var baseQuery = _db.Torders
-                .AsNoTracking()
-                .Where(o => o.UserId == userId);
+            var result = await _orderService.GetUserOrdersAsync(userId, page, pageSize);
+            if (!result.Success)
+            {
+                return FromServiceResult(result);
+            }
 
-            var totalCount = await baseQuery.CountAsync();
-
-            var orders = await baseQuery
-                .OrderByDescending(o => o.DtmOrderDate)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .Include(o => o.TorderItems)
-                .ThenInclude(oi => oi.IntProduct)
-                .ToListAsync();
-
-            Response.Headers["X-Total-Count"] = totalCount.ToString();
+            Response.Headers["X-Total-Count"] = result.Value.TotalCount.ToString();
             Response.Headers["X-Page"] = page.ToString();
             Response.Headers["X-Page-Size"] = pageSize.ToString();
 
-            return Ok(orders.Select(ToOrderResponse));
+            return Ok(result.Value.Orders);
         }
 
         /// <summary>
@@ -115,168 +83,8 @@ namespace sobee_API.Controllers
             if (errorResult != null)
                 return errorResult;
 
-            // Load cart for this owner (user OR guest)
-            TshoppingCart? cart =
-                identity!.UserId != null
-                    ? await _db.TshoppingCarts
-                        .Include(c => c.TcartItems)
-                        .ThenInclude(i => i.IntProduct)
-                        .FirstOrDefaultAsync(c => c.UserId == identity.UserId)
-                    : await _db.TshoppingCarts
-                        .Include(c => c.TcartItems)
-                        .ThenInclude(i => i.IntProduct)
-                        .FirstOrDefaultAsync(c => c.SessionId == identity.GuestSessionId);
-
-            if (cart == null)
-                return BadRequestError("No cart found for this owner.", "ValidationError");
-
-            if (cart.TcartItems == null || cart.TcartItems.Count == 0)
-                return BadRequestError("Cart is empty.", "ValidationError");
-
-            // Compute totals (also validates items exist)
-            var lineItems = new List<CartLineItem>();
-
-            foreach (var item in cart.TcartItems)
-            {
-                var qty = item.IntQuantity ?? 0;
-
-                if (qty <= 0)
-                    return BadRequestError(
-                        "Cart has an item with invalid quantity.",
-                        "ValidationError",
-                        new { cartItemId = item.IntCartItemId });
-
-                if (item.IntProduct == null)
-                    return BadRequestError(
-                        "Cart contains an item with missing product reference.",
-                        "ValidationError",
-                        new { cartItemId = item.IntCartItemId });
-
-                lineItems.Add(new CartLineItem(qty, item.IntProduct.DecPrice));
-            }
-
-            var subtotal = CartCalculator.CalculateSubtotal(lineItems);
-
-            // Promo discount (cart-scoped)
-            decimal discount = 0m;
-
-            var promo = await _db.TpromoCodeUsageHistories
-                .Join(_db.Tpromotions,
-                    usage => usage.PromoCode,
-                    promo => promo.StrPromoCode,
-                    (usage, promo) => new { usage, promo })
-                .Where(x => x.usage.IntShoppingCartId == cart.IntShoppingCartId &&
-                            x.promo.DtmExpirationDate > DateTime.UtcNow)
-                .OrderByDescending(x => x.usage.UsedDateTime)
-                .Select(x => x.promo)
-                .FirstOrDefaultAsync();
-
-            if (promo != null)
-            {
-                discount = PromoCalculator.CalculateDiscount(subtotal, promo.DecDiscountPercentage);
-            }
-
-            decimal total = CartCalculator.CalculateTotal(subtotal, discount);
-
-            // Transaction: validate stock + decrement stock + create order + clear cart
-            using var tx = await _db.Database.BeginTransactionAsync();
-
-            try
-            {
-                // 1) Validate stock and decrement it
-                foreach (var cartItem in cart.TcartItems)
-                {
-                    var qty = cartItem.IntQuantity ?? 0;
-                    var product = cartItem.IntProduct!;
-
-                    var stockCheck = StockValidator.Validate(product.IntStockAmount, qty);
-                    if (!stockCheck.IsValid)
-                    {
-                        return ConflictError(
-                            "Insufficient stock.",
-                            "InsufficientStock",
-                            new
-                            {
-                                productId = product.IntProductId,
-                                productName = product.StrName,
-                                requested = qty,
-                                availableStock = product.IntStockAmount
-                            });
-                    }
-
-                    product.IntStockAmount -= qty;
-                }
-
-                // 2) Create order header
-                var order = new Torder
-                {
-                    DtmOrderDate = DateTime.UtcNow,
-
-                    // pricing snapshot
-                    DecSubtotalAmount = subtotal,
-                    DecDiscountPercentage = promo?.DecDiscountPercentage,
-                    DecDiscountAmount = discount,
-                    StrPromoCode = promo?.StrPromoCode,
-                    DecTotalAmount = total,
-
-                    StrShippingAddress = request.ShippingAddress,
-                    IntPaymentMethodId = request.PaymentMethodId,
-                    StrOrderStatus = OrderStatuses.Pending,
-                    UserId = identity.UserId,
-                    SessionId = identity.GuestSessionId
-                };
-
-                _db.Torders.Add(order);
-                await _db.SaveChangesAsync(); // gets order.IntOrderId
-
-                // 3) Create order items
-                foreach (var cartItem in cart.TcartItems)
-                {
-                    var qty = cartItem.IntQuantity ?? 0;
-                    var price = cartItem.IntProduct?.DecPrice ?? 0m;
-
-                    var orderItem = new TorderItem
-                    {
-                        IntOrderId = order.IntOrderId,
-                        IntProductId = cartItem.IntProductId,
-                        IntQuantity = qty,
-                        MonPricePerUnit = price
-                    };
-
-                    _db.TorderItems.Add(orderItem);
-                }
-
-                // 4) Clear cart items
-                _db.TcartItems.RemoveRange(cart.TcartItems);
-                cart.DtmDateLastUpdated = DateTime.UtcNow;
-
-                // 4.5) Clear applied promo(s) for this cart (since order has the snapshot)
-                var appliedPromos = await _db.TpromoCodeUsageHistories
-                    .Where(p => p.IntShoppingCartId == cart.IntShoppingCartId)
-                    .ToListAsync();
-
-                if (appliedPromos.Count > 0)
-                {
-                    _db.TpromoCodeUsageHistories.RemoveRange(appliedPromos);
-                }
-
-                // 5) Persist everything: (stock changes + order + items + cart clear + promo clear)
-                await _db.SaveChangesAsync();
-                await tx.CommitAsync();
-
-                // Reload order with items for response
-                var created = await _db.Torders
-                    .Include(o => o.TorderItems)
-                    .ThenInclude(oi => oi.IntProduct)
-                    .FirstAsync(o => o.IntOrderId == order.IntOrderId);
-
-                return Ok(ToOrderResponse(created));
-            }
-            catch
-            {
-                await tx.RollbackAsync();
-                return ServerError("Checkout failed.");
-            }
+            var result = await _orderService.CheckoutAsync(identity!.UserId, identity.GuestSessionId, request);
+            return FromServiceResult(result);
         }
 
         /// <summary>
@@ -289,36 +97,8 @@ namespace sobee_API.Controllers
             if (errorResult != null)
                 return errorResult;
 
-            var query = _db.Torders
-                .Include(o => o.TorderItems)
-                .ThenInclude(oi => oi.IntProduct)
-                .AsQueryable();
-
-            if (identity!.UserId != null)
-                query = query.Where(o => o.UserId == identity.UserId);
-            else
-                query = query.Where(o => o.SessionId == identity.GuestSessionId);
-
-            var order = await query.FirstOrDefaultAsync(o => o.IntOrderId == orderId);
-            if (order == null)
-                return NotFoundError("Order not found.", "NotFound", new { orderId });
-
-            var currentStatus = string.IsNullOrWhiteSpace(order.StrOrderStatus)
-                ? OrderStatuses.Pending
-                : OrderStatuses.Normalize(order.StrOrderStatus);
-
-            if (!OrderStatusMachine.IsCancellable(currentStatus))
-            {
-                return ConflictError(
-                    "Order cannot be cancelled in its current status.",
-                    "InvalidStatusTransition",
-                    new { status = currentStatus });
-            }
-
-            order.StrOrderStatus = OrderStatuses.Cancelled;
-            await _db.SaveChangesAsync();
-
-            return Ok(ToOrderResponse(order));
+            var result = await _orderService.CancelOrderAsync(identity!.UserId, identity.GuestSessionId, orderId);
+            return FromServiceResult(result);
         }
 
 
@@ -333,78 +113,8 @@ namespace sobee_API.Controllers
             if (errorResult != null)
                 return errorResult;
 
-            var query = _db.Torders.AsQueryable();
-
-            if (identity!.UserId != null)
-                query = query.Where(o => o.UserId == identity.UserId);
-            else
-                query = query.Where(o => o.SessionId == identity.GuestSessionId);
-
-            var order = await query.FirstOrDefaultAsync(o => o.IntOrderId == orderId);
-            if (order == null)
-                return NotFoundError("Order not found.", "NotFound", new { orderId });
-
-            var paymentMethod = await _db.TpaymentMethods
-                .AsNoTracking()
-                .FirstOrDefaultAsync(pm => pm.IntPaymentMethodId == request.PaymentMethodId);
-
-            if (paymentMethod == null)
-                return NotFoundError(
-                    $"Payment method {request.PaymentMethodId} not found.",
-                    "NotFound",
-                    new { paymentMethodId = request.PaymentMethodId }
-                );
-
-            var currentStatus = string.IsNullOrWhiteSpace(order.StrOrderStatus)
-                ? OrderStatuses.Pending
-                : OrderStatuses.Normalize(order.StrOrderStatus);
-
-            var targetStatus = OrderStatuses.Paid;
-
-            if (!OrderStatusMachine.CanTransition(currentStatus, targetStatus))
-            {
-                return ConflictError(
-                    "Invalid status transition.",
-                    "InvalidStatusTransition",
-                    new
-                    {
-                        orderId,
-                        fromStatus = order.StrOrderStatus,
-                        toStatus = targetStatus
-                    }
-                );
-            }
-
-            using var tx = await _db.Database.BeginTransactionAsync();
-
-            try
-            {
-                var payment = new Sobee.Domain.Entities.Payments.Tpayment
-                {
-                    IntPaymentMethodId = paymentMethod.IntPaymentMethodId,
-                    StrBillingAddress = paymentMethod.StrBillingAddress
-                };
-
-                _db.Tpayments.Add(payment);
-
-                order.IntPaymentMethodId = paymentMethod.IntPaymentMethodId;
-                order.StrOrderStatus = targetStatus;
-
-                await _db.SaveChangesAsync();
-                await tx.CommitAsync();
-
-                var updated = await _db.Torders
-                    .Include(o => o.TorderItems)
-                    .ThenInclude(oi => oi.IntProduct)
-                    .FirstAsync(o => o.IntOrderId == order.IntOrderId);
-
-                return Ok(ToOrderResponse(updated));
-            }
-            catch
-            {
-                await tx.RollbackAsync();
-                return ServerError("Payment failed.");
-            }
+            var result = await _orderService.PayOrderAsync(identity!.UserId, identity.GuestSessionId, orderId, request);
+            return FromServiceResult(result);
         }
 
         // ---------------------------------------------------------------------
@@ -418,54 +128,8 @@ namespace sobee_API.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> UpdateOrderStatus(int orderId, [FromBody] UpdateOrderStatusRequest request)
         {
-            var newStatus = OrderStatuses.Normalize(request.Status!);
-
-            var order = await _db.Torders
-                .Include(o => o.TorderItems)
-                .ThenInclude(oi => oi.IntProduct)
-                .FirstOrDefaultAsync(o => o.IntOrderId == orderId);
-
-            if (order == null)
-                return NotFoundError("Order not found.", "NotFound", new { orderId });
-
-            var currentStatus = string.IsNullOrWhiteSpace(order.StrOrderStatus)
-                ? OrderStatuses.Pending
-                : OrderStatuses.Normalize(order.StrOrderStatus);
-
-            if (!OrderStatusMachine.CanTransition(currentStatus, newStatus))
-            {
-                return ConflictError(
-                    "Invalid status transition.",
-                    "InvalidStatusTransition",
-                    new
-                    {
-                        orderId,
-                        fromStatus = order.StrOrderStatus,
-                        toStatus = request.Status
-                    }
-                );
-            }
-
-            // Status change only. Stock already decremented at checkout.
-            order.StrOrderStatus = newStatus;
-            if (string.Equals(newStatus, OrderStatuses.Shipped, StringComparison.OrdinalIgnoreCase)
-                && order.DtmShippedDate == null)
-            {
-                order.DtmShippedDate = DateTime.UtcNow;
-            }
-
-            if (string.Equals(newStatus, OrderStatuses.Delivered, StringComparison.OrdinalIgnoreCase)
-                && order.DtmDeliveredDate == null)
-            {
-                order.DtmDeliveredDate = DateTime.UtcNow;
-                if (order.DtmShippedDate == null)
-                {
-                    order.DtmShippedDate = order.DtmDeliveredDate;
-                }
-            }
-            await _db.SaveChangesAsync();
-
-            return Ok(ToOrderResponse(order));
+            var result = await _orderService.UpdateStatusAsync(orderId, request);
+            return FromServiceResult(result);
         }
 
 
@@ -525,46 +189,27 @@ namespace sobee_API.Controllers
         //    return (null, null, "none");
         //}
 
-        private static OrderResponse ToOrderResponse(Torder order)
+        private IActionResult FromServiceResult<T>(ServiceResult<T> result)
         {
-            var ownerType = !string.IsNullOrWhiteSpace(order.UserId) ? "user" : "guest";
-
-            var resp = new OrderResponse
+            if (result.Success)
             {
-                OrderId = order.IntOrderId,
-                OrderDate = order.DtmOrderDate,
-                TotalAmount = order.DecTotalAmount,
-                OrderStatus = order.StrOrderStatus,
-                OwnerType = ownerType,
-                UserId = order.UserId,
-                GuestSessionId = order.SessionId,
-                SubtotalAmount = order.DecSubtotalAmount,
-                DiscountAmount = order.DecDiscountAmount,
-                DiscountPercentage = order.DecDiscountPercentage,
-                PromoCode = order.StrPromoCode,
-
-            };
-
-            if (order.TorderItems != null)
-            {
-                foreach (var item in order.TorderItems)
-                {
-                    var qty = item.IntQuantity ?? 0;
-                    var unit = item.MonPricePerUnit ?? (item.IntProduct?.DecPrice ?? 0m);
-
-                    resp.Items.Add(new OrderItemResponse
-                    {
-                        OrderItemId = item.IntOrderItemId,
-                        ProductId = item.IntProductId,
-                        ProductName = item.IntProduct?.StrName,
-                        UnitPrice = unit,
-                        Quantity = qty,
-                        LineTotal = qty * unit
-                    });
-                }
+                return Ok(result.Value);
             }
 
-            return resp;
+            var code = result.ErrorCode ?? "ServerError";
+            var message = result.ErrorMessage ?? "An unexpected error occurred.";
+
+            return code switch
+            {
+                "NotFound" => NotFoundError(message, code, result.ErrorData),
+                "ValidationError" => BadRequestError(message, code, result.ErrorData),
+                "Unauthorized" => UnauthorizedError(message, code, result.ErrorData),
+                "Forbidden" => ForbiddenError(message, code, result.ErrorData),
+                "Conflict" => ConflictError(message, code, result.ErrorData),
+                "InsufficientStock" => ConflictError(message, code, result.ErrorData),
+                "InvalidStatusTransition" => ConflictError(message, code, result.ErrorData),
+                _ => ServerError(message, code, result.ErrorData)
+            };
         }
 
     }
