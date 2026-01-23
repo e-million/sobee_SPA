@@ -189,28 +189,5 @@ namespace sobee_API.Controllers
         //    return (null, null, "none");
         //}
 
-        private IActionResult FromServiceResult<T>(ServiceResult<T> result)
-        {
-            if (result.Success)
-            {
-                return Ok(result.Value);
-            }
-
-            var code = result.ErrorCode ?? "ServerError";
-            var message = result.ErrorMessage ?? "An unexpected error occurred.";
-
-            return code switch
-            {
-                "NotFound" => NotFoundError(message, code, result.ErrorData),
-                "ValidationError" => BadRequestError(message, code, result.ErrorData),
-                "Unauthorized" => UnauthorizedError(message, code, result.ErrorData),
-                "Forbidden" => ForbiddenError(message, code, result.ErrorData),
-                "Conflict" => ConflictError(message, code, result.ErrorData),
-                "InsufficientStock" => ConflictError(message, code, result.ErrorData),
-                "InvalidStatusTransition" => ConflictError(message, code, result.ErrorData),
-                _ => ServerError(message, code, result.ErrorData)
-            };
-        }
-
     }
 }

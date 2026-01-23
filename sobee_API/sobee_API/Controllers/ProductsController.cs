@@ -1,8 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using sobee_API.Domain;
-using sobee_API.DTOs.Common;
 using sobee_API.DTOs.Products;
 using sobee_API.Services.Interfaces;
 
@@ -10,7 +7,7 @@ namespace sobee_API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class ProductsController : ControllerBase
+    public class ProductsController : ApiControllerBase
     {
         private readonly IProductService _productService;
 
@@ -128,26 +125,5 @@ namespace sobee_API.Controllers
             return User?.Identity?.IsAuthenticated == true && User.IsInRole("Admin");
         }
 
-        private IActionResult FromServiceResult<T>(ServiceResult<T> result)
-        {
-            if (result.Success)
-            {
-                return Ok(result.Value);
-            }
-
-            var code = result.ErrorCode ?? "ServerError";
-            var message = result.ErrorMessage ?? "An unexpected error occurred.";
-
-            return code switch
-            {
-                "NotFound" => NotFound(new ApiErrorResponse(message, code, result.ErrorData)),
-                "ValidationError" => BadRequest(new ApiErrorResponse(message, code, result.ErrorData)),
-                "Unauthorized" => Unauthorized(new ApiErrorResponse(message, code, result.ErrorData)),
-                "Forbidden" => StatusCode(StatusCodes.Status403Forbidden, new ApiErrorResponse(message, code, result.ErrorData)),
-                "Conflict" => Conflict(new ApiErrorResponse(message, code, result.ErrorData)),
-                "InsufficientStock" => Conflict(new ApiErrorResponse(message, code, result.ErrorData)),
-                _ => StatusCode(StatusCodes.Status500InternalServerError, new ApiErrorResponse(message, code, result.ErrorData))
-            };
-        }
     }
 }
