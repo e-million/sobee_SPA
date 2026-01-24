@@ -1,0 +1,607 @@
+FEATURE AUDIT FINDINGS - Sobee E-commerce Codebase
+Generated: 2026-01-23
+
+1) Repo Overview
+- Backend projects:
+  - sobee_API/sobee_API (ASP.NET Core Web API)
+  - sobee_API/Sobee.Domain (EF Core entities + repositories)
+  - sobee_API/sobee_API.Tests (xUnit test project)
+- Frontend projects:
+  - sobee_Client (Angular v19 workspace)
+- Key folders/files:
+  - sobee_API/sobee_API/Controllers
+  - sobee_API/sobee_API/Services
+  - sobee_API/Sobee.Domain/Repositories
+  - sobee_API/Sobee.Domain/Entities
+  - sobee_Client/src/app/features
+  - sobee_Client/src/app/core (services/guards/interceptors)
+- DbContexts:
+  - Sobee.Domain.Data.SobeecoredbContext (domain tables) - sobee_API/Sobee.Domain/Data/SobeecoredbContext.cs
+  - Sobee.Domain.Data.ApplicationDbContext (Identity) - sobee_API/Sobee.Domain/Data/ApplicationDbContext.cs
+- Auth approach:
+  - ASP.NET Identity + MapIdentityApi endpoints (/login, /register, /refresh) in sobee_API/sobee_API/Program.cs
+  - Custom registration endpoint /api/auth/register in sobee_API/sobee_API/Controllers/AuthController.cs
+- Cart approach:
+  - Guest session headers (X-Session-Id/X-Session-Secret) via GuestSessionService and RequestIdentityResolver
+  - Merge guest cart -> user cart in CartService.GetOrCreateCartAsync
+- Order approach:
+  - OrderService.CheckoutAsync creates order from cart, applies promo snapshot, decrements inventory, writes order items
+  - Order status transitions via OrderStatusMachine
+- Admin approach:
+  - Admin dashboard + analytics controllers under /api/admin and /api/admin/analytics, role-gated
+
+2) Feature Audit Matrix
+
+A) Product Catalog
+
+[CAT-001] Product listing (pagination, sorting, filtering)
+Status: PARTIAL
+Evidence:
+- Backend: GET /api/products in sobee_API/Controllers/ProductsController.cs (GetProducts)
+- Frontend: sobee_Client/src/app/core/services/product.service.ts (getProducts uses search/category/min/max)
+- DB: Sobee.Domain.Entities.Products.Tproduct (DecPrice, IntDrinkCategoryId)
+Notes:
+- Backend supports paging and sort params (page/pageSize/sort), but frontend only exposes filters and returns items without paging.
+Next steps:
+- Add paging/sorting UI and pass page/pageSize/sort in sobee_Client product queries.
+- Return PaginatedResponse metadata to UI instead of discarding it.
+
+[CAT-002] Product detail
+Status: IMPLEMENTED
+Evidence:
+- Backend: GET /api/products/{id} in sobee_API/Controllers/ProductsController.cs (GetProduct)
+- Frontend: sobee_Client/src/app/features/product-detail/product-detail.ts
+- DB: Tproduct + TproductImage relations in SobeecoredbContext
+Notes:
+- Includes images via FindByIdWithImagesAsync.
+Next steps:
+- None.
+
+[CAT-003] Categories
+Status: PARTIAL
+Evidence:
+- Backend: TdrinkCategory entity in sobee_API/Sobee.Domain/Entities/Products/TdrinkCategory.cs
+- Frontend: product.service.ts calls GET /categories (sobee_Client/src/app/core/services/product.service.ts)
+- DB: DbSet<TdrinkCategory> in SobeecoredbContext
+Notes:
+- No CategoriesController or /api/categories endpoint found; frontend expects it.
+Next steps:
+- Add Categories API endpoint or update frontend to source categories from existing data.
+
+[CAT-004] Product images (storage + serving + UI)
+Status: PARTIAL
+Evidence:
+- Backend: POST /api/products/{id}/images and DELETE /api/products/{id}/images/{imageId} in ProductsController
+- DB: TproductImage (Sobee.Domain.Entities.Products.TproductImage)
+- Frontend: product detail uses product images (sobee_Client/src/app/features/product-detail)
+Notes:
+- Images are stored as URLs; no upload/storage pipeline observed.
+Next steps:
+- Add file upload/storage integration if needed (S3/Azure Blob/local).
+
+[CAT-005] Inventory/stock tracking
+Status: IMPLEMENTED
+Evidence:
+- Backend: Tproduct.IntStockAmount; StockValidator in sobee_API/Domain/StockValidator.cs
+- Services: CartService stock checks; InventoryService decrement in OrderService.CheckoutAsync
+- Frontend: Admin product update uses stockAmount field (admin products feature)
+Notes:
+- Stock is validated on add/update and decremented on checkout.
+Next steps:
+- None.
+
+[CAT-006] Price + discounts
+Status: PARTIAL
+Evidence:
+- Backend: CartCalculator + PromoCalculator in sobee_API/Domain
+- Promotions: Tpromotion + TpromoCodeUsageHistory entities
+- CartService.ApplyPromoAsync and OrderService.CheckoutAsync use promo snapshots
+Notes:
+- Discounts apply via promo codes; no product-level discount fields found.
+Next steps:
+- Add product-level discount support if required.
+
+[CAT-007] Active/inactive product visibility
+Status: MISSING
+Evidence:
+- DB: Tproduct has no IsActive/IsVisible flag
+- Backend: ProductsController does not filter on active status
+Notes:
+- No mechanism to hide inactive products.
+Next steps:
+- Add IsActive flag to Tproduct + filter in product queries.
+
+B) Shopping Cart
+
+[CART-001] Guest cart support (session/header-based)
+Status: IMPLEMENTED
+Evidence:
+- Backend: CartController uses RequestIdentityResolver; GuestSessionService (sobee_API/sobee_API/Services)
+- Frontend: guest-session.interceptor.ts sets X-Session-Id/X-Session-Secret
+- DB: GuestSessions table in SobeecoredbContext
+Notes:
+- Guest sessions are created and rotated by the API.
+Next steps:
+- None.
+
+[CART-002] Authenticated cart (DB-backed)
+Status: IMPLEMENTED
+Evidence:
+- Backend: TshoppingCart with UserId in Sobee.Domain.Entities.Cart.TshoppingCart
+- Services: CartService uses FindByUserIdAsync
+Notes:
+- User cart stored in DB.
+Next steps:
+- None.
+
+[CART-003] Cart persistence across sessions
+Status: PARTIAL
+Evidence:
+- Backend: TshoppingCart has UserId; GuestSessions have expiry fields
+Notes:
+- Auth carts persist; guest carts depend on session headers and expiration.
+Next steps:
+- Define guest cart expiration policy in API docs/logic if needed.
+
+[CART-004] Merge guest cart -> user cart on login
+Status: IMPLEMENTED
+Evidence:
+- Backend: CartService.GetOrCreateCartAsync merges session cart into user cart
+- Frontend: AuthService leaves guest session until first cart fetch (sobee_Client/src/app/core/services/auth.service.ts)
+Notes:
+- Merge happens server-side.
+Next steps:
+- None.
+
+[CART-005] Quantity updates / remove item
+Status: IMPLEMENTED
+Evidence:
+- Backend: PUT /api/cart/items/{cartItemId}, DELETE /api/cart/items/{cartItemId} in CartController
+- Frontend: cart.service.ts updateItem/removeItem
+- DB: TcartItem
+Notes:
+- Full CRUD for cart items.
+Next steps:
+- None.
+
+[CART-006] Correct totals (subtotal/tax/discount/total)
+Status: PARTIAL
+Evidence:
+- Backend: CartCalculator.CalculateSubtotal/CalculateTotal; PromoCalculator.CalculateDiscount
+- CartResponseDto includes Subtotal/Discount/Total in CartService.ProjectCartAsync
+Notes:
+- Tax is not implemented; only subtotal/discount/total.
+Next steps:
+- Add tax calculation if required.
+
+[CART-007] Server-side validation of price and inventory at add/checkout
+Status: PARTIAL
+Evidence:
+- Backend: StockValidator used in CartService.AddItemAsync/UpdateItemAsync
+- Backend: InventoryService.ValidateAndDecrementAsync in OrderService.CheckoutAsync
+Notes:
+- Inventory is validated; pricing validation relies on DB product price at time of cart projection and checkout.
+Next steps:
+- Add explicit server-side price validation if pricing can change after cart creation.
+
+C) Checkout & Orders
+
+[ORD-001] Checkout flow (addresses -> review -> submit)
+Status: PARTIAL
+Evidence:
+- Frontend: sobee_Client/src/app/features/checkout/checkout.ts
+- Backend: POST /api/orders/checkout in OrdersController
+Notes:
+- Backend only accepts ShippingAddress and PaymentMethodId; no explicit review step in API.
+Next steps:
+- Add full checkout workflow steps if needed (billing, review, confirmation).
+
+[ORD-002] Billing + shipping addresses
+Status: PARTIAL
+Evidence:
+- Backend: CheckoutRequest only includes ShippingAddress (sobee_API/DTOs/Orders/CheckoutRequest.cs)
+- DB: ApplicationUser includes strBillingAddress/strShippingAddress
+Notes:
+- Billing address stored on user profile, not on order.
+Next steps:
+- Add billing address to checkout and order persistence if required.
+
+[ORD-003] Order creation from cart
+Status: IMPLEMENTED
+Evidence:
+- Backend: OrderService.CheckoutAsync creates Torder from cart items
+- DB: Torder/TorderItem entities
+Notes:
+- Cart is cleared after order creation.
+Next steps:
+- None.
+
+[ORD-004] Order items snapshot pricing at purchase time
+Status: IMPLEMENTED
+Evidence:
+- Backend: OrderService.CheckoutAsync writes TorderItem.MonPricePerUnit from product price
+- DB: TorderItem.MonPricePerUnit
+Notes:
+- Order items capture price at purchase.
+Next steps:
+- None.
+
+[ORD-005] Order status tracking (Pending/Paid/Shipped/Cancelled/etc.)
+Status: IMPLEMENTED
+Evidence:
+- Backend: OrderStatuses + OrderStatusMachine in sobee_API/Constants and Domain
+- Controllers: OrdersController.UpdateOrderStatus (admin) and CancelOrder/PayOrder
+Notes:
+- Status transitions are validated.
+Next steps:
+- None.
+
+[ORD-006] User order history
+Status: IMPLEMENTED
+Evidence:
+- Backend: GET /api/orders/my in OrdersController
+- Frontend: sobee_Client/src/app/features/orders/orders.ts
+Notes:
+- Pagination via X-Total-Count headers.
+Next steps:
+- None.
+
+[ORD-007] Admin order management (view/update status)
+Status: IMPLEMENTED
+Evidence:
+- Backend: PATCH /api/orders/{id}/status in OrdersController (Admin)
+- Frontend: sobee_Client/src/app/features/admin/orders/admin-orders.ts
+Notes:
+- Uses AdminService.updateOrderStatus.
+Next steps:
+- None.
+
+D) Auth & Authorization
+
+[AUTH-001] Registration
+Status: IMPLEMENTED
+Evidence:
+- Backend: POST /api/auth/register in sobee_API/Controllers/AuthController.cs
+- Frontend: sobee_Client/src/app/features/auth/register
+- DB: ApplicationUser in Sobee.Domain.Identity
+Notes:
+- Registration endpoint does not issue tokens; Identity /login does.
+Next steps:
+- None.
+
+[AUTH-002] Login/logout
+Status: IMPLEMENTED
+Evidence:
+- Backend: MapIdentityApi /login in Program.cs
+- Frontend: AuthService.login/logout in sobee_Client/src/app/core/services/auth.service.ts
+Notes:
+- Tokens stored in localStorage.
+Next steps:
+- None.
+
+[AUTH-003] Password reset / forgot password
+Status: MISSING
+Evidence:
+- Frontend: ForgotPassword/ResetPassword routes exist (sobee_Client/src/app/app.routes.ts)
+- Backend: No /forgotPassword or /resetPassword endpoints found
+Notes:
+- Frontend calls endpoints that do not exist.
+Next steps:
+- Implement backend password reset flow or remove UI endpoints.
+
+[AUTH-004] Role-based authorization (Admin/Customer/Staff)
+Status: PARTIAL
+Evidence:
+- Backend: [Authorize(Roles="Admin")] on admin controllers
+- Backend: Role seeding in RoleSeedService + IdentitySeedService
+- Frontend: adminGuard in sobee_Client/src/app/core/guards/admin.guard.ts
+Notes:
+- Admin/User roles present; no Staff role found.
+Next steps:
+- Add Staff role if required.
+
+[AUTH-005] 401 vs 403 correctness
+Status: PARTIAL
+Evidence:
+- Backend: [Authorize] attributes, ApiControllerBase uses error helpers
+Notes:
+- Not explicitly tested for 401/403 behavior per endpoint.
+Next steps:
+- Add tests for authz failures (401 vs 403) on admin endpoints.
+
+[AUTH-006] Token expiry handling and logout flow
+Status: IMPLEMENTED
+Evidence:
+- Frontend: token-refresh.interceptor.ts retries on 401 using refresh token
+- Backend: MapIdentityApi /refresh in Program.cs
+Notes:
+- Logout clears tokens and cart client-side.
+Next steps:
+- None.
+
+[AUTH-007] Refresh tokens
+Status: IMPLEMENTED
+Evidence:
+- Frontend: AuthService.refreshToken uses /refresh
+- Backend: MapIdentityApi<ApplicationUser>() exposes /refresh
+Notes:
+- Identity API handles refresh token issuance.
+Next steps:
+- None.
+
+E) User Account
+
+[ACC-001] Profile page
+Status: IMPLEMENTED
+Evidence:
+- Backend: GET /api/users/profile in UsersController
+- Frontend: sobee_Client/src/app/features/account/account.ts
+Notes:
+- Returns name/email/addresses.
+Next steps:
+- None.
+
+[ACC-002] Saved addresses
+Status: IMPLEMENTED
+Evidence:
+- Backend: UsersController.UpdateProfile updates billing/shipping
+- DB: ApplicationUser.strBillingAddress/strShippingAddress
+Notes:
+- Addresses are tied to user profile.
+Next steps:
+- None.
+
+[ACC-003] View order history
+Status: IMPLEMENTED
+Evidence:
+- Backend: GET /api/orders/my
+- Frontend: sobee_Client/src/app/features/orders/orders.ts
+Notes:
+- Pagination supported via headers.
+Next steps:
+- None.
+
+[ACC-004] Update personal info
+Status: IMPLEMENTED
+Evidence:
+- Backend: PUT /api/users/profile in UsersController
+- Frontend: account feature forms
+Notes:
+- Validation handled in UsersController.
+Next steps:
+- None.
+
+F) Admin
+
+[ADMIN-001] Admin dashboard metrics (total orders, revenue, charts)
+Status: IMPLEMENTED
+Evidence:
+- Backend: AdminController + AdminAnalyticsController
+- Services: AdminDashboardService, AdminAnalyticsService
+- Frontend: sobee_Client/src/app/features/admin/dashboard/admin-dashboard.ts
+Notes:
+- Analytics endpoints exist; rate limiting configured.
+Next steps:
+- None.
+
+[ADMIN-002] Product CRUD + Category CRUD
+Status: PARTIAL
+Evidence:
+- Backend: ProductsController admin CRUD endpoints
+- Frontend: admin-products component
+- DB: Tproduct + TproductImage + TdrinkCategory
+Notes:
+- Category CRUD endpoints not found.
+Next steps:
+- Add admin category CRUD endpoints or remove UI expectations.
+
+[ADMIN-003] Inventory updates
+Status: IMPLEMENTED
+Evidence:
+- Backend: ProductService.UpdateProductAsync handles StockAmount
+- Frontend: admin-products form uses stock fields
+Notes:
+- Stock updates through product update.
+Next steps:
+- None.
+
+[ADMIN-004] Order management
+Status: IMPLEMENTED
+Evidence:
+- Backend: PATCH /api/orders/{id}/status (Admin)
+- Frontend: admin-orders component uses AdminService.updateOrderStatus
+Notes:
+- Status transitions validated in OrderService.
+Next steps:
+- None.
+
+[ADMIN-005] User role management
+Status: IMPLEMENTED
+Evidence:
+- Backend: AdminUsersController.UpdateAdminRole
+- Frontend: admin-users component
+Notes:
+- Supports Admin/User role assignment.
+Next steps:
+- None.
+
+[ADMIN-006] Soft delete/archival behavior
+Status: MISSING
+Evidence:
+- Backend: ProductsController.DeleteProductAsync deletes rows; no IsDeleted flags found
+Notes:
+- Deletes appear hard-delete.
+Next steps:
+- Add soft-delete flags and filters if required.
+
+G) Architecture & Quality
+
+[QUAL-001] Layered architecture boundaries (Controllers/Services/Repos/Domain)
+Status: IMPLEMENTED
+Evidence:
+- Controllers call services (e.g., CartController -> ICartService)
+- Services call repositories (e.g., CartService -> ICartRepository)
+- Repos in Sobee.Domain/Repositories
+Notes:
+- Architecture aligned with layered pattern.
+Next steps:
+- None.
+
+[QUAL-002] DTO usage (no EF entities exposed)
+Status: IMPLEMENTED
+Evidence:
+- DTOs in sobee_API/DTOs and mapping in sobee_API/Mapping
+- Controllers return DTOs via ServiceResult
+Notes:
+- Entity to DTO mapping is centralized.
+Next steps:
+- None.
+
+[QUAL-003] Validation strategy
+Status: IMPLEMENTED
+Evidence:
+- FluentValidation validators in sobee_API/Validation
+- Program.cs AddFluentValidationAutoValidation
+Notes:
+- Model validation errors mapped in ApiBehaviorOptions
+Next steps:
+- None.
+
+[QUAL-004] Centralized exception handling
+Status: IMPLEMENTED
+Evidence:
+- Program.cs UseExceptionHandler for prod, DeveloperExceptionPage in dev
+- ApiControllerBase and ServiceResultExtensions map errors
+Notes:
+- Consistent error response types.
+Next steps:
+- None.
+
+[QUAL-005] Logging (structured logs)
+Status: IMPLEMENTED
+Evidence:
+- Serilog configured in Program.cs with JSON formatter
+- CorrelationIdMiddleware sets X-Correlation-Id
+Notes:
+- Structured logs to console.
+Next steps:
+- None.
+
+[QUAL-006] Configuration separation (dev/prod)
+Status: IMPLEMENTED
+Evidence:
+- appsettings.json + appsettings.Development.json
+Notes:
+- Environment-specific config present.
+Next steps:
+- None.
+
+[QUAL-007] Docker & compose files present and accurate
+Status: IMPLEMENTED
+Evidence:
+- docker-compose.yml + sobee_API/Dockerfile
+Notes:
+- SQL Server + API container configured.
+Next steps:
+- None.
+
+[QUAL-008] CORS configuration correct for Angular SPA
+Status: IMPLEMENTED
+Evidence:
+- Program.cs AddCors("AngularClient") allows http/https localhost:4200
+Notes:
+- CORS allows credentials and session headers.
+Next steps:
+- None.
+
+[QUAL-009] Centralized error responses
+Status: IMPLEMENTED
+Evidence:
+- ApiControllerBase + ServiceResultExtensions
+- DTOs: ApiErrorResponseContract.cs, ValidationErrorResponseContract.cs
+Notes:
+- Consistent error payloads.
+Next steps:
+- None.
+
+[QUAL-010] DTO mapping consistency
+Status: IMPLEMENTED
+Evidence:
+- sobee_API/Mapping/*.cs (ProductMapping, OrderMapping, ReviewMapping, etc.)
+Notes:
+- Mapping extensions used in services.
+Next steps:
+- None.
+
+H) Testing
+
+[TEST-001] Integration tests for critical endpoints
+Status: PARTIAL
+Evidence:
+- sobee_API.Tests/Tests/Phase0CartTests.cs
+- sobee_API.Tests/Tests/Phase0OrdersTests.cs
+- sobee_API.Tests/Tests/Phase0ProductsTests.cs
+Notes:
+- Coverage for Cart/Orders/Products; admin and auth flows have limited integration coverage.
+Next steps:
+- Add integration tests for admin endpoints and auth 401/403 cases.
+
+[TEST-002] Unit tests for domain rules/services
+Status: IMPLEMENTED
+Evidence:
+- sobee_API.Tests/Domain/* (CartCalculatorTests, StockValidatorTests, PromoCalculatorTests, OrderStatusMachineTests)
+- sobee_API.Tests/Services/* (CartServiceTests, OrderServiceTests, etc.)
+Notes:
+- Broad service and domain test coverage.
+Next steps:
+- None.
+
+[TEST-003] Test reliability (repeatable, isolated, deterministic)
+Status: IMPLEMENTED
+Evidence:
+- TestWebApplicationFactory uses in-memory SQLite and disables rate limiting
+Notes:
+- Tests are isolated with seeded data.
+Next steps:
+- None.
+
+3) Tests Audit
+- Test projects found:
+  - sobee_API/sobee_API.Tests (xUnit)
+- Integration coverage summary:
+  - Phase0 tests cover core endpoints for Cart/Orders/Products and smoke checks.
+  - Admin and auth endpoints lack dedicated integration tests.
+- Unit coverage summary:
+  - Domain tests for CartCalculator, StockValidator, PromoCalculator, OrderStatusMachine.
+  - Service and repository tests for core subsystems and admin analytics.
+- Gaps + recommendations:
+  - Add integration tests for admin analytics and admin order/user management.
+  - Add auth tests for 401/403 and refresh token failure scenarios.
+
+4) Top 10 Gaps/Risks
+1. No /api/categories endpoint; frontend calls /categories (catalog categories broken).
+2. Password reset/forgot password endpoints missing; frontend routes exist.
+3. No product active/inactive flag; cannot hide products without deletion.
+4. Category CRUD missing for admin.
+5. Checkout lacks billing address input and storage on order.
+6. Tax calculation missing from cart/order totals.
+7. Admin auth failures (401/403) not covered by integration tests.
+8. Soft delete/archival not supported for products/orders.
+9. Product list pagination/sorting not wired in UI.
+10. Payment flow is placeholder (PayOrder sets status, no external provider integration).
+
+5) Recommended Implementation Order (dependency-aware)
+Phase 1:
+- Add categories endpoint (and optional CRUD) + wire frontend categories.
+- Implement password reset endpoints or remove UI routes.
+- Add product active/inactive flag + filter in queries.
+
+Phase 2:
+- Add billing address to checkout + persist on order.
+- Add tax calculation in cart/order totals.
+- Add admin/auth integration tests (401/403, admin endpoints).
+
+Phase 3:
+- Add soft delete/archival for products (and possibly orders).
+- Improve pagination/sorting UX in catalog.
+- Add real payment provider integration if required.

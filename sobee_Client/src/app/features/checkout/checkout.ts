@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, OnInit, signal } from '@angular/cor
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { MainLayout } from '../../shared/layout/main-layout';
 import { CartService } from '../../core/services/cart.service';
 import { OrderService } from '../../core/services/order.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -9,7 +10,7 @@ import { CheckoutRequest, PaymentMethod } from '../../core/models';
 
 @Component({
   selector: 'app-checkout',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, MainLayout],
   templateUrl: './checkout.html',
   styleUrl: './checkout.css',
   changeDetection: ChangeDetectionStrategy.OnPush

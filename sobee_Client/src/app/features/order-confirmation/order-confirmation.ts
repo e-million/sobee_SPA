@@ -3,10 +3,11 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { OrderService } from '../../core/services/order.service';
 import { Order } from '../../core/models';
+import { MainLayout } from '../../shared/layout/main-layout';
 
 @Component({
   selector: 'app-order-confirmation',
-  imports: [CommonModule],
+  imports: [CommonModule, MainLayout],
   templateUrl: './order-confirmation.html',
   styleUrl: './order-confirmation.css',
 })
