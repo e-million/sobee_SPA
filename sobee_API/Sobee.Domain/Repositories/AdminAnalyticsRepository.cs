@@ -38,17 +38,39 @@ public sealed class AdminAnalyticsRepository : IAdminAnalyticsRepository
                 .ToList();
         }
 
-        return await _db.Torders
+        var grouped = await _db.Torders
             .AsNoTracking()
             .Where(o => o.DtmOrderDate != null && o.DtmOrderDate >= start && o.DtmOrderDate <= end)
-            .GroupBy(o => o.DtmOrderDate!.Value.Date)
-            .Select(g => new AdminRevenueRow(
-                g.Key,
-                g.Sum(x => x.DecTotalAmount ?? 0m),
-                g.Count(),
-                g.Count() == 0 ? 0m : g.Sum(x => x.DecTotalAmount ?? 0m) / g.Count()))
-            .OrderBy(x => x.Date)
+            .GroupBy(o => new
+            {
+                Year = o.DtmOrderDate!.Value.Year,
+                Month = o.DtmOrderDate!.Value.Month,
+                Day = o.DtmOrderDate!.Value.Day
+            })
+            .Select(g => new
+            {
+                g.Key.Year,
+                g.Key.Month,
+                g.Key.Day,
+                Revenue = g.Sum(x => x.DecTotalAmount ?? 0m),
+                OrderCount = g.Count()
+            })
+            .OrderBy(x => x.Year)
+            .ThenBy(x => x.Month)
+            .ThenBy(x => x.Day)
             .ToListAsync();
+
+        return grouped
+            .Select(row =>
+            {
+                var avgOrderValue = row.OrderCount == 0 ? 0m : row.Revenue / row.OrderCount;
+                return new AdminRevenueRow(
+                    new DateTime(row.Year, row.Month, row.Day),
+                    row.Revenue,
+                    row.OrderCount,
+                    avgOrderValue);
+            })
+            .ToList();
     }
 
     public async Task<IReadOnlyList<AdminRevenueRawRecord>> GetRevenueRawAsync(DateTime start, DateTime end)
@@ -100,12 +122,12 @@ public sealed class AdminAnalyticsRepository : IAdminAnalyticsRepository
     {
         if (IsSqlite())
         {
-            var products = await _db.Tproducts
+            var products_lite = await _db.Tproducts
                 .AsNoTracking()
                 .Select(p => new { p.IntProductId, p.StrName })
                 .ToListAsync();
 
-            var items = await _db.TorderItems
+            var items_lite = await _db.TorderItems
                 .AsNoTracking()
                 .Where(i => i.IntProductId != null)
                 .Select(i => new
@@ -116,16 +138,16 @@ public sealed class AdminAnalyticsRepository : IAdminAnalyticsRepository
                 })
                 .ToListAsync();
 
-            var totals = items
+            var totals_lite = items_lite
                 .GroupBy(i => i.ProductId)
                 .ToDictionary(
                     g => g.Key,
                     g => new { Units = g.Sum(x => x.Quantity), Revenue = g.Sum(x => x.Revenue) });
 
-            return products
+            return products_lite
                 .Select(p =>
                 {
-                    totals.TryGetValue(p.IntProductId, out var data);
+                    totals_lite.TryGetValue(p.IntProductId, out var data);
                     return new AdminWorstProductRecord(
                         p.IntProductId,
                         p.StrName,
@@ -138,17 +160,42 @@ public sealed class AdminAnalyticsRepository : IAdminAnalyticsRepository
                 .ToList();
         }
 
-        return await _db.Tproducts
+        var products = await _db.Tproducts
             .AsNoTracking()
-            .Select(p => new AdminWorstProductRecord(
-                p.IntProductId,
-                p.StrName,
-                p.TorderItems.Sum(i => (int?)i.IntQuantity) ?? 0,
-                p.TorderItems.Sum(i => (decimal?)((i.IntQuantity ?? 0) * (i.MonPricePerUnit ?? 0m))) ?? 0m))
+            .Select(p => new { p.IntProductId, p.StrName })
+            .ToListAsync();
+
+        var items = await _db.TorderItems
+            .AsNoTracking()
+            .Where(i => i.IntProductId != null)
+            .Select(i => new
+            {
+                ProductId = i.IntProductId!.Value,
+                Quantity = i.IntQuantity ?? 0,
+                Revenue = (i.IntQuantity ?? 0) * (i.MonPricePerUnit ?? 0m)
+            })
+            .ToListAsync();
+
+        var totals = items
+            .GroupBy(i => i.ProductId)
+            .ToDictionary(
+                g => g.Key,
+                g => new { Units = g.Sum(x => x.Quantity), Revenue = g.Sum(x => x.Revenue) });
+
+        return products
+            .Select(p =>
+            {
+                totals.TryGetValue(p.IntProductId, out var data);
+                return new AdminWorstProductRecord(
+                    p.IntProductId,
+                    p.StrName,
+                    data?.Units ?? 0,
+                    data?.Revenue ?? 0m);
+            })
             .OrderBy(p => p.UnitsSold)
             .ThenBy(p => p.Name)
             .Take(limit)
-            .ToListAsync();
+            .ToList();
     }
 
     public async Task<IReadOnlyList<AdminCategoryProductCountRecord>> GetCategoryProductCountsAsync()
@@ -317,7 +364,7 @@ public sealed class AdminAnalyticsRepository : IAdminAnalyticsRepository
 
         if (IsSqlite())
         {
-            var orders = await query
+            var orders_lite = await query
                 .Select(o => new
                 {
                     o.UserId,
@@ -326,7 +373,7 @@ public sealed class AdminAnalyticsRepository : IAdminAnalyticsRepository
                 })
                 .ToListAsync();
 
-            return orders
+            return orders_lite
                 .GroupBy(o => o.UserId!)
                 .Select(g => new AdminTopCustomerRecord(
                     g.Key,
@@ -338,28 +385,37 @@ public sealed class AdminAnalyticsRepository : IAdminAnalyticsRepository
                 .ToList();
         }
 
-        return await query
+        var orders = await query
+            .Select(o => new
+            {
+                o.UserId,
+                Total = o.DecTotalAmount ?? 0m,
+                o.DtmOrderDate
+            })
+            .ToListAsync();
+
+        return orders
             .GroupBy(o => o.UserId!)
             .Select(g => new AdminTopCustomerRecord(
                 g.Key,
-                g.Sum(o => o.DecTotalAmount ?? 0m),
+                g.Sum(o => o.Total),
                 g.Count(),
                 g.Max(o => o.DtmOrderDate)))
             .OrderByDescending(x => x.TotalSpent)
             .Take(limit)
-            .ToListAsync();
+            .ToList();
     }
 
     public async Task<IReadOnlyList<AdminWishlistedRecord>> GetMostWishlistedAsync(int limit)
     {
         if (IsSqlite())
         {
-            var favorites = await _db.Tfavorites
+            var favorites_lite = await _db.Tfavorites
                 .AsNoTracking()
                 .Select(f => new { f.IntProductId, f.IntProduct.StrName })
                 .ToListAsync();
 
-            return favorites
+            return favorites_lite
                 .GroupBy(f => new { f.IntProductId, f.StrName })
                 .Select(g => new AdminWishlistedRecord(
                     g.Key.IntProductId,
@@ -370,16 +426,24 @@ public sealed class AdminAnalyticsRepository : IAdminAnalyticsRepository
                 .ToList();
         }
 
-        return await _db.Tfavorites
+        var favorites = await _db.Tfavorites
             .AsNoTracking()
-            .GroupBy(f => new { f.IntProductId, f.IntProduct.StrName })
+            .Select(f => new
+            {
+                f.IntProductId,
+                Name = f.IntProduct.StrName
+            })
+            .ToListAsync();
+
+        return favorites
+            .GroupBy(f => new { f.IntProductId, f.Name })
             .Select(g => new AdminWishlistedRecord(
                 g.Key.IntProductId,
-                g.Key.StrName,
+                g.Key.Name,
                 g.Count()))
             .OrderByDescending(x => x.WishlistCount)
             .Take(limit)
-            .ToListAsync();
+            .ToList();
     }
 
     private bool IsSqlite()

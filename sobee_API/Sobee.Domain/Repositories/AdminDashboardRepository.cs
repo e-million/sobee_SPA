@@ -74,16 +74,34 @@ public sealed class AdminDashboardRepository : IAdminDashboardRepository
                 .ToList();
         }
 
-        return await _db.Torders
+        var grouped = await _db.Torders
             .AsNoTracking()
             .Where(o => o.DtmOrderDate != null && o.DtmOrderDate >= fromDate)
-            .GroupBy(o => o.DtmOrderDate!.Value.Date)
-            .Select(g => new AdminOrderDayRecord(
-                g.Key,
-                g.Count(),
-                g.Sum(o => o.DecTotalAmount) ?? 0m))
-            .OrderBy(x => x.Date)
+            .GroupBy(o => new
+            {
+                Year = o.DtmOrderDate!.Value.Year,
+                Month = o.DtmOrderDate!.Value.Month,
+                Day = o.DtmOrderDate!.Value.Day
+            })
+            .Select(g => new
+            {
+                g.Key.Year,
+                g.Key.Month,
+                g.Key.Day,
+                Count = g.Count(),
+                Revenue = g.Sum(o => o.DecTotalAmount) ?? 0m
+            })
+            .OrderBy(x => x.Year)
+            .ThenBy(x => x.Month)
+            .ThenBy(x => x.Day)
             .ToListAsync();
+
+        return grouped
+            .Select(row => new AdminOrderDayRecord(
+                new DateTime(row.Year, row.Month, row.Day),
+                row.Count,
+                row.Revenue))
+            .ToList();
     }
 
     public async Task<IReadOnlyList<AdminLowStockRecord>> GetLowStockAsync(int threshold)
@@ -103,7 +121,7 @@ public sealed class AdminDashboardRepository : IAdminDashboardRepository
     {
         if (IsSqlite())
         {
-            var items = await _db.TorderItems
+            var items_lite = await _db.TorderItems
                 .AsNoTracking()
                 .Where(i => i.IntProductId != null)
                 .Select(i => new
@@ -115,7 +133,7 @@ public sealed class AdminDashboardRepository : IAdminDashboardRepository
                 })
                 .ToListAsync();
 
-            return items
+            return items_lite
                 .GroupBy(i => new { i.ProductId, i.Name })
                 .Select(g => new AdminTopProductRecord(
                     g.Key.ProductId,
@@ -127,21 +145,28 @@ public sealed class AdminDashboardRepository : IAdminDashboardRepository
                 .ToList();
         }
 
-        return await _db.TorderItems
+        var items = await _db.TorderItems
             .AsNoTracking()
-            .GroupBy(i => new
+            .Where(i => i.IntProductId != null)
+            .Select(i => new
             {
-                i.IntProductId,
-                i.IntProduct.StrName
+                ProductId = i.IntProductId!.Value,
+                Name = i.IntProduct != null ? i.IntProduct.StrName : null,
+                Quantity = i.IntQuantity ?? 0,
+                Revenue = (i.IntQuantity ?? 0) * (i.MonPricePerUnit ?? 0m)
             })
+            .ToListAsync();
+
+        return items
+            .GroupBy(i => new { i.ProductId, i.Name })
             .Select(g => new AdminTopProductRecord(
-                (int)g.Key.IntProductId,
-                g.Key.StrName,
-                g.Sum(x => x.IntQuantity ?? 0),
-                g.Sum(x => (x.IntQuantity ?? 0) * (x.MonPricePerUnit ?? 0m))))
+                g.Key.ProductId,
+                g.Key.Name,
+                g.Sum(x => x.Quantity),
+                g.Sum(x => x.Revenue)))
             .OrderByDescending(x => x.QuantitySold)
             .Take(limit)
-            .ToListAsync();
+            .ToList();
     }
 
     private bool IsSqlite()

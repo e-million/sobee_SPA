@@ -1,0 +1,109 @@
+# Admin analytics smoke tests (VS/Rest Client)
+@baseUrl = https://localhost:7058
+@adminEmail = admin2@local.com
+@adminPassword = Admin123!
+
+### ============================================================
+### 1) Login (Identity API)
+### NOTE: If accessToken extraction fails, paste it below.
+# @name login
+POST {{baseUrl}}/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+###
+@accessToken = CfDJ8FE_QEmxr_5Gl8E9uQQwwd0PnzD4OvHDnnrjDx24D4MtPATS-3yonqeFreMNxHTLxzAb3OEKaMr4A1W81H0BDx-wYK7TUhxaPrnJrYmaMDQn494yB3pe9tFwM-7YoCPOSFpP4D798SlZg0ULUOdPrDa9DcXL9R94Y5YEHjkRdZKGL1zYflQwxyAoX-vL_d075kFXxQLHdkuARv3LqUxDL_C2L-xhiaLhSa7rBiLUWipslbZBoWro2IOnOM9i9EF-6XbTwNPoKF9FZ7nSyTzLngeV0EVbRQPO1d_Y-0RqMouBZ70T_r7q2qmSSgVWaYqbgAotZ1RjOCsgnXJdzbWbmgEmNZlSwTL1wlSXNAA9kYTK0mf07KpMNac39pxnxwJk9-Euvoh8BQyk7Dc04xmtoovNwo_3_5R-wqqUsYO_WyRwL1LPn0INPKEpU1Y03lHuwmrXh9-GI9DpttHZA_QX3CKD80L0V82u_pQjLKkPZq_7eT0JdDkdg6SvEikawLW4HNK9HLfy2VA7nkHL3MyWBq236dJfzOXSyiyzTxrWCZNk87F0qpdkVDFF7X1d_51NcIPc8x3QzsNckViMabFHv0K2o9KaNkDuGPukmHBA4FZG-9Zwf8nCIeC7_jyfJH7aZYLnbKNoLxexuJrDWY_FzWzBPv2HRyfo41ozr96vGQvaFHnJ4MJhlzyiGJAnBkMJSP6FhDoef46oncUs8a5-v5JPBTWC-Tm2DM1bonkWwsaHC18NvEq67j7ByubW6WoUYcBOPJ5Gri-1IusfmDDpxNxIGKzHP42dmxQjTNPK2bq0
+# @accessToken = <paste token here if needed>
+
+### ============================================================
+### 2) Admin dashboard endpoints
+@startDate = 2025-12-24T00:00:00Z
+@endDate = 2026-01-23T23:59:59Z
+@granularity = day
+@days = 14
+@limit = 5
+@lowStockThreshold = 5
+
+### Summary
+GET {{baseUrl}}/api/admin/summary
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### Orders per day
+GET {{baseUrl}}/api/admin/orders-per-day?days={{days}}
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### Low stock
+GET {{baseUrl}}/api/admin/low-stock?threshold={{lowStockThreshold}}
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### Top products
+GET {{baseUrl}}/api/admin/top-products?limit={{limit}}
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### Revenue by period
+GET {{baseUrl}}/api/admin/analytics/revenue?startDate={{startDate}}&endDate={{endDate}}&granularity={{granularity}}
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### Order status breakdown
+GET {{baseUrl}}/api/admin/analytics/orders/status
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### Rating distribution
+GET {{baseUrl}}/api/admin/analytics/reviews/distribution
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### Recent reviews
+GET {{baseUrl}}/api/admin/analytics/reviews/recent?limit={{limit}}
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### Worst products
+GET {{baseUrl}}/api/admin/analytics/products/worst?limit={{limit}}
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### Category performance
+GET {{baseUrl}}/api/admin/analytics/products/categories?startDate={{startDate}}&endDate={{endDate}}
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### Inventory summary
+GET {{baseUrl}}/api/admin/analytics/inventory/summary?lowStockThreshold={{lowStockThreshold}}
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### Fulfillment metrics
+GET {{baseUrl}}/api/admin/analytics/orders/fulfillment?startDate={{startDate}}&endDate={{endDate}}
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### Customer breakdown
+GET {{baseUrl}}/api/admin/analytics/customers/breakdown?startDate={{startDate}}&endDate={{endDate}}
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### Customer growth
+GET {{baseUrl}}/api/admin/analytics/customers/growth?startDate={{startDate}}&endDate={{endDate}}&granularity={{granularity}}
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### Top customers
+GET {{baseUrl}}/api/admin/analytics/customers/top?limit={{limit}}&startDate={{startDate}}&endDate={{endDate}}
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### Most wishlisted
+GET {{baseUrl}}/api/admin/analytics/wishlist/top?limit=5
+Authorization: Bearer {{accessToken}}
+Accept: application/json

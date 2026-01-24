@@ -226,6 +226,16 @@ namespace sobee_API
                     AutoReplenishment = true
                 };
 
+            static FixedWindowRateLimiterOptions CreateAdminLimiterOptions()
+                => new()
+                {
+                    PermitLimit = 300,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                    AutoReplenishment = true
+                };
+
             static bool IsWriteMethod(string method)
                 => HttpMethods.IsPost(method) || HttpMethods.IsPut(method) || HttpMethods.IsPatch(method) || HttpMethods.IsDelete(method);
 
@@ -261,6 +271,11 @@ namespace sobee_API
             static string ResolvePolicyName(HttpContext context)
             {
                 var path = context.Request.Path;
+                if (path.StartsWithSegments("/api/admin"))
+                {
+                    return "AdminPolicy";
+                }
+
                 if (path.StartsWithSegments("/api/auth") || path.StartsWithSegments("/login"))
                 {
                     return "AuthPolicy";
@@ -287,6 +302,11 @@ namespace sobee_API
                         ResolvePartitionKey(context),
                         _ => CreateWriteLimiterOptions()));
 
+                options.AddPolicy("AdminPolicy", context =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        ResolvePartitionKey(context),
+                        _ => CreateAdminLimiterOptions()));
+
                 options.AddPolicy("GlobalPolicy", context =>
                     RateLimitPartition.GetFixedWindowLimiter(
                         ResolvePartitionKey(context),
@@ -302,6 +322,9 @@ namespace sobee_API
                         "WritePolicy" => RateLimitPartition.GetFixedWindowLimiter(
                             ResolvePartitionKey(context),
                             _ => CreateWriteLimiterOptions()),
+                        "AdminPolicy" => RateLimitPartition.GetFixedWindowLimiter(
+                            ResolvePartitionKey(context),
+                            _ => CreateAdminLimiterOptions()),
                         _ => RateLimitPartition.GetFixedWindowLimiter(
                             ResolvePartitionKey(context),
                             _ => CreateGlobalLimiterOptions())
@@ -319,7 +342,8 @@ namespace sobee_API
                     rateLimitCounter.Add(
                         1,
                         new KeyValuePair<string, object?>("policy", policy),
-                        new KeyValuePair<string, object?>("method", httpContext.Request.Method));
+                        new KeyValuePair<string, object?>("method", httpContext.Request.Method),
+                        new KeyValuePair<string, object?>("path", httpContext.Request.Path.Value ?? "unknown"));
 
                     if (httpContext.Response.HasStarted)
                         return;
@@ -611,10 +635,9 @@ namespace sobee_API
 
             app.UseCors("AngularClient");
 
-            app.UseRateLimiter();
-
             //  IMPORTANT: These must be in this order (AuthN before AuthZ)
             app.UseAuthentication(); // "Who are you?"
+            app.UseRateLimiter();
             app.UseAuthorization();  // "Are you allowed here?"
 
             // ==========================================

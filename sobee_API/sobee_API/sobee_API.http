@@ -41,7 +41,7 @@ Content-Type: application/json
 Accept: application/json
 
 {
-  "email": "million2@local.com",
+  "email": "admin2@local.com",
   "password": "Admin123!"
 }
 
@@ -60,8 +60,8 @@ GET {{baseUrl}}/api/cart
 Accept: application/json
 
 ### Step 3.2: paste these after running 3.1
-@sessionId = e0b4be3f-c93e-4308-90bc-87334144e977
-@sessionSecret = 9uYJyBaMKKFdso7NeChkEIsz3FD6zExSLfn+FEBUCLo=
+@sessionId = 1852bb8b-28de-4397-8f53-d216ffaae84a
+@sessionSecret = 9pFY2kdF5P9HQHGd8C7xYXtxMYlMrlz4aUExXtTVuFU=
 
 ### Step 3.3: run this POST ~31 times quickly
 ### EXPECT:
@@ -74,14 +74,14 @@ X-Session-Id: {{sessionId}}
 X-Session-Secret: {{sessionSecret}}
 
 {
-  "productId": 1003,
+  "productId": 3007,
   "quantity": 1
 }
 
 ### ============================================================
 ### 4) Verify rate limit partitioning by user (authenticated traffic gets its own bucket)
 ### If you have a user token, set it here and spam as authenticated.
-@userToken = CfDJ8FE_QEmxr_5Gl8E9uQQwwd1_IADvFEzMRI4plMSIRCTrQzc8rKw0Y5VVnlWfd26JNtNlZBtaLsvLWmzRR23HyqXd9tApu_N7xF4JwsSelzgfPF2rwojN59u_IH9R1_YqgoD-9jJb91gweLW818YzACwiLs6AuJ2y0Lm-68bmNi1UtU2tLB2IajEu-J9f_hqW5cELb3TxyG-JKdVrWDrP3FiamvZUUgBdp0hAp0vB9O0QiX52qZRkxYMkaITh29A2aQuZkqa0T81OFILMU-YdK6ZwJ282VTUBv6bWRrrJIU1RY3KHsmGZ2dXc797v6KRAE52tIHNHN8gmEP9bK4WjUjConTce8phpYAXxPNcOCy5fPaTdVHm2O74HFZ6RgUGlKAhbdN41zTvodTC81uR62NW83NuYKG6phP-PdVMVejJIiUVJya7T36NpQ6g3APOdGcKtHgzF3_uhSYZUdH9LMCVdWFlt9-OVXehx0VfxSuje8U1fo2X4hr3h2bsGH0d4si0S18xa8gogQhgDCcb9Loki3GBbH5nx-_zM2GbBg8ZCHF7Ab6lcGaaRLSzT3E6CSmJ1BNrGlxM-plu9Jn9euq2MchxRQIlLz6K_EYrRoTZLrRnZmN0kAJQBpvkiawiB3DkHkMwnZ2TmV3Y7YmJ_pdLy9Vd-iVmm0J7hRzxieEvtiMaepj40dZFsDOKoOQ2ynSRQzuHziB03nue4PjVthww
+@userToken = CfDJ8FE_QEmxr_5Gl8E9uQQwwd1ok9YBsZ48T91xjJjuWk3YAGQgXpaud-LqjCdgljKbaM5rMArozyhoIKSwy_66ygcmBuMqmULHGAgW6MOig6Yklr1BGFEKwGmHT7oTBANu6SN2RdbeT4Gs_95xYA8MLK3Cr6lesdN1HrEy2KBxwUJY6syGvyWMDrkJsarKxocYedD75s1Mog2DD3u_NZ0OrMfdyjjV2FJqJSSMQ6iLORppGMAmeihMikI1hLMDTwI7aEzc2nXtubmIDWPY4iGrk_bQySiUcrSkC4qck5vu_2Zo2lDPc4fRRbrlifWKXg2ho6XvT3it_D3iyWQNaC-ylCOfmuNx1xOZlTq6hjE3nzJlFYPqIukDZ_GH6b31i0gm30jEJKzM5SqVvkZB5EadMrP7mrJFhRGTg7C6XCy_MFdx_DBucMLdFa0zLjWjQz1sG9D2w4EUgEyJNxcLpbUOz9OXRH-R9nnI3pq_JGAQKeyLGxm47afNJ6MC0pHkxrmCs1-gPblJZ2WYRkjiZBylMqHR-tBnOd_j8rXqBxx3_-P2B273C-I2pqll9X-vH5Dt34lOaQ0GiEN9FLH9RgGdOodRz3jIcWx0YwxuHgIcWjTNDaMB1wtLU11EtJLXdWf3qxCAInUnbUvQdWX05R3VednKK9933u853YgdXSpI5yCipXXHpGNuugVwYOrSC3_McVJNYCJ7gsbQGsA58bp2QfC5hZB3PwwCw_FsYiJi21TmZW6ExCnd1o4cCC3TPB_22ykAzZNvu0e2M2F_eqQXwEeGhh8k_uQoTf9Pi6g-P-fl
 
 POST {{baseUrl}}/api/cart/items
 Content-Type: application/json
