@@ -16,10 +16,12 @@ export class ResetPassword implements OnInit {
   success = signal(false);
   apiError = signal('');
   tokenMissing = signal(false);
+  emailMissing = signal(false);
 
   password = '';
   confirmPassword = '';
   private token = '';
+  private email = '';
 
   constructor(
     private authService: AuthService,
@@ -28,9 +30,17 @@ export class ResetPassword implements OnInit {
 
   ngOnInit() {
     this.token = this.route.snapshot.queryParamMap.get('token') || '';
+    this.email = this.route.snapshot.queryParamMap.get('email') || '';
     if (!this.token) {
       this.tokenMissing.set(true);
       this.apiError.set('Reset token is missing. Please request a new link.');
+    }
+
+    if (!this.email) {
+      this.emailMissing.set(true);
+      if (!this.apiError()) {
+        this.apiError.set('Reset email is missing. Please request a new link.');
+      }
     }
   }
 
@@ -42,7 +52,7 @@ export class ResetPassword implements OnInit {
     this.submitAttempted.set(true);
     this.apiError.set('');
 
-    if (this.tokenMissing()) {
+    if (this.tokenMissing() || this.emailMissing()) {
       return;
     }
 
@@ -57,7 +67,7 @@ export class ResetPassword implements OnInit {
 
     this.loading.set(true);
 
-    this.authService.resetPassword({ token: this.token, newPassword: this.password }).subscribe({
+    this.authService.resetPassword({ email: this.email, token: this.token, newPassword: this.password }).subscribe({
       next: () => {
         this.loading.set(false);
         this.success.set(true);

@@ -486,6 +486,7 @@ namespace sobee_API
             // Customize Swagger to support JWT Bearer Authentication
             builder.Services.AddSwaggerGen(c =>
             {
+                c.CustomSchemaIds(type => type.FullName);
                 // This adds the "Padlock" icon to Swagger UI
                 c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
                 {

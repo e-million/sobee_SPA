@@ -208,7 +208,7 @@ export class AuthService {
    * @returns Observable with success flag.
    */
   forgotPassword(request: ForgotPasswordRequest): Observable<{ success: boolean }> {
-    return this.http.post<{ success: boolean }>(`${this.apiBaseUrl}/forgotPassword`, request);
+    return this.http.post<{ success: boolean }>(`${this.apiUrl}/auth/forgot-password`, request);
   }
 
   /**
@@ -217,7 +217,7 @@ export class AuthService {
    * @returns Observable of AuthResponse.
    */
   resetPassword(request: ResetPasswordRequest): Observable<AuthResponse> {
-    return this.http.post<AuthResponse>(`${this.apiBaseUrl}/resetPassword`, request);
+    return this.http.post<AuthResponse>(`${this.apiUrl}/auth/reset-password`, request);
   }
 
   /**
