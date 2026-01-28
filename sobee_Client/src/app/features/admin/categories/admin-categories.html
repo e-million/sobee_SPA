@@ -1,0 +1,161 @@
+<div class="space-y-6">
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div>
+      <p class="text-sm uppercase tracking-[0.2em] text-slate-500">Catalog</p>
+      <h1 class="text-3xl font-display font-bold text-slate-800">Categories</h1>
+    </div>
+    <button type="button" class="btn-primary px-4 py-2" (click)="openCreateForm()">
+      New category
+    </button>
+  </div>
+
+  <div class="card p-4">
+    <form (ngSubmit)="onSearch()" class="flex flex-col md:flex-row md:items-center gap-3">
+      <div class="flex-1">
+        <input
+          type="text"
+          name="searchTerm"
+          [(ngModel)]="searchTerm"
+          placeholder="Search categories"
+          class="input py-2"
+        />
+      </div>
+      <button type="submit" class="btn-outline px-4 py-2">
+        Search
+      </button>
+    </form>
+  </div>
+
+  @if (error()) {
+    <div class="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+      {{ error() }}
+    </div>
+  }
+
+  @if (loading()) {
+    <div class="grid gap-4">
+      @for (i of [1, 2, 3]; track i) {
+        <div class="card p-4 animate-pulse">
+          <div class="h-4 bg-slate-200 rounded w-1/3 mb-4"></div>
+          <div class="h-3 bg-slate-200 rounded w-2/3"></div>
+        </div>
+      }
+    </div>
+  } @else {
+    <div class="card overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="bg-slate-50 text-slate-500 uppercase text-xs">
+            <tr>
+              <th class="px-4 py-3 text-left">Category</th>
+              <th class="px-4 py-3 text-left">Description</th>
+              <th class="px-4 py-3 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200">
+            @for (category of filteredCategories; track category.id) {
+              <tr class="text-slate-700">
+                <td class="px-4 py-3">
+                  <p class="font-medium text-slate-800">{{ category.name }}</p>
+                  <p class="text-xs text-slate-500">#{{ category.id }}</p>
+                </td>
+                <td class="px-4 py-3">
+                  <p class="text-sm text-slate-600">{{ category.description || 'No description' }}</p>
+                </td>
+                <td class="px-4 py-3 text-right space-x-2">
+                  <button type="button" class="text-sm text-primary-600 hover:text-primary-700" (click)="openEditForm(category)">
+                    Edit
+                  </button>
+                  <button type="button" class="text-sm text-red-600 hover:text-red-700" (click)="deleteCategory(category)">
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+
+  @if (formOpen()) {
+    <div class="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-xl shadow-xl w-full max-w-xl p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-semibold text-slate-800">
+            {{ editingCategoryId() ? 'Edit category' : 'New category' }}
+          </h2>
+          <button type="button" (click)="closeForm()" class="text-slate-400 hover:text-slate-600">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        @if (formError()) {
+          <div class="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            {{ formError() }}
+          </div>
+        }
+
+        <div class="space-y-4">
+          <div>
+            <label class="text-sm font-medium text-slate-600">Name</label>
+            <input type="text" [(ngModel)]="formModel.name" name="name" class="input mt-1" />
+          </div>
+          <div>
+            <label class="text-sm font-medium text-slate-600">Description</label>
+            <textarea [(ngModel)]="formModel.description" name="description" rows="3" class="input mt-1"></textarea>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 mt-6">
+          <button type="button" class="btn-outline px-4 py-2" (click)="closeForm()">Cancel</button>
+          <button type="button" class="btn-primary px-4 py-2" [disabled]="formSaving()" (click)="saveCategory()">
+            @if (formSaving()) {
+              Saving...
+            } @else {
+              Save category
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (deleteModalOpen()) {
+    <div class="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
+      <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="text-sm uppercase tracking-[0.2em] text-slate-400">Confirm deletion</p>
+            <h2 class="text-xl font-semibold text-slate-800 mt-2">Delete category?</h2>
+          </div>
+          <button type="button" (click)="closeDeleteModal()" class="text-slate-400 hover:text-slate-600">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="mt-4 space-y-3 text-sm text-slate-600">
+          <p>
+            You are about to delete
+            <span class="font-semibold text-slate-800">"{{ deletingCategory()?.name }}"</span>.
+          </p>
+          <p>
+            All products currently assigned to this category will be moved to
+            <span class="font-semibold text-slate-800">Uncategorized</span>.
+          </p>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 mt-6">
+          <button type="button" class="btn-outline px-4 py-2" (click)="closeDeleteModal()">Cancel</button>
+          <button type="button" class="btn bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 px-4 py-2" (click)="confirmDeleteCategory()">
+            Delete category
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+</div>

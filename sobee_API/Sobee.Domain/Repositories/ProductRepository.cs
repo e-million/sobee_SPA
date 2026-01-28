@@ -73,9 +73,16 @@ public sealed class ProductRepository : IProductRepository
         if (!string.IsNullOrWhiteSpace(category))
         {
             var categoryTerm = category.Trim();
-            productsQuery = productsQuery.Where(p =>
-                p.IntDrinkCategory != null &&
-                p.IntDrinkCategory.StrName == categoryTerm);
+            if (string.Equals(categoryTerm, "uncategorized", StringComparison.OrdinalIgnoreCase))
+            {
+                productsQuery = productsQuery.Where(p => p.IntDrinkCategoryId == null);
+            }
+            else
+            {
+                productsQuery = productsQuery.Where(p =>
+                    p.IntDrinkCategory != null &&
+                    p.IntDrinkCategory.StrName == categoryTerm);
+            }
         }
 
         var totalCount = await productsQuery.CountAsync();

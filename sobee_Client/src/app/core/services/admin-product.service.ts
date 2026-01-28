@@ -23,12 +23,14 @@ export class AdminProductService {
    */
   getProducts(params?: {
     search?: string;
+    category?: string;
     page?: number;
     pageSize?: number;
     sort?: 'priceAsc' | 'priceDesc';
   }): Observable<PaginatedResponse<AdminProduct>> {
     const httpParams = buildHttpParams({
       q: params?.search,
+      category: params?.category,
       page: params?.page,
       pageSize: params?.pageSize,
       sort: params?.sort

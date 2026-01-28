@@ -25,11 +25,11 @@ export class Toast {
    */
   getIcon(type: string): string {
     switch (type) {
-      case 'success': return '✓';
-      case 'error': return '✕';
-      case 'warning': return '⚠';
-      case 'info': return 'ℹ';
-      default: return 'ℹ';
+      case 'success': return '';
+      case 'error': return 'X';
+      case 'warning': return '!';
+      case 'info': return 'i';
+      default: return 'i';
     }
   }
 }

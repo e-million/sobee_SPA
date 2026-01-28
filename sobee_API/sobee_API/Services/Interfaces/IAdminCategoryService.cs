@@ -11,4 +11,5 @@ public interface IAdminCategoryService
     Task<ServiceResult<CategoryResponseDto>> CreateCategoryAsync(CreateCategoryRequest request);
     Task<ServiceResult<CategoryResponseDto>> UpdateCategoryAsync(int categoryId, UpdateCategoryRequest request);
     Task<ServiceResult<MessageResponseDto>> DeleteCategoryAsync(int categoryId);
+    Task<ServiceResult<MessageResponseDto>> DeleteCategoryAndReassignAsync(int categoryId);
 }

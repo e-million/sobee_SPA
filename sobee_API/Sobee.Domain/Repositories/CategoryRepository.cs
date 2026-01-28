@@ -49,6 +49,20 @@ public sealed class CategoryRepository : ICategoryRepository
         return await _db.Tproducts.AnyAsync(p => p.IntDrinkCategoryId == categoryId);
     }
 
+    public async Task<int> ReassignProductsToUncategorizedAsync(int categoryId)
+    {
+        var products = await _db.Tproducts
+            .Where(p => p.IntDrinkCategoryId == categoryId)
+            .ToListAsync();
+
+        foreach (var product in products)
+        {
+            product.IntDrinkCategoryId = null;
+        }
+
+        return products.Count;
+    }
+
     public async Task AddAsync(TdrinkCategory category)
     {
         _db.TdrinkCategories.Add(category);

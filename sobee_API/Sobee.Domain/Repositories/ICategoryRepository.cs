@@ -8,6 +8,7 @@ public interface ICategoryRepository
     Task<TdrinkCategory?> FindByIdAsync(int categoryId, bool track = true);
     Task<bool> ExistsByNameAsync(string name, int? excludeId = null);
     Task<bool> HasProductsAsync(int categoryId);
+    Task<int> ReassignProductsToUncategorizedAsync(int categoryId);
     Task AddAsync(TdrinkCategory category);
     Task RemoveAsync(TdrinkCategory category);
     Task SaveChangesAsync();

@@ -149,6 +149,22 @@ export interface AdminPromo {
   isExpired: boolean;
 }
 
+export interface AdminCategory {
+  id: number;
+  name: string;
+  description: string | null;
+}
+
+export interface CreateAdminCategoryRequest {
+  name: string;
+  description?: string | null;
+}
+
+export interface UpdateAdminCategoryRequest {
+  name?: string | null;
+  description?: string | null;
+}
+
 export interface AdminProduct {
   id: number;
   name: string;

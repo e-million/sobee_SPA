@@ -2,14 +2,16 @@ import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AdminProductService } from '../../../core/services/admin-product.service';
+import { AdminCategoryService } from '../../../core/services/admin-category.service';
 import { ToastService } from '../../../core/services/toast.service';
-import { AdminProduct } from '../../../core/models';
+import { AdminCategory, AdminProduct } from '../../../core/models';
 
 interface ProductFormModel {
   name: string;
   description: string;
   price: number;
   stockAmount: number;
+  categoryId: number | null;
 }
 
 @Component({
@@ -28,6 +30,9 @@ export class AdminProducts implements OnInit {
 
   searchTerm = '';
   sortOption = 'default';
+  categoryFilterId: number | null = null;
+
+  categories = signal<AdminCategory[]>([]);
 
   formOpen = signal(false);
   formSaving = signal(false);
@@ -38,24 +43,41 @@ export class AdminProducts implements OnInit {
     name: '',
     description: '',
     price: 0,
-    stockAmount: 0
+    stockAmount: 0,
+    categoryId: null
   };
 
   constructor(
     private adminProductService: AdminProductService,
+    private adminCategoryService: AdminCategoryService,
     private toastService: ToastService
   ) {}
 
   ngOnInit() {
+    this.loadCategories();
     this.loadProducts();
+  }
+
+  loadCategories() {
+    this.adminCategoryService.getCategories().subscribe({
+      next: (categories) => {
+        this.categories.set(categories);
+      },
+      error: () => {
+        this.categories.set([]);
+      }
+    });
   }
 
   loadProducts() {
     this.loading.set(true);
     this.error.set('');
 
+    const categoryName = this.getCategoryNameById(this.categoryFilterId);
+
     this.adminProductService.getProducts({
       search: this.searchTerm.trim() || undefined,
+      category: categoryName || undefined,
       page: this.page(),
       pageSize: this.pageSize(),
       sort: this.sortOption === 'default' ? undefined : (this.sortOption as 'priceAsc' | 'priceDesc')
@@ -82,13 +104,19 @@ export class AdminProducts implements OnInit {
     this.loadProducts();
   }
 
+  onCategoryFilterChange() {
+    this.page.set(1);
+    this.loadProducts();
+  }
+
   openCreateForm() {
     this.editingProductId.set(null);
     this.formModel = {
       name: '',
       description: '',
       price: 0,
-      stockAmount: 0
+      stockAmount: 0,
+      categoryId: null
     };
     this.formError.set('');
     this.formOpen.set(true);
@@ -100,7 +128,8 @@ export class AdminProducts implements OnInit {
       name: product.name ?? '',
       description: product.description ?? '',
       price: Number(product.price ?? 0),
-      stockAmount: Number(product.stockAmount ?? 0)
+      stockAmount: Number(product.stockAmount ?? 0),
+      categoryId: product.categoryId ?? null
     };
     this.formError.set('');
     this.formOpen.set(true);
@@ -134,7 +163,8 @@ export class AdminProducts implements OnInit {
       name,
       description: this.formModel.description.trim(),
       price: this.formModel.price,
-      stockAmount: this.formModel.stockAmount
+      stockAmount: this.formModel.stockAmount,
+      categoryId: this.formModel.categoryId ?? null
     };
 
     const editingId = this.editingProductId();
@@ -182,5 +212,16 @@ export class AdminProducts implements OnInit {
 
   get totalPages(): number {
     return Math.max(1, Math.ceil(this.totalCount() / this.pageSize()));
+  }
+
+  private getCategoryNameById(categoryId: number | null): string | null {
+    if (categoryId == null) {
+      return null;
+    }
+    if (categoryId === -1) {
+      return 'uncategorized';
+    }
+    const match = this.categories().find(category => category.id === categoryId);
+    return match?.name ?? null;
   }
 }

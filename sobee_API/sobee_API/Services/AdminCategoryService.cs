@@ -110,6 +110,26 @@ public sealed class AdminCategoryService : IAdminCategoryService
         });
     }
 
+    public async Task<ServiceResult<MessageResponseDto>> DeleteCategoryAndReassignAsync(int categoryId)
+    {
+        var category = await _categoryRepository.FindByIdAsync(categoryId, track: true);
+        if (category == null)
+        {
+            return NotFound<MessageResponseDto>("Category not found.", null);
+        }
+
+        var reassignedCount = await _categoryRepository.ReassignProductsToUncategorizedAsync(categoryId);
+        await _categoryRepository.RemoveAsync(category);
+        await _categoryRepository.SaveChangesAsync();
+
+        return ServiceResult<MessageResponseDto>.Ok(new MessageResponseDto
+        {
+            Message = reassignedCount > 0
+                ? $"Category deleted. {reassignedCount} product(s) moved to Uncategorized."
+                : "Category deleted."
+        });
+    }
+
     private static string NormalizeName(string name)
         => name.Trim();
 

@@ -44,4 +44,11 @@ public sealed class AdminCategoriesController : ApiControllerBase
         var result = await _categoryService.DeleteCategoryAsync(categoryId);
         return FromServiceResult(result);
     }
+
+    [HttpDelete("{categoryId:int}/force")]
+    public async Task<IActionResult> DeleteCategoryForce(int categoryId)
+    {
+        var result = await _categoryService.DeleteCategoryAndReassignAsync(categoryId);
+        return FromServiceResult(result);
+    }
 }

@@ -1,11 +1,39 @@
 <div class="toast-container">
   @for (toast of toastService.toasts(); track toast.id) {
-    <div class="toast" [class]="'toast-' + toast.type" role="alert">
-      <span class="toast-icon">{{ getIcon(toast.type) }}</span>
-      <span class="toast-message">{{ toast.message }}</span>
-      <button class="toast-close" (click)="toastService.remove(toast.id)" aria-label="Close">
-        ×
-      </button>
+    <div
+      class="toast"
+      [class]="'toast-' + toast.type + (toast.actions?.length ? ' toast-has-actions' : '')"
+      role="alert"
+    >
+      <div class="toast-body">
+        @if (getIcon(toast.type); as icon) {
+          <span class="toast-icon">{{ icon }}</span>
+        }
+        <span class="toast-message">{{ toast.message }}</span>
+      </div>
+
+      @if (toast.actions?.length) {
+        <div class="toast-actions">
+          @for (action of toast.actions; track action.label) {
+            <button
+              type="button"
+              class="toast-action"
+              [class.toast-action-primary]="action.style === 'primary'"
+              [class.toast-action-outline]="action.style === 'outline' || !action.style"
+              [class.toast-action-danger]="action.style === 'danger'"
+              (click)="action.onClick()"
+            >
+              {{ action.label }}
+            </button>
+          }
+        </div>
+      }
+
+      @if (toast.dismissible !== false) {
+        <button class="toast-close" (click)="toastService.remove(toast.id)" aria-label="Close">
+          x
+        </button>
+      }
     </div>
   }
 </div>

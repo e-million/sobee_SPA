@@ -20,6 +20,7 @@ export class AdminLayout {
   navItems: AdminNavItem[] = [
     { label: 'Dashboard', route: '/admin/dashboard', icon: 'chart' },
     { label: 'Products', route: '/admin/products', icon: 'cube' },
+    { label: 'Categories', route: '/admin/categories', icon: 'layers' },
     { label: 'Orders', route: '/admin/orders', icon: 'receipt' },
     { label: 'Users', route: '/admin/users', icon: 'users' },
     { label: 'Promos', route: '/admin/promos', icon: 'tag' },

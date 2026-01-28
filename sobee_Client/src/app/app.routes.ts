@@ -27,6 +27,7 @@ import { AdminProducts } from './features/admin/products/admin-products';
 import { AdminOrders } from './features/admin/orders/admin-orders';
 import { AdminUsers } from './features/admin/users/admin-users';
 import { AdminPromos } from './features/admin/promos/admin-promos';
+import { AdminCategories } from './features/admin/categories/admin-categories';
 import { adminChildGuard, adminGuard, authGuard, guestGuard } from './core/guards';
 import { Favorites } from './features/favorites/favorites';
 
@@ -55,6 +56,7 @@ export const routes: Routes = [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
       { path: 'dashboard', component: AdminDashboard },
       { path: 'products', component: AdminProducts },
+      { path: 'categories', component: AdminCategories },
       { path: 'orders', component: AdminOrders },
       { path: 'users', component: AdminUsers },
       { path: 'promos', component: AdminPromos },
