@@ -170,10 +170,11 @@ public class FavoriteServiceTests
             int page,
             int pageSize,
             string? sort,
+            bool includeInactive = false,
             bool track = false)
             => Task.FromResult(((IReadOnlyList<Tproduct>)Array.Empty<Tproduct>(), 0));
 
-        public Task<Tproduct?> FindByIdWithImagesAsync(int productId, bool track = false)
+        public Task<Tproduct?> FindByIdWithImagesAsync(int productId, bool includeInactive = false, bool track = false)
             => Task.FromResult<Tproduct?>(null);
 
         public Task<bool> ExistsAsync(int productId)

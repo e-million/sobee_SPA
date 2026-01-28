@@ -172,6 +172,7 @@ export interface AdminProduct {
   price: number;
   cost?: number | null;
   stockAmount: number | null;
+  isActive?: boolean | null;
   category?: string | null;
   categoryId?: number | null;
   primaryImageUrl?: string | null;
@@ -184,6 +185,7 @@ export interface CreateAdminProductRequest {
   cost?: number | null;
   stockAmount: number;
   categoryId?: number | null;
+  isActive?: boolean | null;
 }
 
 export interface UpdateAdminProductRequest {
@@ -193,4 +195,5 @@ export interface UpdateAdminProductRequest {
   cost?: number | null;
   stockAmount?: number | null;
   categoryId?: number | null;
+  isActive?: boolean | null;
 }

@@ -12,6 +12,7 @@ interface ProductFormModel {
   price: number;
   stockAmount: number;
   categoryId: number | null;
+  isActive: boolean;
 }
 
 @Component({
@@ -44,7 +45,8 @@ export class AdminProducts implements OnInit {
     description: '',
     price: 0,
     stockAmount: 0,
-    categoryId: null
+    categoryId: null,
+    isActive: true
   };
 
   constructor(
@@ -116,7 +118,8 @@ export class AdminProducts implements OnInit {
       description: '',
       price: 0,
       stockAmount: 0,
-      categoryId: null
+      categoryId: null,
+      isActive: true
     };
     this.formError.set('');
     this.formOpen.set(true);
@@ -129,7 +132,8 @@ export class AdminProducts implements OnInit {
       description: product.description ?? '',
       price: Number(product.price ?? 0),
       stockAmount: Number(product.stockAmount ?? 0),
-      categoryId: product.categoryId ?? null
+      categoryId: product.categoryId ?? null,
+      isActive: product.isActive ?? true
     };
     this.formError.set('');
     this.formOpen.set(true);
@@ -164,7 +168,8 @@ export class AdminProducts implements OnInit {
       description: this.formModel.description.trim(),
       price: this.formModel.price,
       stockAmount: this.formModel.stockAmount,
-      categoryId: this.formModel.categoryId ?? null
+      categoryId: this.formModel.categoryId ?? null,
+      isActive: this.formModel.isActive
     };
 
     const editingId = this.editingProductId();

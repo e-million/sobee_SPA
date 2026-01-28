@@ -43,6 +43,7 @@ public sealed class ProductService : IProductService
             page,
             pageSize,
             sort,
+            includeInactive: isAdmin,
             track: false);
 
         var response = new ProductListResponseDto
@@ -58,7 +59,7 @@ public sealed class ProductService : IProductService
 
     public async Task<ServiceResult<ProductDetailDto>> GetProductAsync(int productId, bool isAdmin)
     {
-        var product = await _productRepository.FindByIdWithImagesAsync(productId, track: false);
+        var product = await _productRepository.FindByIdWithImagesAsync(productId, includeInactive: isAdmin, track: false);
         if (product == null)
         {
             return NotFound<ProductDetailDto>("Product not found.", null);
@@ -76,7 +77,8 @@ public sealed class ProductService : IProductService
             DecPrice = request.Price,
             DecCost = request.Cost,
             IntStockAmount = request.StockAmount,
-            IntDrinkCategoryId = request.CategoryId
+            IntDrinkCategoryId = request.CategoryId,
+            BlnIsActive = request.IsActive ?? true
         };
 
         await _productRepository.AddAsync(product);
@@ -123,6 +125,11 @@ public sealed class ProductService : IProductService
             product.IntDrinkCategoryId = request.CategoryId.Value;
         }
 
+        if (request.IsActive.HasValue)
+        {
+            product.BlnIsActive = request.IsActive.Value;
+        }
+
         await _productRepository.SaveChangesAsync();
 
         return ServiceResult<ProductDetailDto>.Ok(product.ToProductDetailDto(isAdmin: true));
@@ -130,7 +137,7 @@ public sealed class ProductService : IProductService
 
     public async Task<ServiceResult<MessageResponseDto>> DeleteProductAsync(int productId)
     {
-        var product = await _productRepository.FindByIdWithImagesAsync(productId, track: true);
+        var product = await _productRepository.FindByIdWithImagesAsync(productId, includeInactive: true, track: true);
         if (product == null)
         {
             return NotFound<MessageResponseDto>("Product not found.", null);

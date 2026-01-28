@@ -17,5 +17,8 @@
 
         public string? Category { get; set; }
         public int? CategoryId { get; set; }
+
+        // Admin-only in responses
+        public bool? IsActive { get; set; }
     }
 }

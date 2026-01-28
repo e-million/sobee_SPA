@@ -101,13 +101,14 @@ public class InventoryServiceTests
             int page,
             int pageSize,
             string? sort,
+            bool includeInactive = false,
             bool track = false)
         {
             IReadOnlyList<Tproduct> products = _products.Values.ToList();
             return Task.FromResult((products, products.Count));
         }
 
-        public Task<Tproduct?> FindByIdWithImagesAsync(int productId, bool track = false)
+        public Task<Tproduct?> FindByIdWithImagesAsync(int productId, bool includeInactive = false, bool track = false)
             => FindByIdAsync(productId);
 
         public Task<bool> ExistsAsync(int productId)

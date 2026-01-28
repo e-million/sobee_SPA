@@ -12,8 +12,9 @@ public interface IProductRepository
         int page,
         int pageSize,
         string? sort,
+        bool includeInactive = false,
         bool track = false);
-    Task<Tproduct?> FindByIdWithImagesAsync(int productId, bool track = false);
+    Task<Tproduct?> FindByIdWithImagesAsync(int productId, bool includeInactive = false, bool track = false);
     Task<bool> ExistsAsync(int productId);
     Task<TproductImage?> FindImageAsync(int productId, int imageId);
     Task AddAsync(Tproduct product);

@@ -51,6 +51,7 @@ public sealed class ProductRepository : IProductRepository
         int page,
         int pageSize,
         string? sort,
+        bool includeInactive = false,
         bool track = false)
     {
         IQueryable<Tproduct> productsQuery = _db.Tproducts
@@ -60,6 +61,11 @@ public sealed class ProductRepository : IProductRepository
         if (!track)
         {
             productsQuery = productsQuery.AsNoTracking();
+        }
+
+        if (!includeInactive)
+        {
+            productsQuery = productsQuery.Where(p => p.BlnIsActive);
         }
 
         if (!string.IsNullOrWhiteSpace(query))
@@ -120,7 +126,7 @@ public sealed class ProductRepository : IProductRepository
         return (products, totalCount);
     }
 
-    public async Task<Tproduct?> FindByIdWithImagesAsync(int productId, bool track = false)
+    public async Task<Tproduct?> FindByIdWithImagesAsync(int productId, bool includeInactive = false, bool track = false)
     {
         var query = _db.Tproducts
             .Include(p => p.TproductImages)
@@ -130,6 +136,11 @@ public sealed class ProductRepository : IProductRepository
         if (!track)
         {
             query = query.AsNoTracking();
+        }
+
+        if (!includeInactive)
+        {
+            query = query.Where(p => p.BlnIsActive);
         }
 
         return await query.FirstOrDefaultAsync(p => p.IntProductId == productId);

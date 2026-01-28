@@ -526,6 +526,11 @@ namespace Sobee.Domain.Migrations.Sobee
                         .HasColumnType("decimal(18, 2)")
                         .HasColumnName("decPrice");
 
+                    b.Property<bool>("BlnIsActive")
+                        .HasColumnType("bit")
+                        .HasColumnName("blnIsActive")
+                        .HasDefaultValue(true);
+
                     b.Property<int?>("IntDrinkCategoryId")
                         .HasColumnType("int")
                         .HasColumnName("intDrinkCategoryID");

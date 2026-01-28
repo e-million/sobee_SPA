@@ -24,6 +24,8 @@ public partial class Tproduct
 
     public int? IntDrinkCategoryId { get; set; }
 
+    public bool BlnIsActive { get; set; } = true;
+
     public virtual ICollection<TcartItem> TcartItems { get; set; } = new List<TcartItem>();
 
     public virtual ICollection<Tfavorite> Tfavorites { get; set; } = new List<Tfavorite>();

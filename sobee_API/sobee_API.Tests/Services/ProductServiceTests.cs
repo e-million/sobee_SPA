@@ -271,9 +271,14 @@ public class ProductServiceTests
             int page,
             int pageSize,
             string? sort,
+            bool includeInactive = false,
             bool track = false)
         {
             IEnumerable<Tproduct> products = _products;
+            if (!includeInactive)
+            {
+                products = products.Where(p => p.BlnIsActive);
+            }
 
             if (!string.IsNullOrWhiteSpace(query))
             {
@@ -306,9 +311,13 @@ public class ProductServiceTests
             return Task.FromResult(((IReadOnlyList<Tproduct>)products.ToList(), total));
         }
 
-        public Task<Tproduct?> FindByIdWithImagesAsync(int productId, bool track = false)
+        public Task<Tproduct?> FindByIdWithImagesAsync(int productId, bool includeInactive = false, bool track = false)
         {
             var product = _products.FirstOrDefault(p => p.IntProductId == productId);
+            if (product != null && !includeInactive && !product.BlnIsActive)
+            {
+                return Task.FromResult<Tproduct?>(null);
+            }
             if (product != null)
             {
                 product.TproductImages = _images.Where(i => i.IntProductId == productId).ToList();

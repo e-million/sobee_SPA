@@ -11,6 +11,7 @@ namespace sobee_API.DTOs.Products
         public decimal? Cost { get; set; }
         public string? Category { get; set; }
         public int? CategoryId { get; set; }
+        public bool? IsActive { get; set; }
         public List<ProductImageDto> Images { get; set; } = new();
     }
 

@@ -20,7 +20,8 @@ public static class ProductMapping
             PrimaryImageUrl = product.GetPrimaryImageUrl(),
             StockAmount = isAdmin ? product.IntStockAmount : null,
             Category = product.IntDrinkCategory?.StrName,
-            CategoryId = product.IntDrinkCategoryId
+            CategoryId = product.IntDrinkCategoryId,
+            IsActive = isAdmin ? product.BlnIsActive : null
         };
     }
 
@@ -37,6 +38,7 @@ public static class ProductMapping
             Category = product.IntDrinkCategory?.StrName,
             CategoryId = product.IntDrinkCategoryId,
             Cost = isAdmin ? product.DecCost : null,
+            IsActive = isAdmin ? product.BlnIsActive : null,
             Images = (product.TproductImages ?? new List<TproductImage>())
                 .OrderBy(i => i.IntProductImageId)
                 .Select(ToProductImageDto)

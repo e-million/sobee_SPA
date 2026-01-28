@@ -384,6 +384,9 @@ public partial class SobeecoredbContext : DbContext {
 			  .HasDefaultValue(0);
 			entity.Property(e => e.IntDrinkCategoryId)
 				.HasColumnName("intDrinkCategoryID");
+			entity.Property(e => e.BlnIsActive)
+				.HasColumnName("blnIsActive")
+				.HasDefaultValue(true);
 
 			entity.HasOne(d => d.IntDrinkCategory)
 				.WithMany(p => p.Tproducts)
