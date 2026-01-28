@@ -139,6 +139,7 @@ namespace sobee_API
             builder.Services.AddScoped<IReviewService, ReviewService>();
             builder.Services.AddScoped<IFavoriteService, FavoriteService>();
             builder.Services.AddScoped<IPaymentMethodService, PaymentMethodService>();
+            builder.Services.AddScoped<IAdminCategoryService, AdminCategoryService>();
             builder.Services.AddScoped<IAdminPromoService, AdminPromoService>();
             builder.Services.AddScoped<IAdminUserService, AdminUserService>();
             builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();
