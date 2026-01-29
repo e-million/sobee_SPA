@@ -70,6 +70,42 @@
                   </div>
                 </div>
 
+                <!-- Billing Address Card -->
+                <div class="card p-6 mb-6">
+                  <div class="flex items-center gap-3 mb-6">
+                    <div class="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center">
+                      <svg class="w-5 h-5 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 1.567-3 3.5S10.343 15 12 15s3-1.567 3-3.5S13.657 8 12 8z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M20 12c0 4.418-3.582 8-8 8s-8-3.582-8-8 3.582-8 8-8 8 3.582 8 8z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 16.5c1.333-2 3.333-3 6-3s4.667 1 6 3" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h2 class="text-lg font-semibold text-slate-800">Billing Address</h2>
+                      <p class="text-sm text-slate-500">Address associated with your payment method.</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label for="billingAddress" class="block text-sm font-medium text-slate-700 mb-2">
+                      Full Address <span class="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      id="billingAddress"
+                      [(ngModel)]="checkoutForm.billingAddress"
+                      name="billingAddress"
+                      required
+                      rows="3"
+                      placeholder="123 Main Street, Apt 4B&#10;New York, NY 10001"
+                      class="input w-full resize-none"
+                      [class.input-error]="checkoutFormRef.submitted && !checkoutForm.billingAddress"
+                    ></textarea>
+                    @if (checkoutFormRef.submitted && !checkoutForm.billingAddress) {
+                      <p class="mt-1 text-sm text-red-500">Billing address is required</p>
+                    }
+                  </div>
+                </div>
+
                 <!-- Payment Method Card -->
                 <div class="card p-6 mb-6">
                   <div class="flex items-center gap-3 mb-6">

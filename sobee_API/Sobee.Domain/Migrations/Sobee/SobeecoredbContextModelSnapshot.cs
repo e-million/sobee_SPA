@@ -190,6 +190,12 @@ namespace Sobee.Domain.Migrations.Sobee
                         .HasColumnType("varchar(255)")
                         .HasColumnName("strPromoCode");
 
+                    b.Property<string>("StrBillingAddress")
+                        .HasMaxLength(255)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(255)")
+                        .HasColumnName("strBillingAddress");
+
                     b.Property<string>("StrShippingAddress")
                         .HasMaxLength(255)
                         .IsUnicode(false)

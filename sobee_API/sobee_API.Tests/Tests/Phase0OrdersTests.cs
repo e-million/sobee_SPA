@@ -36,6 +36,7 @@ public class Phase0OrdersTests : IClassFixture<TestWebApplicationFactory>
         using var checkout = CreateSessionRequest(HttpMethod.Post, "/api/orders/checkout", sessionId, sessionSecret, new
         {
             shippingAddress = "123 Test Lane",
+            billingAddress = "123 Test Lane",
             paymentMethodId = PaymentMethodId
         });
 
@@ -82,6 +83,7 @@ public class Phase0OrdersTests : IClassFixture<TestWebApplicationFactory>
         using var checkout = CreateSessionRequest(HttpMethod.Post, "/api/orders/checkout", sessionId, sessionSecret, new
         {
             shippingAddress = "123 Test Lane",
+            billingAddress = "123 Test Lane",
             paymentMethodId = PaymentMethodId
         });
 
@@ -270,6 +272,7 @@ public class Phase0OrdersTests : IClassFixture<TestWebApplicationFactory>
         using var checkout = CreateSessionRequest(HttpMethod.Post, "/api/orders/checkout", sessionId, sessionSecret, new
         {
             shippingAddress = "123 Test Lane",
+            billingAddress = "123 Test Lane",
             paymentMethodId = PaymentMethodId
         });
 
@@ -299,6 +302,7 @@ public class Phase0OrdersTests : IClassFixture<TestWebApplicationFactory>
         using var checkout = CreateAuthRequest(HttpMethod.Post, "/api/orders/checkout", userId, "User", new
         {
             shippingAddress = "123 Test Lane",
+            billingAddress = "123 Test Lane",
             paymentMethodId = PaymentMethodId
         });
 

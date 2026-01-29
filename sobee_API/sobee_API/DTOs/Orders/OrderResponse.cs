@@ -9,6 +9,8 @@ namespace sobee_API.DTOs.Orders
         public string OwnerType { get; set; } = "guest";
         public string? UserId { get; set; }
         public string? GuestSessionId { get; set; }
+        public string? ShippingAddress { get; set; }
+        public string? BillingAddress { get; set; }
         public List<OrderItemResponse> Items { get; set; } = new();
         public decimal? SubtotalAmount { get; set; }
         public decimal? DiscountAmount { get; set; }

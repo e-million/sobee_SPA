@@ -164,6 +164,7 @@ public class OrderServiceTests
         => new()
         {
             ShippingAddress = "123 Test Lane",
+            BillingAddress = "123 Test Lane",
             PaymentMethodId = 1
         };
 

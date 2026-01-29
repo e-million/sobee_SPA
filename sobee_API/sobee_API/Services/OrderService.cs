@@ -66,6 +66,16 @@ public sealed class OrderService : IOrderService
 
     public async Task<ServiceResult<OrderResponse>> CheckoutAsync(string? userId, string? sessionId, CheckoutRequest request)
     {
+        if (string.IsNullOrWhiteSpace(request.ShippingAddress))
+        {
+            return Validation<OrderResponse>("Shipping address is required.", null);
+        }
+
+        if (string.IsNullOrWhiteSpace(request.BillingAddress))
+        {
+            return Validation<OrderResponse>("Billing address is required.", null);
+        }
+
         var cartResult = await _cartService.GetExistingCartAsync(userId, sessionId);
         if (!cartResult.Success)
         {
@@ -135,6 +145,7 @@ public sealed class OrderService : IOrderService
                 StrPromoCode = cart.Promo?.Code,
                 DecTotalAmount = total,
                 StrShippingAddress = request.ShippingAddress,
+                StrBillingAddress = request.BillingAddress,
                 IntPaymentMethodId = request.PaymentMethodId,
                 StrOrderStatus = OrderStatuses.Pending,
                 UserId = userId,

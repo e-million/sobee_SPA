@@ -22,6 +22,7 @@ export class Checkout implements OnInit {
 
   checkoutForm: CheckoutRequest = {
     shippingAddress: '',
+    billingAddress: '',
     paymentMethodId: null
   };
 
@@ -59,6 +60,11 @@ export class Checkout implements OnInit {
   placeOrder() {
     if (!this.checkoutForm.shippingAddress) {
       this.error.set('Shipping address is required');
+      return;
+    }
+
+    if (!this.checkoutForm.billingAddress) {
+      this.error.set('Billing address is required');
       return;
     }
 

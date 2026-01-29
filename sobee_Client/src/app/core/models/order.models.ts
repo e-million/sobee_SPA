@@ -8,6 +8,8 @@ export interface Order {
   ownerType: string;
   userId: string | null;
   guestSessionId: string | null;
+  shippingAddress: string | null;
+  billingAddress: string | null;
   items: OrderItem[];
   subtotalAmount: number | null;
   discountAmount: number | null;
@@ -26,6 +28,7 @@ export interface OrderItem {
 
 export interface CheckoutRequest {
   shippingAddress: string | null;
+  billingAddress: string | null;
   paymentMethodId: number | null;
 }
 

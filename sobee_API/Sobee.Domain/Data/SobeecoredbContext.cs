@@ -241,6 +241,10 @@ public partial class SobeecoredbContext : DbContext {
 				.HasMaxLength(255)
 				.IsUnicode(false)
 				.HasColumnName("strShippingAddress");
+			entity.Property(e => e.StrBillingAddress)
+				.HasMaxLength(255)
+				.IsUnicode(false)
+				.HasColumnName("strBillingAddress");
 			entity.Property(e => e.StrTrackingNumber)
 				.HasMaxLength(255)
 				.IsUnicode(false)

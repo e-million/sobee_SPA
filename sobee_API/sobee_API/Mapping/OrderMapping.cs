@@ -20,6 +20,8 @@ public static class OrderMapping
             OwnerType = ownerType,
             UserId = order.UserId,
             GuestSessionId = order.SessionId,
+            ShippingAddress = order.StrShippingAddress,
+            BillingAddress = order.StrBillingAddress,
             SubtotalAmount = order.DecSubtotalAmount,
             DiscountAmount = order.DecDiscountAmount,
             DiscountPercentage = order.DecDiscountPercentage,

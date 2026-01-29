@@ -21,6 +21,8 @@ public partial class Torder {
 
     public string? StrShippingAddress { get; set; }
 
+    public string? StrBillingAddress { get; set; }
+
     public string? StrTrackingNumber { get; set; }
 
     public int? IntPaymentMethodId { get; set; }
