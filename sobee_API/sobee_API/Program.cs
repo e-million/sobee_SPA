@@ -22,6 +22,7 @@ using Sobee.Domain.Identity;
 using Sobee.Domain.Repositories;
 using sobee_API.DTOs.Common;
 using sobee_API.Middleware;
+using sobee_API.Configuration;
 using sobee_API.Services;
 using sobee_API.Services.Interfaces;
 using System.Diagnostics.Metrics;
@@ -184,6 +185,7 @@ namespace sobee_API
                 .AddBearerToken(IdentityConstants.BearerScheme);
 
             builder.Services.AddAuthorization();
+            builder.Services.Configure<TaxSettings>(builder.Configuration.GetSection("TaxSettings"));
 
             static string ResolvePartitionKey(HttpContext context)
             {

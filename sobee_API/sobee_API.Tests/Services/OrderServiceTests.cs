@@ -5,7 +5,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Options;
 using sobee_API.Constants;
+using sobee_API.Configuration;
 using sobee_API.Domain;
 using sobee_API.DTOs.Cart;
 using sobee_API.DTOs.Common;
@@ -225,7 +227,12 @@ public class OrderServiceTests
             PaymentRepository = new FakePaymentRepository();
             CartService = new FakeCartService();
             InventoryService = new FakeInventoryService();
-            Service = new OrderService(OrderRepository, PaymentRepository, CartService, InventoryService);
+            Service = new OrderService(
+                OrderRepository,
+                PaymentRepository,
+                CartService,
+                InventoryService,
+                Options.Create(new TaxSettings()));
         }
 
         public void Dispose()

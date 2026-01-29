@@ -1,6 +1,8 @@
 using Sobee.Domain.Entities.Cart;
 using Sobee.Domain.Entities.Promotions;
 using Sobee.Domain.Repositories;
+using Microsoft.Extensions.Options;
+using sobee_API.Configuration;
 using sobee_API.Domain;
 using sobee_API.DTOs;
 using sobee_API.DTOs.Cart;
@@ -14,17 +16,20 @@ public sealed class CartService : ICartService
     private readonly IProductRepository _productRepository;
     private readonly IPromoRepository _promoRepository;
     private readonly GuestSessionService _guestSessionService;
+    private readonly TaxSettings _taxSettings;
 
     public CartService(
         ICartRepository cartRepository,
         IProductRepository productRepository,
         IPromoRepository promoRepository,
-        GuestSessionService guestSessionService)
+        GuestSessionService guestSessionService,
+        IOptions<TaxSettings> taxSettings)
     {
         _cartRepository = cartRepository;
         _productRepository = productRepository;
         _promoRepository = promoRepository;
         _guestSessionService = guestSessionService;
+        _taxSettings = taxSettings.Value;
     }
 
     public async Task<ServiceResult<CartResponseDto>> GetCartAsync(
@@ -425,7 +430,10 @@ public sealed class CartService : ICartService
 
         var promo = await GetActivePromoForCartAsync(cart.IntShoppingCartId);
         var discountAmount = PromoCalculator.CalculateDiscount(subtotal, promo.DiscountPercentage);
-        var total = CartCalculator.CalculateTotal(subtotal, discountAmount);
+        var taxRate = _taxSettings.TaxEnabled ? _taxSettings.DefaultTaxRate : 0m;
+        var taxableAmount = CartCalculator.CalculateTotal(subtotal, discountAmount);
+        var tax = TaxCalculator.CalculateTax(taxableAmount, taxRate);
+        var total = taxableAmount + tax;
 
         return new CartResponseDto
         {
@@ -443,6 +451,8 @@ public sealed class CartService : ICartService
             },
             Subtotal = subtotal,
             Discount = discountAmount,
+            Tax = tax,
+            TaxRate = taxRate,
             Total = total
         };
     }

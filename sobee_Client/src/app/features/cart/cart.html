@@ -148,6 +148,11 @@
                   </div>
                 }
 
+                <div class="flex items-center justify-between">
+                  <span>Tax</span>
+                  <span class="font-medium text-slate-800">{{ cart.tax | currency:'USD':'symbol':'1.2-2' }}</span>
+                </div>
+
                 <div class="flex items-center justify-between text-base font-semibold text-slate-800">
                   <span>Total</span>
                   <span>{{ cart.total | currency:'USD':'symbol':'1.2-2' }}</span>

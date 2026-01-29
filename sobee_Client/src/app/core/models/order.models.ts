@@ -4,6 +4,8 @@ export interface Order {
   orderId: number;
   orderDate: string | null;
   totalAmount: number | null;
+  taxAmount: number | null;
+  taxRate: number | null;
   orderStatus: string | null;
   ownerType: string;
   userId: string | null;

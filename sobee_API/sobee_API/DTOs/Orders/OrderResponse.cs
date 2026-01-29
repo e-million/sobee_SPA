@@ -5,6 +5,8 @@ namespace sobee_API.DTOs.Orders
         public int OrderId { get; set; }
         public DateTime? OrderDate { get; set; }
         public decimal? TotalAmount { get; set; }
+        public decimal? TaxAmount { get; set; }
+        public decimal? TaxRate { get; set; }
         public string? OrderStatus { get; set; }
         public string OwnerType { get; set; } = "guest";
         public string? UserId { get; set; }

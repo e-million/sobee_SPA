@@ -16,6 +16,8 @@ public static class OrderMapping
             OrderId = order.IntOrderId,
             OrderDate = order.DtmOrderDate,
             TotalAmount = order.DecTotalAmount,
+            TaxAmount = order.DecTaxAmount,
+            TaxRate = order.DecTaxRate,
             OrderStatus = order.StrOrderStatus,
             OwnerType = ownerType,
             UserId = order.UserId,

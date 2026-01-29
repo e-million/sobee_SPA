@@ -219,6 +219,12 @@ public partial class SobeecoredbContext : DbContext {
 			entity.Property(e => e.DecTotalAmount)
 				.HasColumnType("decimal(18,2)")
 				.HasColumnName("decTotalAmount");
+			entity.Property(e => e.DecTaxAmount)
+				.HasColumnType("decimal(18,2)")
+				.HasColumnName("decTaxAmount");
+			entity.Property(e => e.DecTaxRate)
+				.HasColumnType("decimal(18,4)")
+				.HasColumnName("decTaxRate");
 			entity.Property(e => e.DtmOrderDate)
 				.HasColumnType("datetime")
 				.HasColumnName("dtmOrderDate");

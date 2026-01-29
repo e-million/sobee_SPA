@@ -226,6 +226,12 @@
                   </div>
                 }
 
+                <!-- Tax -->
+                <div class="flex items-center justify-between text-sm">
+                  <span class="text-slate-600">Tax</span>
+                  <span class="font-medium text-slate-800">{{ cart.tax | currency:'USD':'symbol':'1.2-2' }}</span>
+                </div>
+
                 <!-- Shipping -->
                 <div class="flex items-center justify-between text-sm">
                   <span class="text-slate-600">Shipping</span>

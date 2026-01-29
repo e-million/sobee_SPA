@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.Extensions.Options;
 using sobee_API.Constants;
+using sobee_API.Configuration;
 using sobee_API.Domain;
 using sobee_API.DTOs.Orders;
 using sobee_API.Mapping;
@@ -18,17 +20,20 @@ public sealed class OrderService : IOrderService
     private readonly IPaymentRepository _paymentRepository;
     private readonly ICartService _cartService;
     private readonly IInventoryService _inventoryService;
+    private readonly TaxSettings _taxSettings;
 
     public OrderService(
         IOrderRepository orderRepository,
         IPaymentRepository paymentRepository,
         ICartService cartService,
-        IInventoryService inventoryService)
+        IInventoryService inventoryService,
+        IOptions<TaxSettings> taxSettings)
     {
         _orderRepository = orderRepository;
         _paymentRepository = paymentRepository;
         _cartService = cartService;
         _inventoryService = inventoryService;
+        _taxSettings = taxSettings.Value;
     }
 
     public async Task<ServiceResult<OrderResponse>> GetOrderAsync(string? userId, string? sessionId, int orderId)
@@ -120,7 +125,10 @@ public sealed class OrderService : IOrderService
         var discount = cart.Promo == null
             ? 0m
             : PromoCalculator.CalculateDiscount(subtotal, cart.Promo.DiscountPercentage);
-        var total = CartCalculator.CalculateTotal(subtotal, discount);
+        var taxRate = _taxSettings.TaxEnabled ? _taxSettings.DefaultTaxRate : 0m;
+        var taxableAmount = CartCalculator.CalculateTotal(subtotal, discount);
+        var tax = TaxCalculator.CalculateTax(taxableAmount, taxRate);
+        var total = taxableAmount + tax;
 
         using var tx = await _orderRepository.BeginTransactionAsync();
 
@@ -144,6 +152,8 @@ public sealed class OrderService : IOrderService
                 DecDiscountAmount = discount,
                 StrPromoCode = cart.Promo?.Code,
                 DecTotalAmount = total,
+                DecTaxAmount = tax,
+                DecTaxRate = taxRate,
                 StrShippingAddress = request.ShippingAddress,
                 StrBillingAddress = request.BillingAddress,
                 IntPaymentMethodId = request.PaymentMethodId,

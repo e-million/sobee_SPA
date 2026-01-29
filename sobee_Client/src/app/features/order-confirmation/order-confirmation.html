@@ -98,6 +98,10 @@
                   <span class="font-medium text-emerald-600">-{{ orderData.discountAmount | currency:'USD':'symbol':'1.2-2' }}</span>
                 </div>
               }
+              <div class="flex items-center justify-between text-sm">
+                <span class="text-slate-600">Tax</span>
+                <span class="font-medium text-slate-800">{{ (orderData.taxAmount ?? 0) | currency:'USD':'symbol':'1.2-2' }}</span>
+              </div>
               <div class="flex items-center justify-between pt-3 border-t border-slate-200">
                 <span class="text-base font-semibold text-slate-800">Total</span>
                 <span class="text-xl font-bold text-slate-800">{{ orderData.totalAmount | currency:'USD':'symbol':'1.2-2' }}</span>

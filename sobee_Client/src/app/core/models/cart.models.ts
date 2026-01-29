@@ -33,6 +33,8 @@ export interface Cart {
   promo: CartPromo | null;
   subtotal: number;
   discount: number;
+  tax: number;
+  taxRate: number;
   total: number;
 }
 

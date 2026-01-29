@@ -153,6 +153,14 @@ namespace Sobee.Domain.Migrations.Sobee
                         .HasColumnType("decimal(18,2)")
                         .HasColumnName("decTotalAmount");
 
+                    b.Property<decimal?>("DecTaxAmount")
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("decTaxAmount");
+
+                    b.Property<decimal?>("DecTaxRate")
+                        .HasColumnType("decimal(18,4)")
+                        .HasColumnName("decTaxRate");
+
                     b.Property<DateTime?>("DtmDeliveredDate")
                         .HasColumnType("datetime")
                         .HasColumnName("dtmDeliveredDate");

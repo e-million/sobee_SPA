@@ -5,11 +5,13 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Sobee.Domain.Data;
 using Sobee.Domain.Entities.Cart;
 using Sobee.Domain.Entities.Products;
 using Sobee.Domain.Entities.Promotions;
 using Sobee.Domain.Repositories;
+using sobee_API.Configuration;
 using sobee_API.DTOs.Cart;
 using sobee_API.Services;
 using Xunit;
@@ -29,6 +31,7 @@ public class CartServiceTests
         result.Value.Should().NotBeNull();
         result.Value!.Items.Should().BeEmpty();
         result.Value.Subtotal.Should().Be(0m);
+        result.Value.Tax.Should().Be(0m);
         result.Value.Total.Should().Be(0m);
         context.CartRepository.Carts.Should().HaveCount(1);
     }
@@ -47,7 +50,8 @@ public class CartServiceTests
         result.Value!.Items.Should().HaveCount(1);
         result.Value.Items[0].Quantity.Should().Be(2);
         result.Value.Subtotal.Should().Be(9.00m);
-        result.Value.Total.Should().Be(9.00m);
+        result.Value.Tax.Should().Be(0.72m);
+        result.Value.Total.Should().Be(9.72m);
     }
 
     [Fact]
@@ -384,7 +388,8 @@ public class CartServiceTests
                 CartRepository,
                 ProductRepository,
                 PromoRepository,
-                guestSessionService);
+                guestSessionService,
+                Options.Create(new TaxSettings()));
         }
 
         public void Dispose()

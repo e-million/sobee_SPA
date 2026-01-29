@@ -100,6 +100,10 @@
                       <span class="font-medium text-emerald-600">-{{ order.discountAmount | currency:'USD':'symbol':'1.2-2' }}</span>
                     </div>
                   }
+                  <div class="flex items-center justify-between gap-8">
+                    <span>Tax</span>
+                    <span class="font-medium text-slate-800">{{ (order.taxAmount ?? 0) | currency:'USD':'symbol':'1.2-2' }}</span>
+                  </div>
                 </div>
                 <div class="flex items-center justify-between sm:justify-end gap-6">
                   <div class="text-right">

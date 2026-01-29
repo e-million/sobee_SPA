@@ -12,6 +12,8 @@ namespace sobee_API.DTOs.Cart
         public CartPromoDto? Promo { get; set; }
         public decimal Subtotal { get; set; }
         public decimal Discount { get; set; }
+        public decimal Tax { get; set; }
+        public decimal TaxRate { get; set; }
         public decimal Total { get; set; }
     }
 }

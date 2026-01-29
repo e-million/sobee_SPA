@@ -17,6 +17,10 @@ public partial class Torder {
 
     public decimal? DecTotalAmount { get; set; }
 
+    public decimal? DecTaxAmount { get; set; }
+
+    public decimal? DecTaxRate { get; set; }
+
     public int? IntShippingStatusId { get; set; }
 
     public string? StrShippingAddress { get; set; }
