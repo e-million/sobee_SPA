@@ -26,6 +26,7 @@ export class Shop implements OnInit {
   currentPage = signal(1);
   pageSize = signal(12);
   totalProducts = signal(0);
+  pageSizeOptions = [12, 24, 48];
 
   sortOptions = [
     { value: 'newest', label: 'Newest' },
@@ -52,12 +53,33 @@ export class Shop implements OnInit {
     this.route.queryParamMap
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(params => {
-        this.selectedCategory = params.get('category') ?? 'all';
-        this.minPrice = params.get('minPrice') ?? '';
-        this.maxPrice = params.get('maxPrice') ?? '';
-        this.selectedSort = params.get('sort') ?? 'newest';
-        this.currentPage.set(1);
-        this.loadProducts();
+        const nextCategory = params.get('category') ?? 'all';
+        const nextMin = params.get('minPrice') ?? '';
+        const nextMax = params.get('maxPrice') ?? '';
+        const nextSort = params.get('sort') ?? 'newest';
+        const nextPage = Number(params.get('page') ?? '1');
+        const nextPageSize = Number(params.get('pageSize') ?? this.pageSize().toString());
+
+        const safePage = Number.isNaN(nextPage) || nextPage < 1 ? 1 : nextPage;
+        const safePageSize = this.pageSizeOptions.includes(nextPageSize) ? nextPageSize : this.pageSize();
+
+        const filtersChanged = nextCategory !== this.selectedCategory
+          || nextMin !== this.minPrice
+          || nextMax !== this.maxPrice
+          || nextSort !== this.selectedSort;
+
+        this.selectedCategory = nextCategory;
+        this.minPrice = nextMin;
+        this.maxPrice = nextMax;
+        this.selectedSort = nextSort;
+        this.pageSize.set(safePageSize);
+        this.currentPage.set(safePage);
+
+        if (filtersChanged || this.allProducts().length === 0) {
+          this.loadProducts();
+        } else {
+          this.applyFilters();
+        }
       });
 
     this.loadCategories();
@@ -108,12 +130,22 @@ export class Shop implements OnInit {
     this.updateQueryParams();
   }
 
-  onCategoryChange() {
+  onCategoryChange(value?: string) {
+    if (value !== undefined) {
+      this.selectedCategory = value;
+    }
+
     this.currentPage.set(1);
+    this.loadProducts();
     this.updateQueryParams();
   }
 
   onPriceChange() {
+    this.currentPage.set(1);
+    this.updateQueryParams();
+  }
+
+  onPageSizeChange() {
     this.currentPage.set(1);
     this.updateQueryParams();
   }
@@ -165,7 +197,7 @@ export class Shop implements OnInit {
   goToPage(page: number) {
     if (page >= 1 && page <= this.totalPages) {
       this.currentPage.set(page);
-      this.updatePagedProducts();
+      this.updateQueryParams();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }
@@ -187,6 +219,14 @@ export class Shop implements OnInit {
 
     if (this.selectedSort && this.selectedSort !== 'newest') {
       queryParams['sort'] = this.selectedSort;
+    }
+
+    if (this.currentPage() > 1) {
+      queryParams['page'] = this.currentPage().toString();
+    }
+
+    if (this.pageSize() !== 12) {
+      queryParams['pageSize'] = this.pageSize().toString();
     }
 
     this.router.navigate([], {
@@ -223,5 +263,29 @@ export class Shop implements OnInit {
     if (categories.length > 0) {
       this.categories.set(categories);
     }
+  }
+
+  get rangeStart(): number {
+    if (this.totalProducts() === 0) {
+      return 0;
+    }
+
+    return (this.currentPage() - 1) * this.pageSize() + 1;
+  }
+
+  get rangeEnd(): number {
+    if (this.totalProducts() === 0) {
+      return 0;
+    }
+
+    return Math.min(this.currentPage() * this.pageSize(), this.totalProducts());
+  }
+
+  get pageSizeValue(): number {
+    return this.pageSize();
+  }
+
+  set pageSizeValue(value: number) {
+    this.pageSize.set(Number(value));
   }
 }

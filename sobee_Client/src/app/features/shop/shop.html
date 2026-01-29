@@ -24,12 +24,26 @@
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <p class="text-slate-600">
             @if (!loading()) {
-              Showing <span class="font-medium text-slate-800">{{ products().length }}</span>
+              Showing <span class="font-medium text-slate-800">{{ rangeStart }}-{{ rangeEnd }}</span>
               of <span class="font-medium text-slate-800">{{ totalProducts() }}</span> products
             }
           </p>
 
           <div class="flex items-center gap-4">
+            <!-- Page Size -->
+            <div class="flex items-center gap-2">
+              <label for="pageSize" class="text-sm text-slate-600 whitespace-nowrap">Per page:</label>
+              <select
+                id="pageSize"
+                [(ngModel)]="pageSizeValue"
+                (change)="onPageSizeChange()"
+                class="input py-2 pl-3 pr-8 w-auto min-w-[110px]"
+              >
+                @for (size of pageSizeOptions; track size) {
+                  <option [value]="size">{{ size }}</option>
+                }
+              </select>
+            </div>
             <!-- Sort Dropdown -->
             <div class="flex items-center gap-2">
               <label for="sort" class="text-sm text-slate-600 whitespace-nowrap">Sort by:</label>
@@ -53,7 +67,7 @@
             <select
               id="category"
               [(ngModel)]="selectedCategory"
-              (change)="onCategoryChange()"
+              (ngModelChange)="onCategoryChange($event)"
               class="input py-2 mt-1"
             >
               <option value="all">All Categories</option>
@@ -123,7 +137,9 @@
 
         <!-- Pagination -->
         @if (totalPages > 1) {
-          <div class="flex justify-center items-center gap-2 mt-12">
+          <div class="flex flex-col items-center gap-3 mt-12">
+            <p class="text-sm text-slate-500">Page {{ currentPage() }} of {{ totalPages }}</p>
+            <div class="flex justify-center items-center gap-2">
             <button
               (click)="goToPage(currentPage() - 1)"
               [disabled]="currentPage() === 1"
@@ -154,6 +170,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
               </svg>
             </button>
+            </div>
           </div>
         }
       } @else {
