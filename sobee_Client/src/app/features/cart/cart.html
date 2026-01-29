@@ -197,9 +197,14 @@
                 }
               </div>
 
-              <a routerLink="/checkout" class="btn-primary w-full mt-6 justify-center">
+              <button type="button" (click)="proceedToCheckout()" class="btn-primary w-full mt-6 justify-center">
                 Proceed to Checkout
-              </a>
+              </button>
+              @if (!authService.isLoggedIn()) {
+                <p class="mt-3 text-xs text-slate-500 text-center">
+                  Please sign in to complete checkout.
+                </p>
+              }
             </div>
           </div>
         } @else {

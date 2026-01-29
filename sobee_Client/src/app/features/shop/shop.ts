@@ -41,6 +41,7 @@ export class Shop implements OnInit {
   selectedCategory = 'all';
   minPrice = '';
   maxPrice = '';
+  searchTerm = '';
   private readonly destroyRef = inject(DestroyRef);
 
   constructor(
@@ -59,27 +60,31 @@ export class Shop implements OnInit {
         const nextMin = params.get('minPrice') ?? '';
         const nextMax = params.get('maxPrice') ?? '';
         const nextSort = params.get('sort') ?? 'newest';
+        const nextSearch = params.get('q') ?? '';
         const nextPage = Number(params.get('page') ?? '1');
         const nextPageSize = Number(params.get('pageSize') ?? this.pageSize().toString());
 
         const safePage = Number.isNaN(nextPage) || nextPage < 1 ? 1 : nextPage;
         const safePageSize = this.pageSizeOptions.includes(nextPageSize) ? nextPageSize : this.pageSize();
 
-        const filtersChanged = nextCategory !== this.selectedCategory
+        const categoryChanged = nextCategory !== this.selectedCategory;
+        const filtersChanged = categoryChanged
           || nextMin !== this.minPrice
           || nextMax !== this.maxPrice
-          || nextSort !== this.selectedSort;
+          || nextSort !== this.selectedSort
+          || nextSearch !== this.searchTerm;
 
         this.selectedCategory = nextCategory;
         this.minPrice = nextMin;
         this.maxPrice = nextMax;
         this.selectedSort = nextSort;
+        this.searchTerm = nextSearch;
         this.pageSize.set(safePageSize);
         this.currentPage.set(safePage);
 
-        if (filtersChanged || this.allProducts().length === 0) {
+        if (categoryChanged || this.allProducts().length === 0) {
           this.loadProducts();
-        } else {
+        } else if (filtersChanged) {
           this.applyFilters();
         }
       });
@@ -147,6 +152,15 @@ export class Shop implements OnInit {
     this.updateQueryParams();
   }
 
+  onSearchChange(value?: string) {
+    if (value !== undefined) {
+      this.searchTerm = value;
+    }
+
+    this.currentPage.set(1);
+    this.updateQueryParams();
+  }
+
   onPageSizeChange() {
     this.currentPage.set(1);
     this.updateQueryParams();
@@ -157,6 +171,7 @@ export class Shop implements OnInit {
     this.minPrice = '';
     this.maxPrice = '';
     this.selectedSort = 'newest';
+    this.searchTerm = '';
     this.currentPage.set(1);
     this.updateQueryParams();
   }
@@ -172,6 +187,15 @@ export class Shop implements OnInit {
 
     if (this.maxPrice && !Number.isNaN(max)) {
       filtered = filtered.filter(product => product.price <= max);
+    }
+
+    if (this.searchTerm.trim()) {
+      const term = this.searchTerm.trim().toLowerCase();
+      filtered = filtered.filter(product => {
+        const name = product.name?.toLowerCase() ?? '';
+        const description = product.description?.toLowerCase() ?? '';
+        return name.includes(term) || description.includes(term);
+      });
     }
 
     filtered = this.sortProducts(filtered);
@@ -221,6 +245,10 @@ export class Shop implements OnInit {
 
     if (this.selectedSort && this.selectedSort !== 'newest') {
       queryParams['sort'] = this.selectedSort;
+    }
+
+    if (this.searchTerm.trim()) {
+      queryParams['q'] = this.searchTerm.trim();
     }
 
     if (this.currentPage() > 1) {

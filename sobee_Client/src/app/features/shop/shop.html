@@ -61,7 +61,18 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-[minmax(0,220px)_minmax(0,160px)_minmax(0,160px)_auto] gap-4 items-end">
+        <div class="grid grid-cols-1 md:grid-cols-[minmax(0,240px)_minmax(0,220px)_minmax(0,160px)_minmax(0,160px)_auto] gap-4 items-end">
+          <div>
+            <label for="search" class="text-sm text-slate-600">Search</label>
+            <input
+              id="search"
+              type="search"
+              [(ngModel)]="searchTerm"
+              (ngModelChange)="onSearchChange($event)"
+              class="input py-2 mt-1"
+              placeholder="Search products"
+            />
+          </div>
           <div>
             <label for="category" class="text-sm text-slate-600">Category</label>
             <select

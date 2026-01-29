@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { MainLayout } from '../../shared/layout/main-layout';
 import { CartService } from '../../core/services/cart.service';
 import { ToastService } from '../../core/services/toast.service';
 import { CartItem } from '../../core/models';
+import { AuthService } from '../../core/services/auth.service';
 
 @Component({
   selector: 'app-cart',
@@ -23,7 +24,9 @@ export class Cart implements OnInit {
 
   constructor(
     public cartService: CartService,
-    private toastService: ToastService
+    private toastService: ToastService,
+    public authService: AuthService,
+    private router: Router
   ) {}
 
   ngOnInit() {
@@ -133,5 +136,16 @@ export class Cart implements OnInit {
       updated.delete(cartItemId);
     }
     this.busyItemIds.set(updated);
+  }
+
+  proceedToCheckout() {
+    if (!this.authService.isLoggedIn()) {
+      localStorage.setItem('returnUrl', '/checkout');
+      this.toastService.info('Please log in to continue to checkout.');
+      this.router.navigate(['/login']);
+      return;
+    }
+
+    this.router.navigate(['/checkout']);
   }
 }
