@@ -143,15 +143,7 @@ public sealed class ProductService : IProductService
             return NotFound<MessageResponseDto>("Product not found.", null);
         }
 
-        if (product.TproductImages != null && product.TproductImages.Count > 0)
-        {
-            foreach (var image in product.TproductImages.ToList())
-            {
-                await _productRepository.RemoveImageAsync(image);
-            }
-        }
-
-        await _productRepository.RemoveAsync(product);
+        product.BlnIsActive = false;
         await _productRepository.SaveChangesAsync();
 
         return ServiceResult<MessageResponseDto>.Ok(new MessageResponseDto { Message = "Product deleted." });
