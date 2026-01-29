@@ -79,6 +79,7 @@ export class Checkout implements OnInit {
     this.orderService.checkout(this.checkoutForm).subscribe({
       next: (order) => {
         this.loading.set(false);
+        this.cartService.clearCart();
         // Navigate to order confirmation page
         this.router.navigate(['/order-confirmation', order.orderId]);
       },
