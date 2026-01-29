@@ -545,6 +545,10 @@ namespace Sobee.Domain.Migrations.Sobee
                         .HasColumnName("blnIsActive")
                         .HasDefaultValue(true);
 
+                    b.Property<DateTime?>("DtmDateAdded")
+                        .HasColumnType("datetime")
+                        .HasColumnName("dtmDateAdded");
+
                     b.Property<int?>("IntDrinkCategoryId")
                         .HasColumnType("int")
                         .HasColumnName("intDrinkCategoryID");

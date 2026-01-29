@@ -13,6 +13,7 @@ namespace sobee_API.DTOs.Products
         public int? CategoryId { get; set; }
         public bool? IsActive { get; set; }
         public decimal? Rating { get; set; }
+        public DateTime? DateAdded { get; set; }
         public List<ProductImageDto> Images { get; set; } = new();
     }
 

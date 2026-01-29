@@ -11,6 +11,7 @@ export interface Product {
   imageUrl: string | null;
   category: string | null;
   rating: number | null;
+  dateAdded: string | null;
 }
 
 export interface ProductDetails extends Product {

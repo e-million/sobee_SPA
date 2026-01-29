@@ -32,6 +32,8 @@ export class Shop implements OnInit {
     { value: 'newest', label: 'Newest' },
     { value: 'price-low', label: 'Price: Low to High' },
     { value: 'price-high', label: 'Price: High to Low' },
+    { value: 'rating-high', label: 'Rating: High to Low' },
+    { value: 'rating-low', label: 'Rating: Low to High' },
     { value: 'name', label: 'Name A-Z' },
   ];
 
@@ -243,11 +245,22 @@ export class Shop implements OnInit {
         return sorted.sort((a, b) => a.price - b.price);
       case 'price-high':
         return sorted.sort((a, b) => b.price - a.price);
+      case 'rating-high':
+        return sorted.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
+      case 'rating-low':
+        return sorted.sort((a, b) => (a.rating ?? 0) - (b.rating ?? 0));
       case 'name':
         return sorted.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
       case 'newest':
       default:
-        return sorted.sort((a, b) => b.id - a.id);
+        return sorted.sort((a, b) => {
+          const dateA = a.dateAdded ? new Date(a.dateAdded).getTime() : 0;
+          const dateB = b.dateAdded ? new Date(b.dateAdded).getTime() : 0;
+          if (dateA === dateB) {
+            return b.id - a.id;
+          }
+          return dateB - dateA;
+        });
     }
   }
 

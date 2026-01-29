@@ -397,6 +397,9 @@ public partial class SobeecoredbContext : DbContext {
 			entity.Property(e => e.BlnIsActive)
 				.HasColumnName("blnIsActive")
 				.HasDefaultValue(true);
+			entity.Property(e => e.DtmDateAdded)
+				.HasColumnType("datetime")
+				.HasColumnName("dtmDateAdded");
 
 			entity.HasOne(d => d.IntDrinkCategory)
 				.WithMany(p => p.Tproducts)

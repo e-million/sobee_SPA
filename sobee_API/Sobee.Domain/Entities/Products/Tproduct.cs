@@ -26,6 +26,8 @@ public partial class Tproduct
 
     public bool BlnIsActive { get; set; } = true;
 
+    public DateTime? DtmDateAdded { get; set; }
+
     public virtual ICollection<TcartItem> TcartItems { get; set; } = new List<TcartItem>();
 
     public virtual ICollection<Tfavorite> Tfavorites { get; set; } = new List<Tfavorite>();

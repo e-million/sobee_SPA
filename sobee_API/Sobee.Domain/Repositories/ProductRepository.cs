@@ -115,6 +115,12 @@ public sealed class ProductRepository : IProductRepository
             {
                 "priceAsc" => productsQuery.OrderBy(p => p.DecPrice),
                 "priceDesc" => productsQuery.OrderByDescending(p => p.DecPrice),
+                "newest" => productsQuery
+                    .OrderByDescending(p => p.DtmDateAdded ?? DateTime.MinValue)
+                    .ThenByDescending(p => p.IntProductId),
+                "oldest" => productsQuery
+                    .OrderBy(p => p.DtmDateAdded ?? DateTime.MinValue)
+                    .ThenBy(p => p.IntProductId),
                 _ => productsQuery.OrderBy(p => p.IntProductId)
             };
 

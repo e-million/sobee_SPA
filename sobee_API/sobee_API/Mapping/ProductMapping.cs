@@ -23,6 +23,7 @@ public static class ProductMapping
             Category = product.IntDrinkCategory?.StrName,
             CategoryId = product.IntDrinkCategoryId,
             Rating = GetAverageRating(product),
+            DateAdded = product.DtmDateAdded,
             IsActive = isAdmin ? product.BlnIsActive : null
         };
     }
@@ -42,6 +43,7 @@ public static class ProductMapping
             Cost = isAdmin ? product.DecCost : null,
             IsActive = isAdmin ? product.BlnIsActive : null,
             Rating = GetAverageRating(product),
+            DateAdded = product.DtmDateAdded,
             Images = (product.TproductImages ?? new List<TproductImage>())
                 .OrderBy(i => i.IntProductImageId)
                 .Select(ToProductImageDto)

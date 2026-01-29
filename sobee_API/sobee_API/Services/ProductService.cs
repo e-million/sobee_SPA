@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using sobee_API.Domain;
@@ -78,7 +79,8 @@ public sealed class ProductService : IProductService
             DecCost = request.Cost,
             IntStockAmount = request.StockAmount,
             IntDrinkCategoryId = request.CategoryId,
-            BlnIsActive = request.IsActive ?? true
+            BlnIsActive = request.IsActive ?? true,
+            DtmDateAdded = DateTime.UtcNow
         };
 
         await _productRepository.AddAsync(product);
