@@ -17,6 +17,7 @@
 
         public string? Category { get; set; }
         public int? CategoryId { get; set; }
+        public decimal? Rating { get; set; }
 
         // Admin-only in responses
         public bool? IsActive { get; set; }

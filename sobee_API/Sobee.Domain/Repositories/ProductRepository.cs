@@ -56,7 +56,8 @@ public sealed class ProductRepository : IProductRepository
     {
         IQueryable<Tproduct> productsQuery = _db.Tproducts
             .Include(p => p.TproductImages)
-            .Include(p => p.IntDrinkCategory);
+            .Include(p => p.IntDrinkCategory)
+            .Include(p => p.Treviews);
 
         if (!track)
         {
@@ -131,6 +132,7 @@ public sealed class ProductRepository : IProductRepository
         var query = _db.Tproducts
             .Include(p => p.TproductImages)
             .Include(p => p.IntDrinkCategory)
+            .Include(p => p.Treviews)
             .AsQueryable();
 
         if (!track)

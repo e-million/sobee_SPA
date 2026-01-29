@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using sobee_API.DTOs.Products;
@@ -21,6 +22,7 @@ public static class ProductMapping
             StockAmount = isAdmin ? product.IntStockAmount : null,
             Category = product.IntDrinkCategory?.StrName,
             CategoryId = product.IntDrinkCategoryId,
+            Rating = GetAverageRating(product),
             IsActive = isAdmin ? product.BlnIsActive : null
         };
     }
@@ -39,6 +41,7 @@ public static class ProductMapping
             CategoryId = product.IntDrinkCategoryId,
             Cost = isAdmin ? product.DecCost : null,
             IsActive = isAdmin ? product.BlnIsActive : null,
+            Rating = GetAverageRating(product),
             Images = (product.TproductImages ?? new List<TproductImage>())
                 .OrderBy(i => i.IntProductImageId)
                 .Select(ToProductImageDto)
@@ -76,5 +79,16 @@ public static class ProductMapping
             .OrderBy(i => i.IntProductImageId)
             .Select(i => i.StrProductImageUrl)
             .FirstOrDefault();
+    }
+
+    private static decimal GetAverageRating(Tproduct product)
+    {
+        if (product.Treviews == null || product.Treviews.Count == 0)
+        {
+            return 0m;
+        }
+
+        var avg = product.Treviews.Average(r => r.IntRating);
+        return (decimal)Math.Round(avg, 1, MidpointRounding.AwayFromZero);
     }
 }
