@@ -61,6 +61,18 @@
               </div>
 
               <div class="mt-5 divide-y divide-slate-200">
+                @if (order.shippingAddress || order.billingAddress) {
+                  <div class="grid gap-4 py-3 text-sm md:grid-cols-2">
+                    <div class="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Shipping</p>
+                      <p class="mt-1 text-slate-700">{{ order.shippingAddress || 'Not provided' }}</p>
+                    </div>
+                    <div class="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Billing</p>
+                      <p class="mt-1 text-slate-700">{{ order.billingAddress || 'Not provided' }}</p>
+                    </div>
+                  </div>
+                }
                 @if (order.items && order.items.length > 0) {
                   @for (item of order.items; track item.orderItemId) {
                     <div class="flex items-center justify-between py-3 text-sm">
